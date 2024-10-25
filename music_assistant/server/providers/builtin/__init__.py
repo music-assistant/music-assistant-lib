@@ -40,7 +40,7 @@ from music_assistant.common.models.media_items import (
     UniqueList,
 )
 from music_assistant.common.models.streamdetails import StreamDetails
-from music_assistant.constants import MASS_LOGO, VARIOUS_ARTISTS_FANART
+from music_assistant.constants import MASS_LOGO, RESOURCES_DIR, VARIOUS_ARTISTS_FANART
 from music_assistant.server.helpers.tags import AudioTags, parse_tags
 from music_assistant.server.models.music_provider import MusicProvider
 
@@ -142,6 +142,20 @@ class BuiltinProvider(MusicProvider):
         if not await asyncio.to_thread(os.path.exists, self._playlists_dir):
             await asyncio.to_thread(os.mkdir, self._playlists_dir)
         await super().loaded_in_mass()
+        # migrate old image path
+        # TODO: remove this after 2.3+ release
+        old_path = (
+            "/usr/local/lib/python3.12/site-packages/music_assistant/server/helpers/resources"
+        )
+        new_path = str(RESOURCES_DIR)
+        query = (
+            "UPDATE playlists SET metadata = "
+            f"REPLACE (metadata, '{old_path}', '{new_path}') "
+            f"WHERE playlists.metadata LIKE '%{old_path}%'"
+        )
+        if self.mass.music.database:
+            await self.mass.music.database.execute(query)
+            await self.mass.music.database.commit()
 
     @property
     def is_streaming_provider(self) -> bool:
@@ -412,7 +426,7 @@ class BuiltinProvider(MusicProvider):
         playlist_items = await self._read_playlist_file_items(prov_playlist_id)
         # remove items by index
         for i in sorted(positions_to_remove, reverse=True):
-            del playlist_items[i]
+            del playlist_items[i - 1]
         # store playlist file
         await self._write_playlist_file_items(prov_playlist_id, playlist_items)
         # mark last_updated on playlist object

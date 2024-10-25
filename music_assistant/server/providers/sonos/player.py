@@ -15,6 +15,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 import shortuuid
+from aiohttp.client_exceptions import ClientConnectorError
 from aiosonos.api.models import ContainerType, MusicService, SonosCapability
 from aiosonos.api.models import PlayBackState as SonosPlayBackState
 from aiosonos.client import SonosLocalApiClient
@@ -22,9 +23,16 @@ from aiosonos.const import EventType as SonosEventType
 from aiosonos.const import SonosEvent
 from aiosonos.exceptions import ConnectionFailed, FailedCommand
 
-from music_assistant.common.models.enums import EventType, PlayerFeature, PlayerState, PlayerType
+from music_assistant.common.models.enums import (
+    EventType,
+    PlayerFeature,
+    PlayerState,
+    PlayerType,
+    RepeatMode,
+)
 from music_assistant.common.models.event import MassEvent
 from music_assistant.common.models.player import DeviceInfo, Player, PlayerMedia
+from music_assistant.constants import CONF_CROSSFADE
 
 from .const import (
     CONF_AIRPLAY_MODE,
@@ -90,7 +98,7 @@ class SonosPlayer:
     async def setup(self) -> None:
         """Handle setup of the player."""
         # connect the player first so we can fail early
-        await self._connect()
+        await self._connect(False)
 
         # collect supported features
         supported_features = set(PLAYER_FEATURES_BASE)
@@ -145,7 +153,7 @@ class SonosPlayer:
         # register callback for playerqueue state changes
         self._on_cleanup_callbacks.append(
             self.mass.subscribe(
-                self._on_mass_queue_event,
+                self._on_mass_queue_items_event,
                 EventType.QUEUE_ITEMS_UPDATED,
                 self.player_id,
             )
@@ -162,7 +170,7 @@ class SonosPlayer:
         """Reconnect the player."""
         # use a task_id to prevent multiple reconnects
         task_id = f"sonos_reconnect_{self.player_id}"
-        self.mass.call_later(delay, self._connect, task_id=task_id)
+        self.mass.call_later(delay, self._connect, delay, task_id=task_id)
 
     async def cmd_stop(self) -> None:
         """Send STOP command to given player."""
@@ -363,12 +371,21 @@ class SonosPlayer:
 
         self.mass_player.current_media = current_media
 
-    async def _connect(self) -> None:
+    async def _connect(self, retry_on_fail: int = 0) -> None:
         """Connect to the Sonos player."""
         if self._listen_task and not self._listen_task.done():
             self.logger.debug("Already connected to Sonos player: %s", self.player_id)
             return
-        await self.client.connect()
+        try:
+            await self.client.connect()
+        except (ConnectionFailed, ClientConnectorError) as err:
+            self.logger.warning("Failed to connect to Sonos player: %s", err)
+            self.mass_player.available = False
+            self.mass.players.update(self.player_id)
+            if not retry_on_fail:
+                raise
+            self.reconnect(min(retry_on_fail + 30, 3600))
+            return
         self.connected = True
         self.logger.debug("Connected to player API")
         init_ready = asyncio.Event()
@@ -416,11 +433,39 @@ class SonosPlayer:
         self.update_attributes()
         self.mass.players.update(self.player_id)
 
-    async def _on_mass_queue_event(self, event: MassEvent) -> None:
+    async def _on_mass_queue_items_event(self, event: MassEvent) -> None:
         """Handle incoming event from linked MA playerqueue."""
         # If the queue items changed and we have an active sonos queue,
         # we need to inform the sonos queue to refresh the items.
         if self.mass_player.active_source != event.object_id:
             return
+        if not self.connected:
+            return
+        queue = self.mass.player_queues.get(event.object_id)
+        if not queue or queue.state not in (PlayerState.PLAYING, PlayerState.PAUSED):
+            return
         if session_id := self.client.player.group.active_session_id:
             await self.client.api.playback_session.refresh_cloud_queue(session_id)
+
+    async def _on_mass_queue_event(self, event: MassEvent) -> None:
+        """Handle incoming event from linked MA playerqueue."""
+        if self.mass_player.active_source != event.object_id:
+            return
+        if not self.connected:
+            return
+        # sync crossfade and repeat modes
+        queue = self.mass.player_queues.get(event.object_id)
+        if not queue or queue.state not in (PlayerState.PLAYING, PlayerState.PAUSED):
+            return
+        crossfade = await self.mass.config.get_player_config_value(queue.queue_id, CONF_CROSSFADE)
+        repeat_single_enabled = queue.repeat_mode == RepeatMode.ONE
+        repeat_all_enabled = queue.repeat_mode == RepeatMode.ALL
+        play_modes = self.client.player.group.play_modes
+        if (
+            play_modes.crossfade != crossfade
+            or play_modes.repeat != repeat_all_enabled
+            or play_modes.repeat_one != repeat_single_enabled
+        ):
+            await self.client.player.group.set_play_modes(
+                crossfade=crossfade, repeat=repeat_all_enabled, repeat_one=repeat_single_enabled
+            )

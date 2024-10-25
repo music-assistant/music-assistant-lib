@@ -256,7 +256,6 @@ class MusicAssistant:
                 continue
             if return_unavailable or prov.available:
                 return prov
-        LOGGER.debug("Provider %s is not available", provider_instance_or_domain)
         return None
 
     def signal_event(

@@ -213,7 +213,7 @@ def main() -> None:
     run(
         start_mass(),
         shutdown_callback=on_shutdown,
-        executor_workers=32,
+        executor_workers=16,
     )
 
 
