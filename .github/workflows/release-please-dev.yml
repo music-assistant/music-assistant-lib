@@ -21,10 +21,5 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           release-type: simple
-<<<<<<< Updated upstream
-          manifest-file: .release-please-manifest-dev.json
-          config-file: .release-please-config-dev.json
-=======
           manifest-file: .github/workflows/.release-please-manifest-dev.json
           config-file: .github/workflows/.release-please-config-dev.json
->>>>>>> Stashed changes
