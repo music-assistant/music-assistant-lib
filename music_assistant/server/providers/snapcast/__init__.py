@@ -432,6 +432,7 @@ class SnapCastProvider(PlayerProvider):
     async def cmd_stop(self, player_id: str) -> None:
         """Send STOP command to given player."""
         player = self.mass.players.get(player_id, raise_unavailable=False)
+        player.elapsed_time = time.time()
         if stream_task := self._stream_tasks.pop(player_id, None):
             if not stream_task.done():
                 stream_task.cancel()
