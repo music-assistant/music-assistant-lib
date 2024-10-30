@@ -368,7 +368,7 @@ class OpenSonicProvider(MusicProvider):
             # We are setting disc number to 0 because the standard for what is part of
             # a Open Subsonic Song is not yet set and the implementations I have checked
             # do not contain this field. We should revisit this when the spec is finished
-            disc_number=0,
+            disc_number=sonic_song.disc_number or 0,
             favorite=bool(sonic_song.starred),
             provider_mappings={
                 ProviderMapping(
@@ -410,13 +410,14 @@ class OpenSonicProvider(MusicProvider):
                 # because it will not have an entry in the artists table so the best we can do it
                 # add a 'fake' id with the proper artist name and have get_artist() check for this
                 # id and handle it locally.
+                fake_id = f"{NAVI_VARIOUS_PREFIX}{sonic_song.artist}"
                 artist = Artist(
-                    item_id=f"{NAVI_VARIOUS_PREFIX}{sonic_song.artist}",
+                    item_id=fake_id,
                     provider=self.domain,
                     name=sonic_song.artist,
                     provider_mappings={
                         ProviderMapping(
-                            item_id=UNKNOWN_ARTIST_ID,
+                            item_id=fake_id,
                             provider_domain=self.domain,
                             provider_instance=self.instance_id,
                         )
