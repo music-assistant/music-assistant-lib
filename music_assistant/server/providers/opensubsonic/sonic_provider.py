@@ -99,14 +99,12 @@ class OpenSonicProvider(MusicProvider):
         try:
             success = await self._run_async(self._conn.ping)
             if not success:
-                msg = (
-                    f"Failed to connect to {self.config.get_value(CONF_BASE_URL)}, "
-                    "check your settings."
-                )
-                raise LoginFailed(msg)
+                raise CredentialError
         except (AuthError, CredentialError) as e:
             msg = (
-                f"Failed to connect to {self.config.get_value(CONF_BASE_URL)}, check your settings."
+                "Failed to connect to "
+                f"{self.config.get_value(CONF_BASE_URL)}"
+                ", check your settings."
             )
             raise LoginFailed(msg) from e
         self._enable_podcasts = self.config.get_value(CONF_ENABLE_PODCASTS)
@@ -322,8 +320,9 @@ class OpenSonicProvider(MusicProvider):
             )
         else:
             self.logger.info(
-                f"Unable to find an artist ID for album '{sonic_album.name}' with "
-                f"ID '{sonic_album.id}'."
+                "Unable to find an artist ID for album '%s' with ID '%s'.",
+                sonic_album.name,
+                sonic_album.id,
             )
             album.artists.append(
                 Artist(
@@ -425,8 +424,9 @@ class OpenSonicProvider(MusicProvider):
                 )
             else:
                 self.logger.info(
-                    f"Unable to find artist ID for track '{sonic_song.title}' with "
-                    f"ID '{sonic_song.id}'."
+                    "Unable to find artist ID for track '%s' with ID '%s'.",
+                    sonic_song.title,
+                    sonic_song.id,
                 )
                 artist = Artist(
                     item_id=UNKNOWN_ARTIST_ID,
