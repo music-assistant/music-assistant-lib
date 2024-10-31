@@ -398,7 +398,15 @@ class PlayerController(CoreController):
 
         - player_id: player_id of the player to handle the command.
         """
-        new_volume = min(100, self._players[player_id].volume_level + 5)
+        if not (player := self.get(player_id)):
+            return
+        if player.volume_level < 5 or player.volume_level > 95:
+            step_size = 1
+        elif player.volume_level < 20 or player.volume_level > 80:
+            step_size = 2
+        else:
+            step_size = 5
+        new_volume = min(100, self._players[player_id].volume_level + step_size)
         await self.cmd_volume_set(player_id, new_volume)
 
     @api_command("players/cmd/volume_down")
@@ -408,7 +416,15 @@ class PlayerController(CoreController):
 
         - player_id: player_id of the player to handle the command.
         """
-        new_volume = max(0, self._players[player_id].volume_level - 5)
+        if not (player := self.get(player_id)):
+            return
+        if player.volume_level < 5 or player.volume_level > 95:
+            step_size = 1
+        elif player.volume_level < 20 or player.volume_level > 80:
+            step_size = 2
+        else:
+            step_size = 5
+        new_volume = max(0, self._players[player_id].volume_level - step_size)
         await self.cmd_volume_set(player_id, new_volume)
 
     @api_command("players/cmd/group_volume")
@@ -438,6 +454,44 @@ class PlayerController(CoreController):
             new_child_volume = min(100, new_child_volume)
             coros.append(self.cmd_volume_set(child_player.player_id, new_child_volume))
         await asyncio.gather(*coros)
+
+    @api_command("players/cmd/group_volume_up")
+    @handle_player_command
+    async def cmd_group_volume_up(self, player_id: str) -> None:
+        """Send VOLUME_UP command to given playergroup.
+
+        - player_id: player_id of the player to handle the command.
+        """
+        group_player = self.get(player_id, True)
+        assert group_player
+        cur_volume = group_player.group_volume
+        if cur_volume < 5 or cur_volume > 95:
+            step_size = 1
+        elif cur_volume < 20 or cur_volume > 80:
+            step_size = 2
+        else:
+            step_size = 5
+        new_volume = min(100, cur_volume + step_size)
+        await self.cmd_group_volume(player_id, new_volume)
+
+    @api_command("players/cmd/group_volume_down")
+    @handle_player_command
+    async def cmd_group_volume_down(self, player_id: str) -> None:
+        """Send VOLUME_DOWN command to given playergroup.
+
+        - player_id: player_id of the player to handle the command.
+        """
+        group_player = self.get(player_id, True)
+        assert group_player
+        cur_volume = group_player.group_volume
+        if cur_volume < 5 or cur_volume > 95:
+            step_size = 1
+        elif cur_volume < 20 or cur_volume > 80:
+            step_size = 2
+        else:
+            step_size = 5
+        new_volume = max(0, cur_volume - step_size)
+        await self.cmd_group_volume(player_id, new_volume)
 
     @api_command("players/cmd/volume_mute")
     @handle_player_command
@@ -555,10 +609,14 @@ class PlayerController(CoreController):
 
     async def enqueue_next_media(self, player_id: str, media: PlayerMedia) -> None:
         """Handle enqueuing of a next media item on the player."""
-        if (player := self.get(player_id)) and PlayerFeature.ENQUEUE in player.supported_features:
-            player_prov = self.mass.get_provider(player.provider)
-            async with self._player_throttlers[player_id]:
-                await player_prov.enqueue_next_media(player_id=player_id, media=media)
+        player = self.get(player_id, raise_unavailable=True)
+        if PlayerFeature.ENQUEUE not in player.supported_features:
+            raise UnsupportedFeaturedException(
+                f"Player {player.display_name} does not support enqueueing"
+            )
+        player_prov = self.mass.get_provider(player.provider)
+        async with self._player_throttlers[player_id]:
+            await player_prov.enqueue_next_media(player_id=player_id, media=media)
 
     @api_command("players/cmd/sync")
     @handle_player_command
@@ -689,9 +747,10 @@ class PlayerController(CoreController):
         async with self._player_throttlers[target_player]:
             try:
                 await player_provider.cmd_sync_many(target_player, final_player_ids)
-            finally:
+            except Exception:
                 # restore sync state if the command failed
                 parent_player.group_childs = prev_group_childs
+                raise
 
     @api_command("players/cmd/unsync_many")
     async def cmd_unsync_many(self, player_ids: list[str]) -> None:
@@ -835,7 +894,6 @@ class PlayerController(CoreController):
             prev_state,
             new_state,
             ignore_keys=[
-                "elapsed_time",
                 "elapsed_time_last_updated",
                 "seq_no",
                 "last_poll",
@@ -847,16 +905,22 @@ class PlayerController(CoreController):
             # ignore updates for disabled players
             return
 
-        # always signal update to the playerqueue
+        # always signal update to the playerqueue (regardless of changes)
         self.mass.player_queues.on_player_update(player, changed_values)
 
         if len(changed_values) == 0 and not force_update:
             return
 
-        self.mass.signal_event(EventType.PLAYER_UPDATED, object_id=player_id, data=player)
+        if changed_values.keys() != {"elapsed_time"} or force_update:
+            # ignore elapsed_time only changes
+            self.mass.signal_event(EventType.PLAYER_UPDATED, object_id=player_id, data=player)
 
         if skip_forward and not force_update:
             return
+
+        # handle player becoming unavailable
+        if "available" in changed_values and not player.available:
+            self._handle_player_unavailable(player)
 
         # update/signal group player(s) child's when group updates
         for child_player in self.iter_group_members(player, exclude_self=True):
@@ -1071,6 +1135,27 @@ class PlayerController(CoreController):
             group_volume = group_volume / active_players
         return int(group_volume)
 
+    def _handle_player_unavailable(self, player: Player) -> None:
+        """Handle a player becoming unavailable."""
+        if player.synced_to:
+            self.mass.create_task(self.cmd_unsync(player.player_id))
+            # also set this optimistically because the above command will most likely fail
+            player.synced_to = None
+            return
+        for group_child_id in player.group_childs:
+            if group_child_id == player.player_id:
+                continue
+            if child_player := self.get(group_child_id):
+                self.mass.create_task(self.cmd_power(group_child_id, False, True))
+                # also set this optimistically because the above command will most likely fail
+                child_player.synced_to = None
+            player.group_childs = set()
+        if player.active_group and (group_player := self.get(player.active_group)):
+            # remove player from group if its part of a group
+            group_player = self.get(player.active_group)
+            if player.player_id in group_player.group_childs:
+                group_player.group_childs.remove(player.player_id)
+
     async def _play_announcement(
         self,
         player: Player,
@@ -1200,9 +1285,7 @@ class PlayerController(CoreController):
                 player_id = player.player_id
                 # if the player is playing, update elapsed time every tick
                 # to ensure the queue has accurate details
-                player_playing = (
-                    player.active_source == player.player_id and player.state == PlayerState.PLAYING
-                )
+                player_playing = player.state == PlayerState.PLAYING
                 if player_playing:
                     self.mass.loop.call_soon(self.update, player_id)
                 # Poll player;

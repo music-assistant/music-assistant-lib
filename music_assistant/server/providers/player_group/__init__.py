@@ -682,6 +682,8 @@ class PlayerGroupProvider(PlayerProvider):
             supported_features=tuple(player_features),
             group_childs=set(members),
             active_source=group_player_id,
+            needs_poll=True,
+            poll_interval=30,
         )
 
         await self.mass.players.register_or_update(player)
@@ -743,7 +745,10 @@ class PlayerGroupProvider(PlayerProvider):
             if sync_leader.player_id == member.player_id:
                 # skip sync leader
                 continue
-            if member.synced_to == sync_leader.player_id:
+            if (
+                member.synced_to == sync_leader.player_id
+                and member.player_id in sync_leader.group_childs
+            ):
                 # already synced
                 continue
             members_to_sync.append(member.player_id)

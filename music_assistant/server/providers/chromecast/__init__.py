@@ -452,6 +452,7 @@ class ChromecastProvider(PlayerProvider):
                 PlayerFeature.POWER,
                 PlayerFeature.VOLUME_SET,
                 PlayerFeature.PAUSE,
+                PlayerFeature.ENQUEUE,
             )
 
         # update player status

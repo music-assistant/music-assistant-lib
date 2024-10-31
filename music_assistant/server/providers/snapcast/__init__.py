@@ -254,6 +254,7 @@ class SnapCastProvider(PlayerProvider):
     _snapserver_runner: asyncio.Task | None
     _snapserver_started: asyncio.Event | None
     _ids_map: bidict  # ma_id / snapclient_id
+    _stop_called: bool
 
     def _get_snapclient_id(self, player_id: str) -> str:
         search_dict = self._ids_map
@@ -282,6 +283,7 @@ class SnapCastProvider(PlayerProvider):
         # set snapcast logging
         logging.getLogger("snapcast").setLevel(self.logger.level)
         self._use_builtin_server = not self.config.get_value(CONF_USE_EXTERNAL_SERVER)
+        self._stop_called = False
         if self._use_builtin_server:
             self._snapcast_server_host = "127.0.0.1"
             self._snapcast_server_control_port = DEFAULT_SNAPSERVER_PORT
@@ -334,6 +336,7 @@ class SnapCastProvider(PlayerProvider):
 
     async def unload(self) -> None:
         """Handle close/cleanup of the provider."""
+        self._stop_called = True
         for snap_client_id in self._snapserver.clients:
             player_id = self._get_ma_id(snap_client_id)
             await self.cmd_stop(player_id)
@@ -507,7 +510,7 @@ class SnapCastProvider(PlayerProvider):
             )
         elif media.queue_id.startswith("ugp_"):
             # special case: UGP stream
-            ugp_provider: PlayerGroupProvider = self.mass.get_provider("ugp")
+            ugp_provider: PlayerGroupProvider = self.mass.get_provider("player_group")
             ugp_stream = ugp_provider.ugp_streams[media.queue_id]
             input_format = ugp_stream.output_format
             audio_source = ugp_stream.subscribe()
@@ -729,6 +732,9 @@ class SnapCastProvider(PlayerProvider):
 
     def _handle_disconnect(self, exc: Exception) -> None:
         """Handle disconnect callback from snapserver."""
+        if self._stop_called:
+            # we're instructed to stop/exit, so no need to restart the connection
+            return
         self.logger.info(
             "Connection to SnapServer lost, reason: %s. Reloading provider in 5 seconds.",
             str(exc),

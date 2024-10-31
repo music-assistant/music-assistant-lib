@@ -104,6 +104,7 @@ async def create_collage(
         photo = Image.open(data).convert("RGB")
         photo = photo.resize((image_size, image_size))
         collage.paste(photo, (coord_x, coord_y))
+        del data
 
     # prevent duplicates with a set
     images = list(set(images))
@@ -117,6 +118,7 @@ async def create_collage(
                 img_data = await get_image_data(mass, img.path, img.provider)
                 if img_data:
                     await asyncio.to_thread(_add_to_collage, img_data, x_co, y_co)
+                    del img_data
                     break
 
     def _save_collage():

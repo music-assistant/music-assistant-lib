@@ -579,7 +579,8 @@ class SlimprotoProvider(PlayerProvider):
         player = self.mass.players.get(player_id, raise_unavailable=True)
         if player.synced_to:
             group_leader = self.mass.players.get(player.synced_to, raise_unavailable=True)
-            group_leader.group_childs.remove(player_id)
+            if player_id in group_leader.group_childs:
+                group_leader.group_childs.remove(player_id)
             player.synced_to = None
             if slimclient := self.slimproto.get_player(player_id):
                 await slimclient.stop()
@@ -930,7 +931,7 @@ class SlimprotoProvider(PlayerProvider):
         fmt = request.query.get("fmt")
         child_player_id = request.query.get("child_player_id")
 
-        if not (player := self.mass.players.get(player_id)):
+        if not self.mass.players.get(player_id):
             raise web.HTTPNotFound(reason=f"Unknown player: {player_id}")
 
         if not (child_player := self.mass.players.get(child_player_id)):
@@ -954,8 +955,7 @@ class SlimprotoProvider(PlayerProvider):
 
         # all checks passed, start streaming!
         self.logger.debug(
-            "Start serving multi-client flow audio stream for player %s to %s",
-            player.display_name,
+            "Start serving multi-client flow audio stream to %s",
             child_player.display_name,
         )
 

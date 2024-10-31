@@ -478,6 +478,19 @@ class MusicController(CoreController):
             provider_instance_id_or_domain=provider_instance_id_or_domain,
         )
 
+    async def get_library_item_by_prov_id(
+        self,
+        media_type: MediaType,
+        item_id: str,
+        provider_instance_id_or_domain: str,
+    ) -> MediaItemType | None:
+        """Get single library music item by id and media type."""
+        ctrl = self.get_controller(media_type)
+        return await ctrl.get_library_item_by_prov_id(
+            item_id=item_id,
+            provider_instance_id_or_domain=provider_instance_id_or_domain,
+        )
+
     @api_command("music/favorites/add_item")
     async def add_item_to_favorites(
         self,
@@ -531,7 +544,6 @@ class MusicController(CoreController):
 
         Destructive! Will remove the item and all dependants.
         """
-        self.mass.metadata.stop_metadata_scanner()
         ctrl = self.get_controller(media_type)
         item = await ctrl.get_library_item(library_item_id)
         # remove from all providers
@@ -845,16 +857,14 @@ class MusicController(CoreController):
             else:
                 self.logger.info("Sync task for %s completed", provider.name)
             self.mass.signal_event(EventType.SYNC_TASKS_UPDATED, data=self.in_progress_syncs)
-            # schedule db cleanup + metadata scan after sync
+            # schedule db cleanup after sync
             if not self.in_progress_syncs:
                 self.mass.create_task(self._cleanup_database())
-                self.mass.metadata.start_metadata_scanner()
 
         task.add_done_callback(on_sync_task_done)
 
     async def cleanup_provider(self, provider_instance: str) -> None:
         """Cleanup provider records from the database."""
-        self.mass.metadata.stop_metadata_scanner()
         if provider_instance.startswith(("filesystem", "jellyfin", "plex", "opensubsonic")):
             # removal of a local provider can become messy very fast due to the relations
             # such as images pointing at the files etc. so we just reset the whole db
@@ -1120,7 +1130,6 @@ class MusicController(CoreController):
 
     async def _reset_database(self) -> None:
         """Reset the database."""
-        self.mass.metadata.stop_metadata_scanner()
         await self.close()
         db_path = os.path.join(self.mass.storage_path, "library.db")
         await asyncio.to_thread(os.remove, db_path)

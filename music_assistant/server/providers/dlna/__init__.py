@@ -60,8 +60,6 @@ if TYPE_CHECKING:
     from music_assistant.server import MusicAssistant
     from music_assistant.server.models import ProviderInstanceType
 
-BASE_PLAYER_FEATURES = (PlayerFeature.VOLUME_MUTE, PlayerFeature.VOLUME_SET)
-
 
 PLAYER_CONFIG_ENTRIES = (
     CONF_ENTRY_CROSSFADE_FLOW_MODE_REQUIRED,
@@ -179,7 +177,6 @@ class DLNAPlayer:
             self.player.volume_level = int((self.device.volume_level or 0) * 100)
             self.player.volume_muted = self.device.is_volume_muted or False
             self.player.state = self.get_state(self.device)
-            self.player.supported_features = self.get_supported_features(self.device)
             self.player.current_item_id = self.device.current_track_uri or ""
             if self.player.player_id in self.player.current_item_id:
                 self.player.active_source = self.player.player_id
@@ -226,21 +223,6 @@ class DLNAPlayer:
             return PlayerState.IDLE
 
         return PlayerState.IDLE
-
-    @staticmethod
-    def get_supported_features(device: DmrDevice) -> set[PlayerFeature]:
-        """Get player features that are supported at this moment.
-
-        Supported features may change as the device enters different states.
-        """
-        supported_features = set()
-
-        if device.has_volume_level:
-            supported_features.add(PlayerFeature.VOLUME_SET)
-        if device.has_volume_mute:
-            supported_features.add(PlayerFeature.VOLUME_MUTE)
-
-        return supported_features
 
 
 class DLNAPlayerProvider(PlayerProvider):
@@ -619,11 +601,18 @@ class DLNAPlayerProvider(PlayerProvider):
 
     def _set_player_features(self, dlna_player: DLNAPlayer) -> None:
         """Set Player Features based on config values and capabilities."""
-        if self.mass.config.get_raw_player_config_value(
+        supported_features: set[PlayerFeature] = set()
+        if not self.mass.config.get_raw_player_config_value(
             dlna_player.udn,
             CONF_ENTRY_FLOW_MODE_DEFAULT_ENABLED.key,
             CONF_ENTRY_FLOW_MODE_DEFAULT_ENABLED.default_value,
         ):
-            dlna_player.player.supported_features = BASE_PLAYER_FEATURES
-        else:
-            dlna_player.player.supported_features = (*BASE_PLAYER_FEATURES, PlayerFeature.ENQUEUE)
+            supported_features.add(PlayerFeature.ENQUEUE)
+
+        if dlna_player.device.has_volume_level:
+            supported_features.add(PlayerFeature.VOLUME_SET)
+        if dlna_player.device.has_volume_mute:
+            supported_features.add(PlayerFeature.VOLUME_MUTE)
+        if dlna_player.device.has_pause:
+            supported_features.add(PlayerFeature.PAUSE)
+        dlna_player.player.supported_features = tuple(supported_features)

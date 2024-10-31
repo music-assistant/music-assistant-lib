@@ -19,7 +19,6 @@ class QueueItem(DataClassDictMixin):
 
     queue_id: str
     queue_item_id: str
-
     name: str
     duration: int | None
     sort_index: int = 0

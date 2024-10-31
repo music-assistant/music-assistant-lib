@@ -221,7 +221,8 @@ class SonosPlayerProvider(PlayerProvider):
                 "accept play_media command, it is synced to another player."
             )
             raise PlayerCommandFailed(msg)
-
+        # for now always reset the active session
+        sonos_player.client.player.group.active_session_id = None
         if airplay := sonos_player.get_linked_airplay_player(True):
             # linked airplay player is active, redirect the command
             self.logger.debug("Redirecting PLAY_MEDIA command to linked airplay player.")

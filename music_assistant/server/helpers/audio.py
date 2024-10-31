@@ -24,6 +24,7 @@ from music_assistant.common.models.errors import (
     InvalidDataError,
     MediaNotFoundError,
     MusicAssistantError,
+    ProviderUnavailableError,
 )
 from music_assistant.common.models.media_items import AudioFormat, ContentType
 from music_assistant.common.models.streamdetails import StreamDetails
@@ -198,11 +199,22 @@ async def get_stream_details(
     # this makes sure that playback has priority over other requests that may be
     # happening in the background
     BYPASS_THROTTLER.set(True)
-    # always request the full item as there might be other qualities available
-    full_item = await mass.music.get_item_by_uri(queue_item.uri)
+    if not queue_item.media_item:
+        # this should not happen, but guard it just in case
+        assert queue_item.streamdetails, "streamdetails required for non-mediaitem queueitems"
+        return queue_item.streamdetails
+    # always request the full library item as there might be other qualities available
+    media_item = (
+        await mass.music.get_library_item_by_prov_id(
+            queue_item.media_item.media_type,
+            queue_item.media_item.item_id,
+            queue_item.media_item.provider,
+        )
+        or queue_item.media_item
+    )
     # sort by quality and check track availability
     for prov_media in sorted(
-        full_item.provider_mappings, key=lambda x: x.quality or 0, reverse=True
+        media_item.provider_mappings, key=lambda x: x.quality or 0, reverse=True
     ):
         if not prov_media.available:
             LOGGER.debug(f"Skipping unavailable {prov_media}")
@@ -739,7 +751,8 @@ async def get_preview_stream(
     track_id: str,
 ) -> AsyncGenerator[bytes, None]:
     """Create a 30 seconds preview audioclip for the given streamdetails."""
-    music_prov = mass.get_provider(provider_instance_id_or_domain)
+    if not (music_prov := mass.get_provider(provider_instance_id_or_domain)):
+        raise ProviderUnavailableError
     streamdetails = await music_prov.get_stream_details(track_id)
     async for chunk in get_ffmpeg_stream(
         audio_input=music_prov.get_audio_stream(streamdetails, 30)
