@@ -62,17 +62,40 @@ def test_get_artist_dir() -> None:
             "/home/user/Music/Aphex Twin - Selected Ambient Works 85-92 (Remastered) - WEB",
             "/home/user/Music/Aphex Twin - Selected Ambient Works 85-92 (Remastered) - WEB",
         ),
+        # Test tokenizer - dirname with extras
+        (
+            "Fokus - Prewersje",
+            "/home/user/Fokus-Prewersje-PL-WEB-FLAC-2021-PS_INT",
+            "/home/user/Fokus-Prewersje-PL-WEB-FLAC-2021-PS_INT",
+        ),
+        # Test tokenizer - dirname with version and extras
+        (
+            "Layo And Bushwacka - Night Works",
+            "/home/music/Layo_And_Bushwacka-Night_Works_(Reissue)-(XLCD_154X)-FLAC-2003",
+            "/home/music/Layo_And_Bushwacka-Night_Works_(Reissue)-(XLCD_154X)-FLAC-2003",
+        ),
+        # Test tokenizer - extras and approximate match on diacratics
+        (
+            "Łona i Webber - Wyślij Sobie Pocztówkę",
+            "/usr/others/Lona-Discography-PL-FLAC-2020-INT/Lona_I_Webber-Wyslij_Sobie_Pocztowke-PL-WEB-FLAC-2014-PS",
+            "/usr/others/Lona-Discography-PL-FLAC-2020-INT/Lona_I_Webber-Wyslij_Sobie_Pocztowke-PL-WEB-FLAC-2014-PS",
+        ),
+        (
+            "NIC",
+            "/nas/downloads/others/Sokol-NIC-PL-WEB-FLAC-2021",
+            "/nas/downloads/others/Sokol-NIC-PL-WEB-FLAC-2021",
+        ),
         # Test album (version) format
         (
-            "Selected Ambient Works 85-92",
+            "Aphex Twin - Selected Ambient Works 85-92",
             "/home/user/Music/Aphex Twin/Selected Ambient Works 85-92 (Remastered)",
             "/home/user/Music/Aphex Twin/Selected Ambient Works 85-92 (Remastered)",
         ),
         # Test album name in dir
         (
-            "Selected Ambient Works 85-92",
-            "/home/user/Music/RandomDirWithSelected Ambient Works 85-92InIt",
-            "/home/user/Music/RandomDirWithSelected Ambient Works 85-92InIt",
+            "Aphex Twin - Selected Ambient Works 85-92",
+            "/home/user/Music/RandomDirWithAphex Twin - Selected Ambient Works 85-92InIt",
+            "/home/user/Music/RandomDirWithAphex Twin - Selected Ambient Works 85-92InIt",
         ),
         # Test no match
         (

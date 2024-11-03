@@ -67,6 +67,48 @@ def get_artist_dir(
     return matched_dir
 
 
+def tokenize(input_str: str, delimiters: str) -> list[str]:
+    """Tokenizes the album names or paths."""
+    normalised = re.sub(delimiters, "^^^", input_str)
+    return [x for x in normalised.split("^^^") if x != ""]
+
+
+def _dir_contains_album_name(id3_album_name: str, directory_name: str) -> bool:
+    """Check if a directory name contains an album name.
+
+    This function tokenizes both input strings using different delimiters and
+    checks if the album name is a substring of the directory name.
+
+    First iteration considers the literal dash as one of the separators. The
+    second pass is to catch edge cases where the literal dash is part of the
+    album's name, not an actual separator. For example, an album like 'Aphex
+    Twin - Selected Ambient Works 85-92' would be correctly handled.
+
+    Args:
+        id3_album_name (str): The album name to search for.
+        directory_name (str): The directory name to search in.
+
+    Returns:
+        bool: True if the directory name contains the album name, False otherwise.
+    """
+    for delims in ["[-_ ]", "[_ ]"]:
+        tokenized_album_name = tokenize(id3_album_name, delims)
+        tokenized_dirname = tokenize(directory_name, delims)
+
+        # Exact match, potentially just on the album name
+        # in case artist's name is not included in id3_album_name
+        if all(token in tokenized_dirname for token in tokenized_album_name):
+            return True
+
+        if len(tokenized_album_name) <= len(tokenized_dirname) and compare_strings(
+            "".join(tokenized_album_name),
+            "".join(tokenized_dirname[0 : len(tokenized_album_name)]),
+            False,
+        ):
+            return True
+    return False
+
+
 def get_album_dir(track_dir: str, album_name: str) -> str | None:
     """Return album/parent directory of a track."""
     parentdir = track_dir
@@ -82,6 +124,20 @@ def get_album_dir(track_dir: str, album_name: str) -> str | None:
         if compare_strings(album_name, dirname.split(" - ")[-1].split("(")[0], False):
             # account for ArtistName - AlbumName (Version) format in the directory name
             return parentdir
+
+        if any(sep in dirname for sep in ["-", " ", "_"]) and album_name:
+            album_chunks = album_name.split(" - ", 1)
+            album_name_includes_artist = len(album_chunks) > 1
+            just_album_name = album_chunks[1] if album_name_includes_artist else None
+
+            # attempt matching using tokenized version of path and album name
+            # with _dir_contains_album_name()
+            if just_album_name and _dir_contains_album_name(just_album_name, dirname):
+                return parentdir
+
+            if _dir_contains_album_name(album_name, dirname):
+                return parentdir
+
         if compare_strings(album_name.split("(")[0], dirname, False):
             # account for AlbumName (Version) format in the album name
             return parentdir
