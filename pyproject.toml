@@ -17,7 +17,7 @@ dependencies = [
   "aiorun==2024.8.1",
   "aiosqlite==0.20.0",
   "certifi==2024.8.30",
-  "colorlog==6.8.2",
+  "colorlog==6.9.0",
   "cryptography==43.0.3",
   "eyeD3==0.9.7",
   "faust-cchardet>=2.1.18",
