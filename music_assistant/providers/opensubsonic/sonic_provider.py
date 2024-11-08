@@ -14,7 +14,6 @@ from libopensonic.errors import (
     SonicError,
 )
 from music_assistant_models.enums import (
-    AlbumType,
     ContentType,
     ImageType,
     MediaType,
@@ -52,8 +51,6 @@ if TYPE_CHECKING:
     from libopensonic.media import Artist as SonicArtist
     from libopensonic.media import ArtistInfo as SonicArtistInfo
     from libopensonic.media import Playlist as SonicPlaylist
-    from libopensonic.media import PodcastChannel as SonicPodcastChannel
-    from libopensonic.media import PodcastEpisode as SonicPodcastEpisode
     from libopensonic.media import Song as SonicSong
 
 CONF_BASE_URL = "baseURL"
@@ -154,85 +151,6 @@ class OpenSonicProvider(MusicProvider):
             provider=self.instance_id,
             name=name,
         )
-
-    def _parse_podcast_artist(self, sonic_channel: SonicPodcastChannel) -> Artist:
-        artist = Artist(
-            item_id=sonic_channel.id,
-            name=sonic_channel.title,
-            provider=self.instance_id,
-            favorite=bool(sonic_channel.starred),
-            provider_mappings={
-                ProviderMapping(
-                    item_id=sonic_channel.id,
-                    provider_domain=self.domain,
-                    provider_instance=self.instance_id,
-                )
-            },
-        )
-        if sonic_channel.description is not None:
-            artist.metadata.description = sonic_channel.description
-        if sonic_channel.original_image_url:
-            artist.metadata.images = [
-                MediaItemImage(
-                    type=ImageType.THUMB,
-                    path=sonic_channel.original_image_url,
-                    provider=self.instance_id,
-                    remotely_accessible=True,
-                )
-            ]
-        return artist
-
-    def _parse_podcast_album(self, sonic_channel: SonicPodcastChannel) -> Album:
-        return Album(
-            item_id=sonic_channel.id,
-            provider=self.instance_id,
-            name=sonic_channel.title,
-            provider_mappings={
-                ProviderMapping(
-                    item_id=sonic_channel.id,
-                    provider_domain=self.domain,
-                    provider_instance=self.instance_id,
-                    available=True,
-                )
-            },
-            album_type=AlbumType.PODCAST,
-        )
-
-    def _parse_podcast_episode(
-        self, sonic_episode: SonicPodcastEpisode, sonic_channel: SonicPodcastChannel
-    ) -> Track:
-        return Track(
-            item_id=sonic_episode.id,
-            provider=self.instance_id,
-            name=sonic_episode.title,
-            album=self._parse_podcast_album(sonic_channel=sonic_channel),
-            artists=[self._parse_podcast_artist(sonic_channel=sonic_channel)],
-            duration=sonic_episode.duration if sonic_episode.duration is not None else 0,
-            favorite=bool(sonic_episode.starred),
-            provider_mappings={
-                ProviderMapping(
-                    item_id=sonic_episode.id,
-                    provider_domain=self.domain,
-                    provider_instance=self.instance_id,
-                    available=True,
-                )
-            },
-        )
-
-    async def _get_podcast_artists(self) -> list[Artist]:
-        if not self._enable_podcasts:
-            return []
-
-        sonic_channels = await self._run_async(self._conn.getPodcasts, incEpisodes=False)
-        artists = []
-        for channel in sonic_channels:
-            artists.append(self._parse_podcast_artist(channel))
-        return artists
-
-    async def _get_podcasts(self) -> list[SonicPodcastChannel]:
-        if not self._enable_podcasts:
-            return []
-        return await self._run_async(self._conn.getPodcasts, incEpisodes=True)
 
     def _parse_artist(
         self, sonic_artist: SonicArtist, sonic_info: SonicArtistInfo = None
@@ -361,9 +279,6 @@ class OpenSonicProvider(MusicProvider):
             name=sonic_song.title,
             album=mapping,
             duration=sonic_song.duration if sonic_song.duration is not None else 0,
-            # We are setting disc number to 0 because the standard for what is part of
-            # a Open Subsonic Song is not yet set and the implementations I have checked
-            # do not contain this field. We should revisit this when the spec is finished
             disc_number=sonic_song.disc_number or 0,
             favorite=bool(sonic_song.starred),
             provider_mappings={
@@ -586,15 +501,6 @@ class OpenSonicProvider(MusicProvider):
             sonic_album: SonicAlbum = await self._run_async(self._conn.getAlbum, prov_album_id)
             sonic_info = await self._run_async(self._conn.getAlbumInfo2, aid=prov_album_id)
         except (ParameterError, DataNotFoundError) as e:
-            if self._enable_podcasts:
-                # This might actually be a 'faked' album from podcasts, try that before giving up
-                try:
-                    sonic_channel = await self._run_async(
-                        self._conn.getPodcasts, incEpisodes=False, pid=prov_album_id
-                    )
-                    return self._parse_podcast_album(sonic_channel=sonic_channel)
-                except SonicError:
-                    pass
             msg = f"Album {prov_album_id} not found"
             raise MediaNotFoundError(msg) from e
 
@@ -648,15 +554,6 @@ class OpenSonicProvider(MusicProvider):
             )
             sonic_info = await self._run_async(self._conn.getArtistInfo2, aid=prov_artist_id)
         except (ParameterError, DataNotFoundError) as e:
-            if self._enable_podcasts:
-                # This might actually be a 'faked' artist from podcasts, try that before giving up
-                try:
-                    sonic_channel = await self._run_async(
-                        self._conn.getPodcasts, incEpisodes=False, pid=prov_artist_id
-                    )
-                    return self._parse_podcast_artist(sonic_channel=sonic_channel[0])
-                except SonicError:
-                    pass
             msg = f"Artist {prov_artist_id} not found"
             raise MediaNotFoundError(msg) from e
         return self._parse_artist(sonic_artist, sonic_info)
@@ -734,7 +631,7 @@ class OpenSonicProvider(MusicProvider):
     async def get_similar_tracks(self, prov_track_id: str, limit: int = 25) -> list[Track]:
         """Get tracks similar to selected track."""
         songs: list[SonicSong] = await self._run_async(
-            self._conn.getSimilarSongs2, iid=prov_track_id, count=limit
+            self._conn.getSimilarSongs2, id=prov_track_id, count=limit
         )
         return [self._parse_track(entry) for entry in songs]
 
