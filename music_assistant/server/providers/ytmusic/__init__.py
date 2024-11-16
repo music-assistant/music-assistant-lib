@@ -5,11 +5,12 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import AsyncGenerator
-from time import time
+from io import StringIO
 from typing import TYPE_CHECKING, Any
 from urllib.parse import unquote
 
 import yt_dlp
+import ytmusicapi
 from ytmusicapi.constants import SUPPORTED_LANGUAGES
 from ytmusicapi.exceptions import YTMusicServerError
 
@@ -39,11 +40,11 @@ from music_assistant.common.models.media_items import (
 )
 from music_assistant.common.models.streamdetails import StreamDetails
 from music_assistant.constants import CONF_USERNAME
-from music_assistant.server.helpers.auth import AuthenticationHelper
 from music_assistant.server.models.music_provider import MusicProvider
 
 from .helpers import (
     add_remove_playlist_tracks,
+    convert_to_netscape,
     get_album,
     get_artist,
     get_library_albums,
@@ -57,8 +58,6 @@ from .helpers import (
     library_add_remove_album,
     library_add_remove_artist,
     library_add_remove_playlist,
-    login_oauth,
-    refresh_oauth_token,
     search,
 )
 
@@ -70,13 +69,9 @@ if TYPE_CHECKING:
 
 
 CONF_COOKIE = "cookie"
-# CONF_ACTION_AUTH = "auth"
-# CONF_AUTH_TOKEN = "auth_token"
-# CONF_REFRESH_TOKEN = "refresh_token"
-# CONF_TOKEN_TYPE = "token_type"
-# CONF_EXPIRY_TIME = "expiry_time"
 
 YTM_DOMAIN = "https://music.youtube.com"
+YTM_COOKIE_DOMAIN = ".youtube.com"
 YTM_BASE_URL = f"{YTM_DOMAIN}/youtubei/v1/"
 VARIOUS_ARTISTS_YTM_ID = "UCUTXlgdcKU5vfzFqHOWIvkA"
 # Playlist ID's are not unique across instances for lists like 'Liked videos', 'SuperMix' etc.
@@ -125,10 +120,10 @@ async def setup(
 
 
 async def get_config_entries(
-    mass: MusicAssistant,
+    mass: MusicAssistant,  # noqa: ARG001
     instance_id: str | None = None,  # noqa: ARG001
-    action: str | None = None,
-    values: dict[str, ConfigValueType] | None = None,
+    action: str | None = None,  # noqa: ARG001
+    values: dict[str, ConfigValueType] | None = None,  # noqa: ARG001
 ) -> tuple[ConfigEntry, ...]:
     """
     Return Config entries to setup this provider.
@@ -160,18 +155,19 @@ class YoutubeMusicProvider(MusicProvider):
     _cookies = None
     _cipher = None
     _yt_user = None
+    _cookie = None
 
     async def handle_async_init(self) -> None:
         """Set up the YTMusic provider."""
         logging.getLogger("yt_dlp").setLevel(self.logger.level + 10)
-        # if not self.config.get_value(CONF_AUTH_TOKEN):
-        #     msg = "Invalid login credentials"
-        #     raise LoginFailed(msg)
+        self._cookie = self.config.get_value(CONF_COOKIE)
+        yt_username = self.config.get_value(CONF_USERNAME)
+        self._yt_user = yt_username if is_brand_account(yt_username) else None
+        # yt-dlp needs a netscape formatted cookie
+        self._netscape_cookie = convert_to_netscape(self._cookie, YTM_COOKIE_DOMAIN)
         self._initialize_headers()
         self._initialize_context()
         self._cookies = {"CONSENT": "YES+1"}
-        yt_username = self.config.get_value(CONF_USERNAME)
-        self._yt_user = yt_username if is_brand_account(yt_username) else None
         # get default language (that is supported by YTM)
         mass_locale = self.mass.metadata.locale
         for lang_code in SUPPORTED_LANGUAGES:
@@ -319,7 +315,10 @@ class YoutubeMusicProvider(MusicProvider):
         if YT_PLAYLIST_ID_DELIMITER in prov_playlist_id:
             prov_playlist_id = prov_playlist_id.split(YT_PLAYLIST_ID_DELIMITER)[0]
         if playlist_obj := await get_playlist(
-            prov_playlist_id=prov_playlist_id, headers=self._headers, language=self.language
+            prov_playlist_id=prov_playlist_id,
+            headers=self._headers,
+            language=self.language,
+            user=self._yt_user,
         ):
             return self._parse_playlist(playlist_obj)
         msg = f"Item {prov_playlist_id} not found"
@@ -336,7 +335,7 @@ class YoutubeMusicProvider(MusicProvider):
         # Add a try to prevent MA from stopping syncing whenever we fail a single playlist
         try:
             playlist_obj = await get_playlist(
-                prov_playlist_id=prov_playlist_id, headers=self._headers
+                prov_playlist_id=prov_playlist_id, headers=self._headers, user=self._yt_user
             )
         except KeyError as ke:
             self.logger.warning("Could not load playlist: %s: %s", prov_playlist_id, ke)
@@ -473,9 +472,7 @@ class YoutubeMusicProvider(MusicProvider):
         """Retrieve a dynamic list of tracks based on the provided item."""
         result = []
         result = await get_song_radio_tracks(
-            headers=self._headers,
-            prov_item_id=prov_track_id,
-            limit=limit,
+            headers=self._headers, prov_item_id=prov_track_id, limit=limit, user=self._yt_user
         )
         if "tracks" in result:
             tracks = []
@@ -534,20 +531,8 @@ class YoutubeMusicProvider(MusicProvider):
         ) as response:
             return await response.text()
 
-            # async def _check_oauth_token(self) -> None:
-            #     """Verify the OAuth token is valid and refresh if needed."""
-            #     if self.config.get_value(CONF_EXPIRY_TIME) < time():
-            token = await refresh_oauth_token(
-                self.mass.http_session, self.config.get_value(CONF_REFRESH_TOKEN)
-            )
-            self.config.update({CONF_AUTH_TOKEN: token["access_token"]})
-            self.config.update({CONF_EXPIRY_TIME: time() + token["expires_in"]})
-            self.config.update({CONF_TOKEN_TYPE: token["token_type"]})
-            self._initialize_headers()
-
     def _initialize_headers(self) -> dict[str, str]:
         """Return headers to include in the requests."""
-        cookie = self.config.get_value(CONF_COOKIE)
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:72.0) Gecko/20100101 Firefox/72.0",  # noqa: E501
             "Accept": "*/*",
@@ -555,10 +540,10 @@ class YoutubeMusicProvider(MusicProvider):
             "Content-Type": "application/json",
             "X-Goog-AuthUser": "0",
             "x-origin": YTM_DOMAIN,
-            "Cookie": cookie,
-            # "X-Goog-Request-Time": str(int(time())),
-            # "Authorization": auth,
+            "Cookie": self._cookie,
         }
+        sapisid = ytmusicapi.helpers.sapisid_from_cookie(self._cookie)
+        headers["Authorization"] = ytmusicapi.helpers.get_authorization(sapisid + " " + YTM_DOMAIN)
         self._headers = headers
 
     def _initialize_context(self) -> dict[str, str]:
@@ -751,14 +736,9 @@ class YoutubeMusicProvider(MusicProvider):
 
         def _extract_best_stream_url_format() -> dict[str, Any]:
             url = f"{YTM_DOMAIN}/watch?v={item_id}"
-            auth = (
-                f"{self.config.get_value(CONF_TOKEN_TYPE)} {self.config.get_value(CONF_AUTH_TOKEN)}"
-            )
             ydl_opts = {
                 "quiet": self.logger.level > logging.DEBUG,
-                # This enables the access token plugin so we can grab the best
-                # available quality audio stream
-                "username": auth,
+                "cookiefile": StringIO(self._netscape_cookie),
                 # This enforces a player client and skips unnecessary scraping to increase speed
                 "extractor_args": {
                     "youtube": {"skip": ["translated_subs", "dash"], "player_client": ["ios"]}
