@@ -19,17 +19,13 @@ def gather_core_requirements() -> list[str]:
     """Gather core requirements out of pyproject.toml."""
     with open("pyproject.toml", "rb") as fp:
         data = tomllib.load(fp)
-    # server deps
-    dependencies: list[str] = data["project"]["optional-dependencies"]["server"]
-    # regular/client deps
-    dependencies += data["project"]["dependencies"]
-    return dependencies
+    return data["project"]["dependencies"]
 
 
 def gather_requirements_from_manifests() -> list[str]:
     """Gather all of the requirements from provider manifests."""
     dependencies: list[str] = []
-    providers_path = "music_assistant/server/providers"
+    providers_path = "music_assistant/providers"
     for dir_str in os.listdir(providers_path):
         dir_path = os.path.join(providers_path, dir_str)
         if not os.path.isdir(dir_path):

@@ -6,7 +6,7 @@ from collections.abc import AsyncGenerator
 
 import pytest
 
-from music_assistant.server.server import MusicAssistant
+from music_assistant import MusicAssistant
 from tests.common import wait_for_sync_completion
 
 
