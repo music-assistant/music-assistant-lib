@@ -1,1 +1,1 @@
-"""Tests for Music Assistant go here."""
+"""Tests for the Music Assistant server."""

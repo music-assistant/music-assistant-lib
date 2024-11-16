@@ -1,0 +1,10 @@
+{
+  "type": "music",
+  "domain": "tidal",
+  "name": "Tidal",
+  "description": "Support for the Tidal streaming provider in Music Assistant.",
+  "codeowners": ["@jozefKruszynski"],
+  "requirements": ["tidalapi==0.8.0"],
+  "documentation": "https://music-assistant.io/music-providers/tidal/",
+  "multi_instance": true
+}

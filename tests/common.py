@@ -6,16 +6,16 @@ import pathlib
 from collections.abc import AsyncGenerator
 
 import aiofiles.os
+from music_assistant_models.enums import EventType
+from music_assistant_models.event import MassEvent
 
-from music_assistant.common.models.enums import EventType
-from music_assistant.common.models.event import MassEvent
-from music_assistant.server.server import MusicAssistant
+from music_assistant import MusicAssistant
 
 
 def _get_fixture_folder(provider: str | None = None) -> pathlib.Path:
     tests_base = pathlib.Path(__file__).parent
     if provider:
-        return tests_base / "server" / "providers" / provider / "fixtures"
+        return tests_base / "providers" / provider / "fixtures"
     return tests_base / "fixtures"
 
 

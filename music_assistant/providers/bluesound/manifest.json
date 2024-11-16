@@ -1,0 +1,10 @@
+{
+    "type": "player",
+    "domain": "bluesound",
+    "name": "Bluesound",
+    "description": "BluOS Player provider for Music Assistant.",
+    "codeowners": ["@cyanogenbot"],
+    "requirements": ["pyblu==1.0.4"],
+    "documentation": "https://music-assistant.io/player-support/bluesound/",
+    "mdns_discovery": ["_musc._tcp.local."]
+}
