@@ -26,6 +26,7 @@ from music_assistant_models.media_items import (
     Radio,
 )
 from music_assistant_models.streamdetails import StreamDetails
+from tenacity import RetryError
 
 from music_assistant.helpers.util import select_free_port
 from music_assistant.helpers.webserver import Webserver
@@ -136,7 +137,18 @@ class SiriusXMProvider(MusicProvider):
         )
 
         self.logger.info("Authenticating with SiriusXM")
-        if not await self._client.authenticate():
+        try:
+            if not await self._client.authenticate():
+                raise LoginFailed("Could not login to SiriusXM")
+        except RetryError:
+            # It looks like there's a bug in the sxm-client code
+            # where it won't return False if there's bad credentials.
+            # Due to the retry logic, it's attempting to log in multiple
+            # times and then finally raises an unrelated exception,
+            # rather than returning False or raising the package's
+            # AuthenticationError.
+            # Therefore, we're resorting to catching the RetryError
+            # here and recognizing it as a login failure.
             raise LoginFailed("Could not login to SiriusXM")
 
         self.logger.info("Successfully authenticated")
