@@ -1028,7 +1028,7 @@ class LocalFileSystemProvider(MusicProvider):
                 if item.ext != ext:
                     continue
                 # try match on filename = one of our imagetypes
-                if item.name in ImageType:
+                if item.name in ImageType.__members__:
                     images.append(
                         MediaItemImage(
                             type=ImageType(item.name),
