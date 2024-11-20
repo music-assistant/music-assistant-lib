@@ -630,9 +630,13 @@ class OpenSonicProvider(MusicProvider):
 
     async def get_similar_tracks(self, prov_track_id: str, limit: int = 25) -> list[Track]:
         """Get tracks similar to selected track."""
-        songs: list[SonicSong] = await self._run_async(
-            self._conn.getSimilarSongs, iid=prov_track_id, count=limit
-        )
+        try:
+            songs: list[SonicSong] = await self._run_async(
+                self._conn.getSimilarSongs, iid=prov_track_id, count=limit
+            )
+        except DataNotFoundError as e:
+            self.logger.info(e)
+            return []
         return [self._parse_track(entry) for entry in songs]
 
     async def create_playlist(self, name: str) -> Playlist:
