@@ -636,7 +636,7 @@ class OpenSonicProvider(MusicProvider):
             )
         except DataNotFoundError as e:
             # Subsonic returns an error here instead of an empty list, I don't think this
-            # should be an exception but there we are. Return an empty list becuase this
+            # should be an exception but there we are. Return an empty list because this
             # exception means we didn't find anything similar.
             self.logger.info(e)
             return []
