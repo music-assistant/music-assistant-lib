@@ -635,6 +635,9 @@ class OpenSonicProvider(MusicProvider):
                 self._conn.getSimilarSongs, iid=prov_track_id, count=limit
             )
         except DataNotFoundError as e:
+            # Subsonic returns an error here instead of an empty list, I don't think this
+            # should be an exception but there we are. Return an empty list becuase this
+            # exception means we didn't find anything similar.
             self.logger.info(e)
             return []
         return [self._parse_track(entry) for entry in songs]
