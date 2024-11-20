@@ -12,7 +12,7 @@ classifiers = [
 dependencies = [
   "aiodns>=3.0.0",
   "Brotli>=1.0.9",
-  "aiohttp==3.10.10",
+  "aiohttp==3.10.11",
   "aiofiles==24.1.0",
   "aiorun==2024.8.1",
   "aiosqlite==0.20.0",
