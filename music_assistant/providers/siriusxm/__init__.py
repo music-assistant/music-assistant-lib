@@ -218,7 +218,7 @@ class SiriusXMProvider(MusicProvider):
         # There's a chance that the SiriusXM auth session has expired
         # by the time the user clicks to play a station.  The sxm-client
         # will attempt to reauthenticate automatically, but this causes
-        # a delay in streaming with ffmpeg treats as a TimeoutError.
+        # a delay in streaming, and ffmpeg raises a TimeoutError.
         # To prevent this, we're going to explicitly authenticate with
         # SiriusXM proactively when a station has been chosen to avoid
         # this.
