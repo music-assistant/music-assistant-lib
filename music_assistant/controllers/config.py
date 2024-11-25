@@ -21,6 +21,7 @@ from music_assistant_models.config_entries import (
     PlayerConfig,
     ProviderConfig,
 )
+from music_assistant_models.dsp import DSPConfig
 from music_assistant_models.enums import EventType, ProviderFeature, ProviderType
 from music_assistant_models.errors import (
     ActionUnavailable,
@@ -32,6 +33,7 @@ from music_assistant_models.helpers import get_global_cache_value
 
 from music_assistant.constants import (
     CONF_CORE,
+    CONF_PLAYER_DSP,
     CONF_PLAYERS,
     CONF_PROVIDERS,
     CONF_SERVER_ID,
@@ -430,6 +432,33 @@ class ConfigController:
         self.mass.players.remove(player_id, cleanup_config=False)
         # remove the actual config if all of the above passed
         self.remove(conf_key)
+
+    @api_command("config/players/dsp/get")
+    def get_player_dsp_config(self, player_id: str) -> DSPConfig:
+        """
+        Return the DSP Configuration for a player.
+
+        In case the player does not have a DSP configuration, a default one is returned.
+        """
+        if raw_conf := self.get(f"{CONF_PLAYER_DSP}/{player_id}"):
+            return DSPConfig.from_dict(raw_conf)
+        else:
+            return DSPConfig()
+
+    @api_command("config/players/dsp/save")
+    async def save_dsp_config(self, player_id: str, config: DSPConfig) -> DSPConfig:
+        """
+        Save/update DSPConfig for a player.
+
+        This method will validate the config and apply it to the player.
+        """
+        # validate the new config
+        config.validate()
+
+        # Save and apply the new config to the player
+        self.set(f"{CONF_PLAYER_DSP}/{player_id}", config.to_dict())
+        await self.mass.players.on_player_dsp_change(player_id)
+        return config
 
     def create_default_player_config(
         self,
