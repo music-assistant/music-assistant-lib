@@ -11,11 +11,21 @@ FROM ghcr.io/music-assistant/base:$BASE_IMAGE_VERSION
 ARG MASS_VERSION
 ARG TARGETPLATFORM
 ADD dist dist
+
+# pre-install ALL requirements
+# comes at a cost of a slightly larger image size but is faster to start
+# because we do not have to install dependencies at runtime
+COPY requirements_all.txt .
+RUN uv pip install \
+    --no-cache \
+    --find-links "https://wheels.home-assistant.io/musllinux/" \
+    -r requirements_all.txt
+
 # Install Music Assistant from prebuilt wheel
 RUN uv pip install \
     --no-cache \
     --find-links "https://wheels.home-assistant.io/musllinux/" \
-    "music-assistant[server]@dist/music_assistant-${MASS_VERSION}-py3-none-any.whl"
+    "music-assistant@dist/music_assistant-${MASS_VERSION}-py3-none-any.whl"
 
 # Set some labels
 LABEL \

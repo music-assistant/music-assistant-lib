@@ -17,10 +17,10 @@ from typing import Any, Final
 from aiorun import run
 from colorlog import ColoredFormatter
 
-from music_assistant.common.helpers.json import json_loads
+from music_assistant import MusicAssistant
 from music_assistant.constants import MASS_LOGGER_NAME, VERBOSE_LOG_LEVEL
-from music_assistant.server import MusicAssistant
-from music_assistant.server.helpers.logging import activate_log_queue_handler
+from music_assistant.helpers.json import json_loads
+from music_assistant.helpers.logging import activate_log_queue_handler
 
 FORMAT_DATE: Final = "%Y-%m-%d"
 FORMAT_TIME: Final = "%H:%M:%S"

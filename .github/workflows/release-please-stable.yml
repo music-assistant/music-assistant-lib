@@ -1,0 +1,24 @@
+name: Release Notes drafter (release-please) STABLE
+on:
+  push:
+    branches:
+      - stable
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.release.outputs.tag_name }}
+      release_created: ${{ steps.release.outputs.release_created }}
+    steps:
+      - uses: googleapis/release-please-action@v4
+        id: release
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          release-type: simple
+          manifest-file: .github/workflows/.release-please-manifest-stable.json
+          config-file: .github/workflows/.release-please-config-stable.json

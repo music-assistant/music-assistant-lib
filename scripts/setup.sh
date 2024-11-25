@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Setups the repository.
+
+# Set-up the development environment
 
 # Stop on errors
 set -e
@@ -21,6 +22,7 @@ echo "Installing development dependencies..."
 
 pip install --upgrade pip
 pip install --upgrade uv
-uv pip install -e ".[server]"
+uv pip install -e "."
 uv pip install -e ".[test]"
+uv pip install -r requirements_all.txt
 pre-commit install
