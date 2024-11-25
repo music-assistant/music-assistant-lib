@@ -372,9 +372,9 @@ class TidalProvider(MusicProvider):
             raise
 
     @property
-    def supported_features(self) -> tuple[ProviderFeature, ...]:
+    def supported_features(self) -> set[ProviderFeature]:
         """Return the features supported by this Provider."""
-        return (
+        return {
             ProviderFeature.LIBRARY_ARTISTS,
             ProviderFeature.LIBRARY_ALBUMS,
             ProviderFeature.LIBRARY_TRACKS,
@@ -390,7 +390,7 @@ class TidalProvider(MusicProvider):
             ProviderFeature.SIMILAR_TRACKS,
             ProviderFeature.BROWSE,
             ProviderFeature.PLAYLIST_TRACKS_EDIT,
-        )
+        }
 
     async def search(
         self,
@@ -564,7 +564,9 @@ class TidalProvider(MusicProvider):
         )
         return self._parse_playlist(playlist_obj)
 
-    async def get_stream_details(self, item_id: str) -> StreamDetails:
+    async def get_stream_details(
+        self, item_id: str, media_type: MediaType = MediaType.TRACK
+    ) -> StreamDetails:
         """Return the content details for the given track when it will be streamed."""
         tidal_session = await self._get_tidal_session()
         # make sure a valid track is requested.

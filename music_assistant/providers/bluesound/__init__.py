@@ -37,7 +37,7 @@ if TYPE_CHECKING:
 
 
 PLAYER_FEATURES_BASE = {
-    PlayerFeature.SYNC,
+    PlayerFeature.SET_MEMBERS,
     PlayerFeature.VOLUME_MUTE,
     PlayerFeature.PAUSE,
 }
@@ -188,9 +188,10 @@ class BluesoundPlayer:
 
         if self.sync_status.leader is None:
             if self.sync_status.followers:
-                self.mass_player.group_childs = (
-                    self.sync_status.followers if len(self.sync_status.followers) > 1 else set()
-                )
+                if len(self.sync_status.followers) > 1:
+                    self.mass_player.group_childs.set(self.sync_status.followers)
+                else:
+                    self.mass_player.group_childs.clear()
                 self.mass_player.synced_to = None
 
             if self.status.state == "stream":
@@ -205,7 +206,7 @@ class BluesoundPlayer:
                 self.mass_player.current_media = None
 
         else:
-            self.mass_player.group_childs = set()
+            self.mass_player.group_childs.clear()
             self.mass_player.synced_to = self.sync_status.leader
             self.mass_player.active_source = self.sync_status.leader
 
@@ -219,9 +220,9 @@ class BluesoundPlayerProvider(PlayerProvider):
     bluos_players: dict[str, BluesoundPlayer]
 
     @property
-    def supported_features(self) -> tuple[ProviderFeature, ...]:
+    def supported_features(self) -> set[ProviderFeature]:
         """Return the features supported by this Provider."""
-        return (ProviderFeature.SYNC_PLAYERS,)
+        return {ProviderFeature.SYNC_PLAYERS}
 
     async def handle_async_init(self) -> None:
         """Handle async initialization of the provider."""
@@ -257,7 +258,7 @@ class BluesoundPlayerProvider(PlayerProvider):
                     mass_player.device_info = DeviceInfo(
                         model=mass_player.device_info.model,
                         manufacturer=mass_player.device_info.manufacturer,
-                        address=str(cur_address),
+                        ip_address=str(cur_address),
                     )
                 if not mass_player.available:
                     self.logger.debug("Player back online: %s", mass_player.display_name)
@@ -284,16 +285,17 @@ class BluesoundPlayerProvider(PlayerProvider):
             device_info=DeviceInfo(
                 model="BluOS speaker",
                 manufacturer="Bluesound",
-                address=cur_address,
+                ip_address=cur_address,
             ),
             # Set the supported features for this player
-            supported_features=(
+            supported_features={
                 PlayerFeature.VOLUME_SET,
                 PlayerFeature.VOLUME_MUTE,
                 PlayerFeature.PAUSE,
-            ),
+            },
             needs_poll=True,
             poll_interval=30,
+            can_group_with={self.instance_id},
         )
         await self.mass.players.register(mass_player)
 
@@ -392,12 +394,12 @@ class BluesoundPlayerProvider(PlayerProvider):
         if bluos_player := self.bluos_players[player_id]:
             await bluos_player.update_attributes()
 
-    # TODO fix sync & unsync
+    # TODO fix sync & ungroup
 
-    async def cmd_sync(self, player_id: str, target_player: str) -> None:
-        """Handle SYNC command for BluOS player."""
+    async def cmd_group(self, player_id: str, target_player: str) -> None:
+        """Handle GROUP command for BluOS player."""
 
-    async def cmd_unsync(self, player_id: str) -> None:
-        """Handle UNSYNC command for BluOS player."""
+    async def cmd_ungroup(self, player_id: str) -> None:
+        """Handle UNGROUP command for BluOS player."""
         if bluos_player := self.bluos_players[player_id]:
             await bluos_player.client.player.leave_group()

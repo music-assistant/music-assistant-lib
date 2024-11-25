@@ -48,7 +48,7 @@ from music_assistant.models.music_provider import MusicProvider
 
 from .gw_client import GWClient
 
-SUPPORTED_FEATURES = (
+SUPPORTED_FEATURES = {
     ProviderFeature.LIBRARY_ARTISTS,
     ProviderFeature.LIBRARY_ALBUMS,
     ProviderFeature.LIBRARY_TRACKS,
@@ -68,7 +68,7 @@ SUPPORTED_FEATURES = (
     ProviderFeature.PLAYLIST_CREATE,
     ProviderFeature.RECOMMENDATIONS,
     ProviderFeature.SIMILAR_TRACKS,
-)
+}
 
 
 @dataclass
@@ -190,7 +190,7 @@ class DeezerProvider(MusicProvider):
         await self.gw_client.setup()
 
     @property
-    def supported_features(self) -> tuple[ProviderFeature, ...]:
+    def supported_features(self) -> set[ProviderFeature]:
         """Return the features supported by this Provider."""
         return SUPPORTED_FEATURES
 
@@ -427,7 +427,9 @@ class DeezerProvider(MusicProvider):
         ]["data"][:limit]
         return [await self.get_track(track["SNG_ID"]) for track in tracks]
 
-    async def get_stream_details(self, item_id: str) -> StreamDetails:
+    async def get_stream_details(
+        self, item_id: str, media_type: MediaType = MediaType.TRACK
+    ) -> StreamDetails:
         """Return the content details for the given track when it will be streamed."""
         url_details, song_data = await self.gw_client.get_deezer_track_urls(item_id)
         url = url_details["sources"][0]["url"]

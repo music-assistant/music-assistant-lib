@@ -23,10 +23,10 @@ if TYPE_CHECKING:
     from music_assistant import MusicAssistant
     from music_assistant.models import ProviderInstanceType
 
-SUPPORTED_FEATURES = (
+SUPPORTED_FEATURES = {
     ProviderFeature.ARTIST_METADATA,
     ProviderFeature.ALBUM_METADATA,
-)
+}
 
 CONF_ENABLE_ARTIST_IMAGES = "enable_artist_images"
 CONF_ENABLE_ALBUM_IMAGES = "enable_album_images"
@@ -101,7 +101,7 @@ class FanartTvMetadataProvider(MetadataProvider):
             self.throttler = Throttler(rate_limit=1, period=30)
 
     @property
-    def supported_features(self) -> tuple[ProviderFeature, ...]:
+    def supported_features(self) -> set[ProviderFeature]:
         """Return the features supported by this Provider."""
         return SUPPORTED_FEATURES
 

@@ -54,12 +54,12 @@ if TYPE_CHECKING:
     from music_assistant.models import ProviderInstanceType
 
 
-PLAYER_FEATURES = (
-    PlayerFeature.SYNC,
+PLAYER_FEATURES = {
+    PlayerFeature.SET_MEMBERS,
     PlayerFeature.VOLUME_MUTE,
     PlayerFeature.PAUSE,
     PlayerFeature.ENQUEUE,
-)
+}
 
 CONF_NETWORK_SCAN = "network_scan"
 CONF_HOUSEHOLD_ID = "household_id"
@@ -138,9 +138,9 @@ class SonosPlayerProvider(PlayerProvider):
     _discovery_reschedule_timer: asyncio.TimerHandle | None = None
 
     @property
-    def supported_features(self) -> tuple[ProviderFeature, ...]:
+    def supported_features(self) -> set[ProviderFeature]:
         """Return the features supported by this Provider."""
-        return (ProviderFeature.SYNC_PLAYERS,)
+        return {ProviderFeature.SYNC_PLAYERS}
 
     async def handle_async_init(self) -> None:
         """Handle async initialization of the provider."""
@@ -255,8 +255,8 @@ class SonosPlayerProvider(PlayerProvider):
 
         await asyncio.to_thread(set_volume_mute, player_id, muted)
 
-    async def cmd_sync(self, player_id: str, target_player: str) -> None:
-        """Handle SYNC command for given player.
+    async def cmd_group(self, player_id: str, target_player: str) -> None:
+        """Handle GROUP command for given player.
 
         Join/add the given player(id) to the given (master) player/sync group.
 
@@ -268,10 +268,10 @@ class SonosPlayerProvider(PlayerProvider):
         await sonos_master_player.join([sonos_player])
         self.mass.call_later(2, sonos_player.poll_speaker)
 
-    async def cmd_unsync(self, player_id: str) -> None:
-        """Handle UNSYNC command for given player.
+    async def cmd_ungroup(self, player_id: str) -> None:
+        """Handle UNGROUP command for given player.
 
-        Remove the given player from any syncgroups it currently is synced to.
+        Remove the given player from any (sync)groups it currently is grouped to.
 
             - player_id: player_id of the player to handle the command.
         """
@@ -438,11 +438,12 @@ class SonosPlayerProvider(PlayerProvider):
                 supported_features=PLAYER_FEATURES,
                 device_info=DeviceInfo(
                     model=speaker_info["model_name"],
-                    address=soco.ip_address,
+                    ip_address=soco.ip_address,
                     manufacturer="SONOS",
                 ),
                 needs_poll=True,
                 poll_interval=30,
+                can_group_with={self.instance_id},
             )
         self.sonosplayers[player_id] = sonos_player = SonosPlayer(
             self,
@@ -450,10 +451,10 @@ class SonosPlayerProvider(PlayerProvider):
             mass_player=mass_player,
         )
         if not soco.fixed_volume:
-            mass_player.supported_features = (
+            mass_player.supported_features = {
                 *mass_player.supported_features,
                 PlayerFeature.VOLUME_SET,
-            )
+            }
         asyncio.run_coroutine_threadsafe(
             self.mass.players.register_or_update(sonos_player.mass_player), loop=self.mass.loop
         )

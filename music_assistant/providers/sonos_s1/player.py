@@ -44,7 +44,7 @@ CALLBACK_TYPE = Callable[[], None]
 LOGGER = logging.getLogger(__name__)
 
 PLAYER_FEATURES = (
-    PlayerFeature.SYNC,
+    PlayerFeature.SET_MEMBERS,
     PlayerFeature.VOLUME_MUTE,
     PlayerFeature.VOLUME_SET,
 )
@@ -285,7 +285,7 @@ class SonosPlayer:
         self.setup()
         self.mass_player.device_info = DeviceInfo(
             model=self.mass_player.device_info.model,
-            address=ip_address,
+            ip_address=ip_address,
             manufacturer=self.mass_player.device_info.manufacturer,
         )
         self.update_player()
@@ -621,7 +621,7 @@ class SonosPlayer:
             self.mass_player.powered = False
             self.mass_player.state = PlayerState.IDLE
             self.mass_player.synced_to = None
-            self.mass_player.group_childs = set()
+            self.mass_player.group_childs.clear()
             return
 
         # transport info (playback state)
@@ -651,16 +651,16 @@ class SonosPlayer:
         if self.sync_coordinator:
             # player is synced to another player
             self.mass_player.synced_to = self.sync_coordinator.player_id
-            self.mass_player.group_childs = set()
+            self.mass_player.group_childs.clear()
             self.mass_player.active_source = self.sync_coordinator.mass_player.active_source
         elif len(self.group_members_ids) > 1:
             # this player is the sync leader in a group
             self.mass_player.synced_to = None
-            self.mass_player.group_childs = set(self.group_members_ids)
+            self.mass_player.group_childs.extend(self.group_members_ids)
         else:
             # standalone player, not synced
             self.mass_player.synced_to = None
-            self.mass_player.group_childs = set()
+            self.mass_player.group_childs.clear()
 
     def _set_basic_track_info(self, update_position: bool = False) -> None:
         """Query the speaker to update media metadata and position info."""

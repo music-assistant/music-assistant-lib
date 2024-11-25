@@ -33,7 +33,7 @@ if TYPE_CHECKING:
 
 LUCENE_SPECIAL = r'([+\-&|!(){}\[\]\^"~*?:\\\/])'
 
-SUPPORTED_FEATURES = ()
+SUPPORTED_FEATURES = set()
 
 
 async def setup(
@@ -200,7 +200,7 @@ class MusicbrainzProvider(MetadataProvider):
         self.cache = self.mass.cache
 
     @property
-    def supported_features(self) -> tuple[ProviderFeature, ...]:
+    def supported_features(self) -> set[ProviderFeature]:
         """Return the features supported by this Provider."""
         return SUPPORTED_FEATURES
 

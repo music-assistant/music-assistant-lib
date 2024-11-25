@@ -61,7 +61,7 @@ if TYPE_CHECKING:
     from music_assistant.models import ProviderInstanceType
 
 
-SUPPORTED_FEATURES = (
+SUPPORTED_FEATURES = {
     ProviderFeature.LIBRARY_ARTISTS,
     ProviderFeature.LIBRARY_ALBUMS,
     ProviderFeature.LIBRARY_TRACKS,
@@ -75,7 +75,7 @@ SUPPORTED_FEATURES = (
     ProviderFeature.SEARCH,
     ProviderFeature.ARTIST_ALBUMS,
     ProviderFeature.ARTIST_TOPTRACKS,
-)
+}
 
 VARIOUS_ARTISTS_ID = "145383"
 
@@ -137,7 +137,7 @@ class QobuzProvider(MusicProvider):
             raise LoginFailed(msg)
 
     @property
-    def supported_features(self) -> tuple[ProviderFeature, ...]:
+    def supported_features(self) -> set[ProviderFeature]:
         """Return the features supported by this Provider."""
         return SUPPORTED_FEATURES
 
@@ -401,7 +401,9 @@ class QobuzProvider(MusicProvider):
             playlist_track_ids=",".join(playlist_track_ids),
         )
 
-    async def get_stream_details(self, item_id: str) -> StreamDetails:
+    async def get_stream_details(
+        self, item_id: str, media_type: MediaType = MediaType.TRACK
+    ) -> StreamDetails:
         """Return the content details for the given track when it will be streamed."""
         streamdata = None
         for format_id in [27, 7, 6, 5]:

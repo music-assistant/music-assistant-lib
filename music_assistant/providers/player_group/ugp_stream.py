@@ -18,12 +18,6 @@ from music_assistant.helpers.util import empty_queue
 
 # ruff: noqa: ARG002
 
-UGP_FORMAT = AudioFormat(
-    content_type=ContentType.PCM_F32LE,
-    sample_rate=48000,
-    bit_depth=32,
-)
-
 
 class UGPStream:
     """

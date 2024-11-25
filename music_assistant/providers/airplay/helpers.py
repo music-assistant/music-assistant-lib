@@ -6,6 +6,8 @@ from typing import TYPE_CHECKING
 
 from zeroconf import IPVersion
 
+from music_assistant.providers.airplay.const import BROKEN_RAOP_MODELS
+
 if TYPE_CHECKING:
     from zeroconf.asyncio import AsyncServiceInfo
 
@@ -20,23 +22,49 @@ def convert_airplay_volume(value: float) -> int:
     return int(portion + normal_min)
 
 
-def get_model_from_am(am_property: str | None) -> tuple[str, str]:
-    """Return Manufacturer and Model name from mdns AM property."""
-    manufacturer = "Unknown"
-    model = "Generic Airplay device"
-    if not am_property:
+def get_model_info(info: AsyncServiceInfo) -> tuple[str, str]:
+    """Return Manufacturer and Model name from mdns info."""
+    manufacturer = info.decoded_properties.get("manufacturer")
+    model = info.decoded_properties.get("model")
+    if manufacturer and model:
         return (manufacturer, model)
-    if isinstance(am_property, bytes):
-        am_property = am_property.decode("utf-8")
-    if am_property == "AudioAccessory5,1":
-        model = "HomePod"
-        manufacturer = "Apple"
-    elif "AppleTV" in am_property:
+    # try parse from am property
+    if am_property := info.decoded_properties.get("am"):
+        if isinstance(am_property, bytes):
+            am_property = am_property.decode("utf-8")
+        model = am_property
+
+    if not model:
+        model = "Unknown"
+
+    # parse apple model names
+    if model == "AudioAccessory6,1":
+        return ("Apple", "HomePod 2")
+    if model in ("AudioAccessory5,1", "AudioAccessorySingle5,1"):
+        return ("Apple", "HomePod Mini")
+    if model == "AppleTV1,1":
+        return ("Apple", "Apple TV Gen1")
+    if model == "AppleTV2,1":
+        return ("Apple", "Apple TV Gen2")
+    if model in ("AppleTV3,1", "AppleTV3,2"):
+        return ("Apple", "Apple TV Gen3")
+    if model == "AppleTV5,3":
+        return ("Apple", "Apple TV Gen4")
+    if model == "AppleTV6,2":
+        return ("Apple", "Apple TV 4K")
+    if model == "AppleTV11,1":
+        return ("Apple", "Apple TV 4K Gen2")
+    if model == "AppleTV14,1":
+        return ("Apple", "Apple TV 4K Gen3")
+    if "AirPort" in model:
+        return ("Apple", "AirPort Express")
+    if "AudioAccessory" in model:
+        return ("Apple", "HomePod")
+    if "AppleTV" in model:
         model = "Apple TV"
         manufacturer = "Apple"
-    else:
-        model = am_property
-    return (manufacturer, model)
+
+    return (manufacturer or "Airplay", model)
 
 
 def get_primary_ip_address(discovery_info: AsyncServiceInfo) -> str | None:
@@ -50,3 +78,11 @@ def get_primary_ip_address(discovery_info: AsyncServiceInfo) -> str | None:
             continue
         return address
     return None
+
+
+def is_broken_raop_model(manufacturer: str, model: str) -> bool:
+    """Check if a model is known to have broken RAOP support."""
+    for broken_manufacturer, broken_model in BROKEN_RAOP_MODELS:
+        if broken_manufacturer in (manufacturer, "*") and broken_model in (model, "*"):
+            return True
+    return False

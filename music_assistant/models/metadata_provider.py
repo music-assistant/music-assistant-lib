@@ -13,11 +13,11 @@ if TYPE_CHECKING:
 
 # ruff: noqa: ARG001, ARG002
 
-DEFAULT_SUPPORTED_FEATURES = (
+DEFAULT_SUPPORTED_FEATURES = {
     ProviderFeature.ARTIST_METADATA,
     ProviderFeature.ALBUM_METADATA,
     ProviderFeature.TRACK_METADATA,
-)
+}
 
 
 class MetadataProvider(Provider):
@@ -27,7 +27,7 @@ class MetadataProvider(Provider):
     """
 
     @property
-    def supported_features(self) -> tuple[ProviderFeature, ...]:
+    def supported_features(self) -> set[ProviderFeature]:
         """Return the features supported by this Provider."""
         return DEFAULT_SUPPORTED_FEATURES
 

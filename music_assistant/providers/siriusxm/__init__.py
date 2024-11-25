@@ -112,12 +112,12 @@ class SiriusXMProvider(MusicProvider):
     _current_stream_details: StreamDetails | None = None
 
     @property
-    def supported_features(self) -> tuple[ProviderFeature, ...]:
+    def supported_features(self) -> set[ProviderFeature]:
         """Return the features supported by this Provider."""
-        return (
+        return {
             ProviderFeature.BROWSE,
             ProviderFeature.LIBRARY_RADIOS,
-        )
+        }
 
     async def handle_async_init(self) -> None:
         """Handle async initialization of the provider."""
@@ -211,7 +211,9 @@ class SiriusXMProvider(MusicProvider):
 
         return self._parse_radio(self._channels_by_id[prov_radio_id])
 
-    async def get_stream_details(self, item_id: str) -> StreamDetails:
+    async def get_stream_details(
+        self, item_id: str, media_type: MediaType = MediaType.RADIO
+    ) -> StreamDetails:
         """Get streamdetails for a track/radio."""
         hls_path = f"http://{self._base_url}/{item_id}.m3u8"
 

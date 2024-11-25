@@ -47,9 +47,9 @@ class SonosPlayerProvider(PlayerProvider):
     sonos_players: dict[str, SonosPlayer]
 
     @property
-    def supported_features(self) -> tuple[ProviderFeature, ...]:
+    def supported_features(self) -> set[ProviderFeature]:
         """Return the features supported by this Provider."""
-        return (ProviderFeature.SYNC_PLAYERS,)
+        return {ProviderFeature.SYNC_PLAYERS}
 
     async def handle_async_init(self) -> None:
         """Handle async initialization of the provider."""
@@ -102,7 +102,7 @@ class SonosPlayerProvider(PlayerProvider):
                     mass_player.device_info = DeviceInfo(
                         model=mass_player.device_info.model,
                         manufacturer=mass_player.device_info.manufacturer,
-                        address=str(cur_address),
+                        ip_address=str(cur_address),
                     )
                 if not sonos_player.connected:
                     self.logger.debug("Player back online: %s", mass_player.display_name)
@@ -144,7 +144,7 @@ class SonosPlayerProvider(PlayerProvider):
             ConfigEntry(
                 key=CONF_AIRPLAY_MODE,
                 type=ConfigEntryType.BOOLEAN,
-                label="Enable Airplay mode (experimental)",
+                label="Enable Airplay mode",
                 description="Almost all newer Sonos speakers have Airplay support. "
                 "If you have the Airplay provider enabled in Music Assistant, "
                 "your Sonos speaker will also be detected as a Airplay speaker, meaning "
@@ -153,10 +153,8 @@ class SonosPlayerProvider(PlayerProvider):
                 "feature enabled, it will use the Airplay protocol instead by redirecting "
                 "the playback related commands to the linked Airplay player in Music Assistant, "
                 "allowing you to mix and match Sonos speakers with Airplay speakers. \n\n"
-                "NOTE: You need to have the Airplay provider enabled. "
-                "Also make sure that the Airplay version of this player is enabled. \n\n"
-                "TIP: When this feature is enabled, it make sense to set the underlying airplay "
-                "players to hide in the UI in the player settings to prevent duplicate players.",
+                "NOTE: You need to have the Airplay provider enabled as well as "
+                "the Airplay version of this player.",
                 required=False,
                 default_value=False,
                 depends_on="airplay_detected",
@@ -190,27 +188,35 @@ class SonosPlayerProvider(PlayerProvider):
         if sonos_player := self.sonos_players[player_id]:
             await sonos_player.cmd_volume_mute(muted)
 
-    async def cmd_sync(self, player_id: str, target_player: str) -> None:
-        """Handle SYNC command for given player.
+    async def cmd_group(self, player_id: str, target_player: str) -> None:
+        """Handle GROUP command for given player.
 
         Join/add the given player(id) to the given (master) player/sync group.
 
             - player_id: player_id of the player to handle the command.
             - target_player: player_id of the syncgroup master or group player.
         """
-        await self.cmd_sync_many(target_player, [player_id])
+        await self.cmd_group_many(target_player, [player_id])
 
-    async def cmd_sync_many(self, target_player: str, child_player_ids: list[str]) -> None:
+    async def cmd_group_many(self, target_player: str, child_player_ids: list[str]) -> None:
         """Create temporary sync group by joining given players to target player."""
         sonos_player = self.sonos_players[target_player]
-        await sonos_player.client.player.group.modify_group_members(
-            player_ids_to_add=child_player_ids, player_ids_to_remove=[]
-        )
+        if airplay_player := sonos_player.get_linked_airplay_player(False):
+            # if airplay mode is enabled, we could possibly receive child player id's that are
+            # not Sonos players, but Airplay players. We redirect those.
+            airplay_child_ids = [x for x in child_player_ids if x.startswith("ap")]
+            child_player_ids = [x for x in child_player_ids if x not in airplay_child_ids]
+            if airplay_child_ids:
+                await self.mass.players.cmd_group_many(airplay_player.player_id, airplay_child_ids)
+        if child_player_ids:
+            await sonos_player.client.player.group.modify_group_members(
+                player_ids_to_add=child_player_ids, player_ids_to_remove=[]
+            )
 
-    async def cmd_unsync(self, player_id: str) -> None:
-        """Handle UNSYNC command for given player.
+    async def cmd_ungroup(self, player_id: str) -> None:
+        """Handle UNGROUP command for given player.
 
-        Remove the given player from any syncgroups it currently is synced to.
+        Remove the given player from any (sync)groups it currently is grouped to.
 
             - player_id: player_id of the player to handle the command.
         """
@@ -235,23 +241,24 @@ class SonosPlayerProvider(PlayerProvider):
             raise PlayerCommandFailed(msg)
         # for now always reset the active session
         sonos_player.client.player.group.active_session_id = None
-        if airplay := sonos_player.get_linked_airplay_player(True, True):
-            # linked airplay player is active, redirect the command
+        if airplay := sonos_player.get_linked_airplay_player(True):
+            # airplay mode is enabled, redirect the command
             self.logger.debug("Redirecting PLAY_MEDIA command to linked airplay player.")
             mass_player.active_source = airplay.active_source
             # Sonos has an annoying bug (for years already, and they dont seem to care),
             # where it looses its sync childs when airplay playback is (re)started.
             # Try to handle it here with this workaround.
-            group_childs = (
-                sonos_player.client.player.group_members
-                if len(sonos_player.client.player.group_members) > 1
-                else []
-            )
+            group_childs = [
+                x for x in sonos_player.client.player.group.player_ids if x != player_id
+            ]
             if group_childs:
-                await self.mass.players.cmd_unsync_many(group_childs)
+                await self.mass.players.cmd_ungroup_many(group_childs)
             await self.mass.players.play_media(airplay.player_id, media)
             if group_childs:
-                self.mass.call_later(5, self.cmd_sync_many, player_id, group_childs)
+                # ensure master player is first in the list
+                group_childs = [sonos_player.player_id, *group_childs]
+                await asyncio.sleep(5)
+                await sonos_player.client.player.group.set_group_members(group_childs)
             return
 
         if media.queue_id and media.queue_id.startswith("ugp_"):

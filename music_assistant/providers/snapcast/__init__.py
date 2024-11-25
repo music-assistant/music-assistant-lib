@@ -272,9 +272,9 @@ class SnapCastProvider(PlayerProvider):
             return self._get_ma_id(snap_client_id)
 
     @property
-    def supported_features(self) -> tuple[ProviderFeature, ...]:
+    def supported_features(self) -> set[ProviderFeature]:
         """Return the features supported by this Provider."""
-        return (ProviderFeature.SYNC_PLAYERS,)
+        return {ProviderFeature.SYNC_PLAYERS}
 
     async def handle_async_init(self) -> None:
         """Handle async initialization of the provider."""
@@ -373,16 +373,16 @@ class SnapCastProvider(PlayerProvider):
                 powered=snap_client.connected,
                 device_info=DeviceInfo(
                     model=snap_client._client.get("host").get("os"),
-                    address=snap_client._client.get("host").get("ip"),
+                    ip_address=snap_client._client.get("host").get("ip"),
                     manufacturer=snap_client._client.get("host").get("arch"),
                 ),
-                supported_features=(
-                    PlayerFeature.SYNC,
+                supported_features={
+                    PlayerFeature.SET_MEMBERS,
                     PlayerFeature.VOLUME_SET,
                     PlayerFeature.VOLUME_MUTE,
-                ),
-                group_childs=set(),
+                },
                 synced_to=self._synced_to(player_id),
+                can_group_with={self.instance_id},
             )
         asyncio.run_coroutine_threadsafe(
             self.mass.players.register_or_update(player), loop=self.mass.loop
@@ -449,7 +449,7 @@ class SnapCastProvider(PlayerProvider):
         ma_player.volume_muted = snapclient.muted
         self.mass.players.update(player_id)
 
-    async def cmd_sync(self, player_id: str, target_player: str) -> None:
+    async def cmd_group(self, player_id: str, target_player: str) -> None:
         """Sync Snapcast player."""
         group = self._get_snapgroup(target_player)
         mass_target_player = self.mass.players.get(target_player)
@@ -457,17 +457,17 @@ class SnapCastProvider(PlayerProvider):
             await group.add_client(self._get_snapclient_id(player_id))
             mass_player = self.mass.players.get(player_id)
             mass_player.synced_to = target_player
-            mass_target_player.group_childs.add(player_id)
+            mass_target_player.group_childs.append(player_id)
             self.mass.players.update(player_id)
             self.mass.players.update(target_player)
 
-    async def cmd_unsync(self, player_id: str) -> None:
-        """Unsync Snapcast player."""
+    async def cmd_ungroup(self, player_id: str) -> None:
+        """Ungroup Snapcast player."""
         mass_player = self.mass.players.get(player_id)
         if mass_player.synced_to is None:
             for mass_child_id in list(mass_player.group_childs):
                 if mass_child_id != player_id:
-                    await self.cmd_unsync(mass_child_id)
+                    await self.cmd_ungroup(mass_child_id)
             return
         mass_sync_master_player = self.mass.players.get(mass_player.synced_to)
         mass_sync_master_player.group_childs.remove(player_id)
@@ -601,9 +601,9 @@ class SnapCastProvider(PlayerProvider):
         mass_player.group_childs.clear()
         if mass_player.synced_to is not None:
             return
-        mass_player.group_childs.add(player_id)
+        mass_player.group_childs.append(player_id)
         {
-            mass_player.group_childs.add(self._get_ma_id(snap_client_id))
+            mass_player.group_childs.append(self._get_ma_id(snap_client_id))
             for snap_client_id in snap_group.clients
             if self._get_ma_id(snap_client_id) != player_id
             and self._snapserver.client(snap_client_id).connected

@@ -111,14 +111,14 @@ IMAGE_EXTENSIONS = ("jpg", "jpeg", "JPG", "JPEG", "png", "PNG", "gif", "GIF")
 SEEKABLE_FILES = (ContentType.MP3, ContentType.WAV, ContentType.FLAC)
 
 
-SUPPORTED_FEATURES = (
+SUPPORTED_FEATURES = {
     ProviderFeature.LIBRARY_ARTISTS,
     ProviderFeature.LIBRARY_ALBUMS,
     ProviderFeature.LIBRARY_TRACKS,
     ProviderFeature.LIBRARY_PLAYLISTS,
     ProviderFeature.BROWSE,
     ProviderFeature.SEARCH,
-)
+}
 
 listdir = wrap(os.listdir)
 isdir = wrap(os.path.isdir)
@@ -175,14 +175,14 @@ class LocalFileSystemProvider(MusicProvider):
     scan_limiter = asyncio.Semaphore(25)
 
     @property
-    def supported_features(self) -> tuple[ProviderFeature, ...]:
+    def supported_features(self) -> set[ProviderFeature]:
         """Return the features supported by this Provider."""
         if self.write_access:
-            return (
+            return {
                 *SUPPORTED_FEATURES,
                 ProviderFeature.PLAYLIST_CREATE,
                 ProviderFeature.PLAYLIST_TRACKS_EDIT,
-            )
+            }
         return SUPPORTED_FEATURES
 
     @property
@@ -632,7 +632,9 @@ class LocalFileSystemProvider(MusicProvider):
             await _file.write("#EXTM3U\n")
         return await self.get_playlist(filename)
 
-    async def get_stream_details(self, item_id: str) -> StreamDetails:
+    async def get_stream_details(
+        self, item_id: str, media_type: MediaType = MediaType.TRACK
+    ) -> StreamDetails:
         """Return the content details for the given track when it will be streamed."""
         library_item = await self.mass.music.tracks.get_library_item_by_prov_id(
             item_id, self.instance_id

@@ -493,7 +493,7 @@ class DLNAPlayerProvider(PlayerProvider):
                         # device info will be discovered later after connect
                         device_info=DeviceInfo(
                             model="unknown",
-                            address=description_url,
+                            ip_address=description_url,
                             manufacturer="unknown",
                         ),
                         needs_poll=True,
@@ -542,7 +542,7 @@ class DLNAPlayerProvider(PlayerProvider):
                 # connect was successful, update device info
                 dlna_player.player.device_info = DeviceInfo(
                     model=dlna_player.device.model_name,
-                    address=dlna_player.device.device.presentation_url
+                    ip_address=dlna_player.device.device.presentation_url
                     or dlna_player.description_url,
                     manufacturer=dlna_player.device.manufacturer,
                 )
@@ -611,4 +611,4 @@ class DLNAPlayerProvider(PlayerProvider):
             supported_features.add(PlayerFeature.VOLUME_MUTE)
         if dlna_player.device.has_pause:
             supported_features.add(PlayerFeature.PAUSE)
-        dlna_player.player.supported_features = tuple(supported_features)
+        dlna_player.player.supported_features = supported_features

@@ -386,17 +386,17 @@ class ChromecastProvider(PlayerProvider):
                     powered=False,
                     device_info=DeviceInfo(
                         model=cast_info.model_name,
-                        address=f"{cast_info.host}:{cast_info.port}",
+                        ip_address=f"{cast_info.host}:{cast_info.port}",
                         manufacturer=cast_info.manufacturer,
                     ),
-                    supported_features=(
+                    supported_features={
                         PlayerFeature.POWER,
                         PlayerFeature.VOLUME_MUTE,
                         PlayerFeature.VOLUME_SET,
                         PlayerFeature.PAUSE,
                         PlayerFeature.NEXT_PREVIOUS,
                         PlayerFeature.ENQUEUE,
-                    ),
+                    },
                     enabled_by_default=enabled_by_default,
                     needs_poll=True,
                 ),
@@ -437,19 +437,19 @@ class ChromecastProvider(PlayerProvider):
         # handle stereo pairs
         if castplayer.cast_info.is_multichannel_group:
             castplayer.player.type = PlayerType.STEREO_PAIR
-            castplayer.player.group_childs = set()
+            castplayer.player.group_childs.clear()
         # handle cast groups
         if castplayer.cast_info.is_audio_group and not castplayer.cast_info.is_multichannel_group:
             castplayer.player.type = PlayerType.GROUP
-            castplayer.player.group_childs = {
+            castplayer.player.group_childs.set(
                 str(UUID(x)) for x in castplayer.mz_controller.members
-            }
-            castplayer.player.supported_features = (
+            )
+            castplayer.player.supported_features = {
                 PlayerFeature.POWER,
                 PlayerFeature.VOLUME_SET,
                 PlayerFeature.PAUSE,
                 PlayerFeature.ENQUEUE,
-            )
+            }
 
         # update player status
         castplayer.player.name = castplayer.cast_info.friendly_name
@@ -578,7 +578,7 @@ class ChromecastProvider(PlayerProvider):
             castplayer.player.available = new_available
             castplayer.player.device_info = DeviceInfo(
                 model=castplayer.cast_info.model_name,
-                address=f"{castplayer.cast_info.host}:{castplayer.cast_info.port}",
+                ip_address=f"{castplayer.cast_info.host}:{castplayer.cast_info.port}",
                 manufacturer=castplayer.cast_info.manufacturer,
             )
             self.mass.loop.call_soon_threadsafe(self.mass.players.update, castplayer.player_id)

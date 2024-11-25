@@ -14,7 +14,6 @@ from typing import Any
 import eyed3
 from music_assistant_models.enums import AlbumType
 from music_assistant_models.errors import InvalidDataError
-from music_assistant_models.media_items import MediaItemChapter
 
 from music_assistant.constants import MASS_LOGGER_NAME, UNKNOWN_ARTIST
 from music_assistant.helpers.process import AsyncProcess
@@ -261,13 +260,13 @@ class AudioTags:
         return split_items(self.tags.get("albumartistsort"), False)
 
     @property
+    def is_audiobook(self) -> bool:
+        """Return True if this is an audiobook."""
+        return self.filename.endswith("m4b") and len(self.chapters) > 1
+
+    @property
     def album_type(self) -> AlbumType:
         """Return albumtype tag if present."""
-        # handle audiobook/podcast
-        if self.filename.endswith("m4b") and len(self.chapters) > 1:
-            return AlbumType.AUDIOBOOK
-        if "podcast" in self.tags.get("genre", "").lower() and len(self.chapters) > 1:
-            return AlbumType.PODCAST
         if self.tags.get("compilation", "") == "1":
             return AlbumType.COMPILATION
         tag = (
@@ -280,8 +279,6 @@ class AudioTags:
         # the album type tag is messy within id3 and may even contain multiple types
         # try to parse one in order of preference
         for album_type in (
-            AlbumType.PODCAST,
-            AlbumType.AUDIOBOOK,
             AlbumType.COMPILATION,
             AlbumType.EP,
             AlbumType.SINGLE,
@@ -316,20 +313,9 @@ class AudioTags:
         return None
 
     @property
-    def chapters(self) -> list[MediaItemChapter]:
+    def chapters(self) -> list[dict[str, Any]]:
         """Return chapters in MediaItem (if any)."""
-        chapters: list[MediaItemChapter] = []
-        if raw_chapters := self.raw.get("chapters"):
-            for chapter_data in raw_chapters:
-                chapters.append(
-                    MediaItemChapter(
-                        chapter_id=chapter_data["id"],
-                        position_start=chapter_data["start"],
-                        position_end=chapter_data["end"],
-                        title=chapter_data.get("tags", {}).get("title"),
-                    )
-                )
-        return chapters
+        return self.raw.get("chapters") or []
 
     @property
     def lyrics(self) -> str | None:

@@ -10,11 +10,13 @@ from music_assistant_models.enums import ExternalID, MediaType
 from music_assistant_models.media_items import (
     Album,
     Artist,
+    Audiobook,
     ItemMapping,
     MediaItem,
     MediaItemMetadata,
     MediaItemType,
     Playlist,
+    Podcast,
     Radio,
     Track,
 )
@@ -43,6 +45,13 @@ def compare_media_item(
         return compare_playlist(base_item, compare_item, strict)
     if base_item.media_type == MediaType.RADIO and compare_item.media_type == MediaType.RADIO:
         return compare_radio(base_item, compare_item, strict)
+    if (
+        base_item.media_type == MediaType.AUDIOBOOK
+        and compare_item.media_type == MediaType.AUDIOBOOK
+    ):
+        return compare_audiobook(base_item, compare_item, strict)
+    if base_item.media_type == MediaType.PODCAST and compare_item.media_type == MediaType.PODCAST:
+        return compare_podcast(base_item, compare_item, strict)
     return compare_item_mapping(base_item, compare_item, strict)
 
 
@@ -263,6 +272,97 @@ def compare_radio(
         return False
     # finally comparing on (exact) name match
     return compare_strings(base_item.name, compare_item.name, strict=strict)
+
+
+def compare_audiobook(
+    base_item: Audiobook | ItemMapping | None,
+    compare_item: Audiobook | ItemMapping | None,
+    strict: bool = True,
+) -> bool | None:
+    """Compare two Audiobook items and return True if they match."""
+    if base_item is None or compare_item is None:
+        return False
+    # return early on exact item_id match
+    if compare_item_ids(base_item, compare_item):
+        return True
+
+    # return early on (un)matched external id
+    for ext_id in (
+        ExternalID.ASIN,
+        ExternalID.BARCODE,
+    ):
+        external_id_match = compare_external_ids(
+            base_item.external_ids, compare_item.external_ids, ext_id
+        )
+        if external_id_match is not None:
+            return external_id_match
+
+    # compare version
+    if not compare_version(base_item.version, compare_item.version):
+        return False
+    # compare name
+    if not compare_strings(base_item.name, compare_item.name, strict=True):
+        return False
+    if not strict and (isinstance(base_item, ItemMapping) or isinstance(compare_item, ItemMapping)):
+        return True
+    # for strict matching we REQUIRE both items to be a real Audiobook object
+    assert isinstance(base_item, Audiobook)
+    assert isinstance(compare_item, Audiobook)
+    # compare publisher
+    if (
+        base_item.publisher
+        and compare_item.publisher
+        and not compare_strings(base_item.publisher, compare_item.publisher, strict=True)
+    ):
+        return False
+    # compare author(s)
+    for author in base_item.authors:
+        author_safe = create_safe_string(author)
+        if author_safe in [create_safe_string(x) for x in compare_item.authors]:
+            return True
+    return False
+
+
+def compare_podcast(
+    base_item: Podcast | ItemMapping | None,
+    compare_item: Podcast | ItemMapping | None,
+    strict: bool = True,
+) -> bool | None:
+    """Compare two Podcast items and return True if they match."""
+    if base_item is None or compare_item is None:
+        return False
+    # return early on exact item_id match
+    if compare_item_ids(base_item, compare_item):
+        return True
+
+    # return early on (un)matched external id
+    for ext_id in (
+        ExternalID.ASIN,
+        ExternalID.BARCODE,
+    ):
+        external_id_match = compare_external_ids(
+            base_item.external_ids, compare_item.external_ids, ext_id
+        )
+        if external_id_match is not None:
+            return external_id_match
+
+    # compare version
+    if not compare_version(base_item.version, compare_item.version):
+        return False
+    # compare name
+    if not compare_strings(base_item.name, compare_item.name, strict=True):
+        return False
+    if not strict and (isinstance(base_item, ItemMapping) or isinstance(compare_item, ItemMapping)):
+        return True
+    # for strict matching we REQUIRE both items to be a real Podcast object
+    assert isinstance(base_item, Audiobook)
+    assert isinstance(compare_item, Audiobook)
+    # compare publisher
+    return not (
+        base_item.publisher
+        and compare_item.publisher
+        and not compare_strings(base_item.publisher, compare_item.publisher, strict=True)
+    )
 
 
 def compare_item_mapping(

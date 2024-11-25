@@ -21,5 +21,6 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           release-type: simple
+          target-branch: ${{ github.ref_name }}
           manifest-file: .github/workflows/.release-please-manifest-dev.json
           config-file: .github/workflows/.release-please-config-dev.json

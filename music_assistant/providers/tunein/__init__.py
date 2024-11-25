@@ -26,10 +26,10 @@ from music_assistant.constants import CONF_USERNAME
 from music_assistant.helpers.throttle_retry import Throttler
 from music_assistant.models.music_provider import MusicProvider
 
-SUPPORTED_FEATURES = (
+SUPPORTED_FEATURES = {
     ProviderFeature.LIBRARY_RADIOS,
     ProviderFeature.BROWSE,
-)
+}
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
@@ -82,7 +82,7 @@ class TuneInProvider(MusicProvider):
     _throttler: Throttler
 
     @property
-    def supported_features(self) -> tuple[ProviderFeature, ...]:
+    def supported_features(self) -> set[ProviderFeature]:
         """Return the features supported by this Provider."""
         return SUPPORTED_FEATURES
 
@@ -238,7 +238,9 @@ class TuneInProvider(MusicProvider):
         await self.mass.cache.set(preset_id, result, base_key=cache_base_key)
         return result
 
-    async def get_stream_details(self, item_id: str) -> StreamDetails:
+    async def get_stream_details(
+        self, item_id: str, media_type: MediaType = MediaType.RADIO
+    ) -> StreamDetails:
         """Get streamdetails for a radio station."""
         if item_id.startswith("http"):
             # custom url

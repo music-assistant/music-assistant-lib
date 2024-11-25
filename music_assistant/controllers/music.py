@@ -41,9 +41,11 @@ from music_assistant.constants import (
     DB_TABLE_ALBUM_TRACKS,
     DB_TABLE_ALBUMS,
     DB_TABLE_ARTISTS,
+    DB_TABLE_AUDIOBOOKS,
     DB_TABLE_LOUDNESS_MEASUREMENTS,
     DB_TABLE_PLAYLISTS,
     DB_TABLE_PLAYLOG,
+    DB_TABLE_PODCASTS,
     DB_TABLE_PROVIDER_MAPPINGS,
     DB_TABLE_RADIOS,
     DB_TABLE_SETTINGS,
@@ -60,7 +62,9 @@ from music_assistant.models.core_controller import CoreController
 
 from .media.albums import AlbumsController
 from .media.artists import ArtistsController
+from .media.audiobooks import AudiobooksController
 from .media.playlists import PlaylistController
+from .media.podcasts import PodcastsController
 from .media.radio import RadioController
 from .media.tracks import TracksController
 
@@ -93,6 +97,8 @@ class MusicController(CoreController):
         self.tracks = TracksController(self.mass)
         self.radio = RadioController(self.mass)
         self.playlists = PlaylistController(self.mass)
+        self.audiobooks = AudiobooksController(self.mass)
+        self.podcasts = PodcastsController(self.mass)
         self.in_progress_syncs: list[SyncTask] = []
         self._sync_lock = asyncio.Lock()
         self.manifest.name = "Music controller"
@@ -247,6 +253,10 @@ class MusicController(CoreController):
                         return SearchResults(tracks=[item])
                     elif media_type == MediaType.PLAYLIST:
                         return SearchResults(playlists=[item])
+                    elif media_type == MediaType.AUDIOBOOK:
+                        return SearchResults(audiobooks=[item])
+                    elif media_type == MediaType.PODCAST:
+                        return SearchResults(podcasts=[item])
                     else:
                         return SearchResults()
 
@@ -294,6 +304,18 @@ class MusicController(CoreController):
             radio=[
                 item
                 for sublist in zip_longest(*[x.radio for x in results_per_provider])
+                for item in sublist
+                if item is not None
+            ][:limit],
+            audiobooks=[
+                item
+                for sublist in zip_longest(*[x.audiobooks for x in results_per_provider])
+                for item in sublist
+                if item is not None
+            ][:limit],
+            podcasts=[
+                item
+                for sublist in zip_longest(*[x.podcasts for x in results_per_provider])
                 for item in sublist
                 if item is not None
             ][:limit],
@@ -381,6 +403,10 @@ class MusicController(CoreController):
                     result.playlists = search_results
                 elif media_type == MediaType.RADIO:
                     result.radio = search_results
+                elif media_type == MediaType.AUDIOBOOK:
+                    result.audiobooks = search_results
+                elif media_type == MediaType.PODCAST:
+                    result.podcasts = search_results
         return result
 
     @api_command("music/browse")
@@ -638,6 +664,10 @@ class MusicController(CoreController):
                 result = searchresult.tracks
             elif media_item.media_type == MediaType.PLAYLIST:
                 result = searchresult.playlists
+            elif media_item.media_type == MediaType.AUDIOBOOK:
+                result = searchresult.audiobooks
+            elif media_item.media_type == MediaType.PODCAST:
+                result = searchresult.podcasts
             else:
                 result = searchresult.radio
             for item in result:
@@ -778,6 +808,8 @@ class MusicController(CoreController):
         | TracksController
         | RadioController
         | PlaylistController
+        | AudiobooksController
+        | PodcastsController
     ):
         """Return controller for MediaType."""
         if media_type == MediaType.ARTIST:
@@ -790,6 +822,10 @@ class MusicController(CoreController):
             return self.radio
         if media_type == MediaType.PLAYLIST:
             return self.playlists
+        if media_type == MediaType.AUDIOBOOK:
+            return self.audiobooks
+        if media_type == MediaType.PODCAST:
+            return self.podcasts
         return None
 
     def get_unique_providers(self) -> set[str]:
@@ -1071,6 +1107,8 @@ class MusicController(CoreController):
                 DB_TABLE_ARTISTS,
                 DB_TABLE_PLAYLISTS,
                 DB_TABLE_RADIOS,
+                DB_TABLE_AUDIOBOOKS,
+                DB_TABLE_PODCASTS,
                 DB_TABLE_ALBUM_TRACKS,
                 DB_TABLE_PLAYLOG,
                 DB_TABLE_PROVIDER_MAPPINGS,
@@ -1239,6 +1277,42 @@ class MusicController(CoreController):
         )
         await self.database.execute(
             f"""
+            CREATE TABLE IF NOT EXISTS {DB_TABLE_AUDIOBOOKS}(
+            [item_id] INTEGER PRIMARY KEY AUTOINCREMENT,
+            [name] TEXT NOT NULL,
+            [sort_name] TEXT NOT NULL,
+            [favorite] BOOLEAN DEFAULT 0,
+            [publisher] TEXT NOT NULL,
+            [total_chapters] INTEGER NOT NULL,
+            [authors] json NOT NULL,
+            [narrators] json NOT NULL,
+            [metadata] json NOT NULL,
+            [external_ids] json NOT NULL,
+            [play_count] INTEGER DEFAULT 0,
+            [last_played] INTEGER DEFAULT 0,
+            [timestamp_added] INTEGER DEFAULT (cast(strftime('%s','now') as int)),
+            [timestamp_modified] INTEGER
+            );"""
+        )
+        await self.database.execute(
+            f"""
+            CREATE TABLE IF NOT EXISTS {DB_TABLE_PODCASTS}(
+            [item_id] INTEGER PRIMARY KEY AUTOINCREMENT,
+            [name] TEXT NOT NULL,
+            [sort_name] TEXT NOT NULL,
+            [favorite] BOOLEAN DEFAULT 0,
+            [publisher] TEXT NOT NULL,
+            [total_episodes] INTEGER NOT NULL,
+            [metadata] json NOT NULL,
+            [external_ids] json NOT NULL,
+            [play_count] INTEGER DEFAULT 0,
+            [last_played] INTEGER DEFAULT 0,
+            [timestamp_added] INTEGER DEFAULT (cast(strftime('%s','now') as int)),
+            [timestamp_modified] INTEGER
+            );"""
+        )
+        await self.database.execute(
+            f"""
             CREATE TABLE IF NOT EXISTS {DB_TABLE_ALBUM_TRACKS}(
             [id] INTEGER PRIMARY KEY AUTOINCREMENT,
             [track_id] INTEGER NOT NULL,
@@ -1305,6 +1379,8 @@ class MusicController(CoreController):
             DB_TABLE_TRACKS,
             DB_TABLE_PLAYLISTS,
             DB_TABLE_RADIOS,
+            DB_TABLE_AUDIOBOOKS,
+            DB_TABLE_PODCASTS,
         ):
             # index on favorite column
             await self.database.execute(
@@ -1401,7 +1477,15 @@ class MusicController(CoreController):
     async def __create_database_triggers(self) -> None:
         """Create database triggers."""
         # triggers to auto update timestamps
-        for db_table in ("artists", "albums", "tracks", "playlists", "radios"):
+        for db_table in (
+            "artists",
+            "albums",
+            "tracks",
+            "playlists",
+            "radios",
+            "audiobooks",
+            "podcasts",
+        ):
             await self.database.execute(
                 f"""
                 CREATE TRIGGER IF NOT EXISTS update_{db_table}_timestamp

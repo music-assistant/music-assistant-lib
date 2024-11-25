@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import os
-import platform
 import time
 from typing import TYPE_CHECKING, Any, cast
 from urllib.parse import urlencode
@@ -51,6 +50,8 @@ from music_assistant.helpers.throttle_retry import ThrottlerManager, throttle_wi
 from music_assistant.helpers.util import lock, parse_title_and_version
 from music_assistant.models.music_provider import MusicProvider
 
+from .helpers import get_librespot_binary
+
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
 
@@ -91,7 +92,7 @@ SCOPE = [
 CALLBACK_REDIRECT_URL = "https://music-assistant.io/callback"
 
 LIKED_SONGS_FAKE_PLAYLIST_ID_PREFIX = "liked_songs"
-SUPPORTED_FEATURES = (
+SUPPORTED_FEATURES = {
     ProviderFeature.LIBRARY_ARTISTS,
     ProviderFeature.LIBRARY_ALBUMS,
     ProviderFeature.LIBRARY_TRACKS,
@@ -106,7 +107,7 @@ SUPPORTED_FEATURES = (
     ProviderFeature.ARTIST_ALBUMS,
     ProviderFeature.ARTIST_TOPTRACKS,
     ProviderFeature.SIMILAR_TRACKS,
-)
+}
 
 
 async def setup(
@@ -252,14 +253,14 @@ class SpotifyProvider(MusicProvider):
             self.throttler.rate_limit = 45
             self.throttler.period = 30
         # check if we have a librespot binary for this arch
-        await self.get_librespot_binary()
+        self._librespot_bin = await get_librespot_binary()
         # try login which will raise if it fails
         await self.login()
 
     @property
-    def supported_features(self) -> tuple[ProviderFeature, ...]:
+    def supported_features(self) -> set[ProviderFeature]:
         """Return the features supported by this Provider."""
-        return (
+        return {
             ProviderFeature.LIBRARY_ARTISTS,
             ProviderFeature.LIBRARY_ALBUMS,
             ProviderFeature.LIBRARY_TRACKS,
@@ -275,7 +276,7 @@ class SpotifyProvider(MusicProvider):
             ProviderFeature.ARTIST_ALBUMS,
             ProviderFeature.ARTIST_TOPTRACKS,
             ProviderFeature.SIMILAR_TRACKS,
-        )
+        }
 
     @property
     def name(self) -> str:
@@ -536,7 +537,9 @@ class SpotifyProvider(MusicProvider):
         items = await self._get_data(endpoint, seed_tracks=prov_track_id, limit=limit)
         return [self._parse_track(item) for item in items["tracks"] if (item and item["id"])]
 
-    async def get_stream_details(self, item_id: str) -> StreamDetails:
+    async def get_stream_details(
+        self, item_id: str, media_type: MediaType = MediaType.TRACK
+    ) -> StreamDetails:
         """Return the content details for the given track when it will be streamed."""
         return StreamDetails(
             item_id=item_id,
@@ -551,11 +554,10 @@ class SpotifyProvider(MusicProvider):
         self, streamdetails: StreamDetails, seek_position: int = 0
     ) -> AsyncGenerator[bytes, None]:
         """Return the audio stream for the provider item."""
-        librespot = await self.get_librespot_binary()
         spotify_uri = f"spotify://track:{streamdetails.item_id}"
         self.logger.log(VERBOSE_LOG_LEVEL, f"Start streaming {spotify_uri} using librespot")
         args = [
-            librespot,
+            self._librespot_bin,
             "--cache",
             self.cache_dir,
             "--cache-size-limit",
@@ -818,9 +820,8 @@ class SpotifyProvider(MusicProvider):
             self.instance_id, CONF_REFRESH_TOKEN, auth_info["refresh_token"], encrypted=True
         )
         # check if librespot still has valid auth
-        librespot = await self.get_librespot_binary()
         args = [
-            librespot,
+            self._librespot_bin,
             "--cache",
             self.cache_dir,
             "--check-auth",
@@ -979,33 +980,6 @@ class SpotifyProvider(MusicProvider):
                 raise ResourceTemporarilyUnavailable(backoff_time=30)
             response.raise_for_status()
             return await response.json(loads=json_loads)
-
-    async def get_librespot_binary(self):
-        """Find the correct librespot binary belonging to the platform."""
-        # ruff: noqa: SIM102
-        if self._librespot_bin is not None:
-            return self._librespot_bin
-
-        async def check_librespot(librespot_path: str) -> str | None:
-            try:
-                returncode, output = await check_output(librespot_path, "--version")
-                if returncode == 0 and b"librespot" in output:
-                    self._librespot_bin = librespot_path
-                    return librespot_path
-            except OSError:
-                return None
-
-        base_path = os.path.join(os.path.dirname(__file__), "bin")
-        system = platform.system().lower().replace("darwin", "macos")
-        architecture = platform.machine().lower()
-
-        if bridge_binary := await check_librespot(
-            os.path.join(base_path, f"librespot-{system}-{architecture}")
-        ):
-            return bridge_binary
-
-        msg = f"Unable to locate Librespot for {system}/{architecture}"
-        raise RuntimeError(msg)
 
     def _fix_create_playlist_api_bug(self, playlist_obj: dict[str, Any]) -> None:
         """Fix spotify API bug where incorrect owner id is returned from Create Playlist."""

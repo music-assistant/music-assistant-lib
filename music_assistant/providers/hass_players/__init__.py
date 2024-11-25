@@ -7,6 +7,7 @@ Requires the Home Assistant Plugin.
 
 from __future__ import annotations
 
+import asyncio
 import time
 from enum import IntFlag
 from typing import TYPE_CHECKING, Any
@@ -18,14 +19,19 @@ from music_assistant_models.errors import SetupFailedError
 from music_assistant_models.player import DeviceInfo, Player, PlayerMedia
 
 from music_assistant.constants import (
+    CONF_ENFORCE_MP3,
+    CONF_ENTRY_CROSSFADE,
     CONF_ENTRY_CROSSFADE_DURATION,
-    CONF_ENTRY_CROSSFADE_FLOW_MODE_REQUIRED,
     CONF_ENTRY_ENABLE_ICY_METADATA,
     CONF_ENTRY_ENFORCE_MP3_DEFAULT_ENABLED,
     CONF_ENTRY_FLOW_MODE_ENFORCED,
     CONF_ENTRY_HTTP_PROFILE,
+    CONF_ENTRY_HTTP_PROFILE_FORCED_2,
+    HIDDEN_ANNOUNCE_VOLUME_CONFIG_ENTRIES,
+    create_sample_rates_config_entry,
 )
 from music_assistant.helpers.datetime import from_iso_string
+from music_assistant.helpers.tags import parse_tags
 from music_assistant.models.player_provider import PlayerProvider
 from music_assistant.providers.hass import DOMAIN as HASS_DOMAIN
 
@@ -84,15 +90,24 @@ class MediaPlayerEntityFeature(IntFlag):
     MEDIA_ENQUEUE = 2097152
 
 
-CONF_ENFORCE_MP3 = "enforce_mp3"
-
-
-PLAYER_CONFIG_ENTRIES = (
-    CONF_ENTRY_CROSSFADE_FLOW_MODE_REQUIRED,
+DEFAULT_PLAYER_CONFIG_ENTRIES = (
+    CONF_ENTRY_CROSSFADE,
     CONF_ENTRY_CROSSFADE_DURATION,
     CONF_ENTRY_ENFORCE_MP3_DEFAULT_ENABLED,
     CONF_ENTRY_HTTP_PROFILE,
     CONF_ENTRY_ENABLE_ICY_METADATA,
+    CONF_ENTRY_FLOW_MODE_ENFORCED,
+)
+VOICE_PE_MODELS = ("Home Assistant Voice PE",)
+VOICE_PE_MODELS_PLAYER_CONFIG_ENTRIES = (
+    # New ESPHome mediaplayer (used in Voice PE) uses FLAC 48khz/16 bits
+    CONF_ENTRY_CROSSFADE,
+    CONF_ENTRY_CROSSFADE_DURATION,
+    CONF_ENTRY_FLOW_MODE_ENFORCED,
+    CONF_ENTRY_HTTP_PROFILE_FORCED_2,
+    create_sample_rates_config_entry(48000, 16, hidden=True),
+    # although the Voice PE supports announcements, it does not support volume for announcements
+    *HIDDEN_ANNOUNCE_VOLUME_CONFIG_ENTRIES,
 )
 
 
@@ -103,7 +118,7 @@ async def _get_hass_media_players(
     for state in await hass_prov.hass.get_states():
         if not state["entity_id"].startswith("media_player"):
             continue
-        if "mass_player_id" in state["attributes"]:
+        if "mass_player_type" in state["attributes"]:
             # filter out mass players
             continue
         if "friendly_name" not in state["attributes"]:
@@ -113,16 +128,6 @@ async def _get_hass_media_players(
         if MediaPlayerEntityFeature.PLAY_MEDIA not in supported_features:
             continue
         yield state
-
-
-async def _get_hass_media_player(
-    hass_prov: HomeAssistantProvider, entity_id: str
-) -> HassState | None:
-    """Return Hass state object for a single media_player entity."""
-    for state in await hass_prov.hass.get_states():
-        if state["entity_id"] == entity_id:
-            return state
-    return None
 
 
 async def setup(
@@ -202,16 +207,12 @@ class HomeAssistantPlayers(PlayerProvider):
         player_id: str,
     ) -> tuple[ConfigEntry, ...]:
         """Return all (provider/player specific) Config Entries for the given player (if any)."""
-        entries = await super().get_player_config_entries(player_id)
-        entries = entries + PLAYER_CONFIG_ENTRIES
-        if hass_state := await _get_hass_media_player(self.hass_prov, player_id):
-            hass_supported_features = MediaPlayerEntityFeature(
-                hass_state["attributes"]["supported_features"]
-            )
-            if MediaPlayerEntityFeature.MEDIA_ENQUEUE not in hass_supported_features:
-                entries += (CONF_ENTRY_FLOW_MODE_ENFORCED,)
-
-        return entries
+        base_entries = await super().get_player_config_entries(player_id)
+        player = self.mass.players.get(player_id)
+        if player and player.device_info.model in VOICE_PE_MODELS:
+            # optimized config for Voice PE
+            return base_entries + VOICE_PE_MODELS_PLAYER_CONFIG_ENTRIES
+        return base_entries + DEFAULT_PLAYER_CONFIG_ENTRIES
 
     async def cmd_stop(self, player_id: str) -> None:
         """Send STOP command to given player.
@@ -262,16 +263,20 @@ class HomeAssistantPlayers(PlayerProvider):
                 "media_content_type": "music",
                 "enqueue": "replace",
                 "extra": {
+                    # passing metadata to the player
+                    # so far only supported by google cast, but maybe others can follow
                     "metadata": {
                         "title": media.title,
                         "artist": media.artist,
                         "metadataType": 3,
                         "album": media.album,
                         "albumName": media.album,
-                        "duration": media.duration,
                         "images": [{"url": media.image_url}] if media.image_url else None,
                         "imageUrl": media.image_url,
-                    }
+                    },
+                    # tell esphome mediaproxy to bypass the proxy,
+                    # as MA already delivers an optimized stream
+                    "bypass_proxy": True,
                 },
             },
             target={"entity_id": player_id},
@@ -281,19 +286,38 @@ class HomeAssistantPlayers(PlayerProvider):
             player.elapsed_time = 0
             player.elapsed_time_last_updated = time.time()
 
-    async def enqueue_next_media(self, player_id: str, media: PlayerMedia) -> None:
-        """Handle enqueuing of the next queue item on the player."""
-        if self.mass.config.get_raw_player_config_value(player_id, CONF_ENFORCE_MP3, True):
-            media.uri = media.uri.replace(".flac", ".mp3")
+    async def play_announcement(
+        self, player_id: str, announcement: PlayerMedia, volume_level: int | None = None
+    ) -> None:
+        """Handle (provider native) playback of an announcement on given player."""
+        player = self.mass.players.get(player_id, True)
+        self.logger.info(
+            "Playing announcement %s on %s",
+            announcement.uri,
+            player.display_name,
+        )
+        if volume_level is not None:
+            self.logger.warning(
+                "Announcement volume level is not supported for player %s", player.display_name
+            )
         await self.hass_prov.hass.call_service(
             domain="media_player",
             service="play_media",
             service_data={
-                "media_content_id": media.uri,
+                "media_content_id": announcement.uri,
                 "media_content_type": "music",
-                "enqueue": "next",
+                "announce": True,
             },
             target={"entity_id": player_id},
+        )
+        # Wait until the announcement is finished playing
+        # This is helpful for people who want to play announcements in a sequence
+        media_info = await parse_tags(announcement.uri)
+        duration = media_info.duration or 5
+        await asyncio.sleep(duration)
+        self.logger.debug(
+            "Playing announcement on %s completed",
+            player.display_name,
         )
 
     async def cmd_power(self, player_id: str, powered: bool) -> None:
@@ -334,8 +358,8 @@ class HomeAssistantPlayers(PlayerProvider):
             target={"entity_id": player_id},
         )
 
-    async def cmd_sync(self, player_id: str, target_player: str) -> None:
-        """Handle SYNC command for given player.
+    async def cmd_group(self, player_id: str, target_player: str) -> None:
+        """Handle GROUP command for given player.
 
         Join/add the given player(id) to the given (master) player/sync group.
 
@@ -350,10 +374,10 @@ class HomeAssistantPlayers(PlayerProvider):
             target={"entity_id": target_player},
         )
 
-    async def cmd_unsync(self, player_id: str) -> None:
-        """Handle UNSYNC command for given player.
+    async def cmd_ungroup(self, player_id: str) -> None:
+        """Handle UNGROUP command for given player.
 
-        Remove the given player from any syncgroups it currently is synced to.
+        Remove the given player from any (sync)groups it currently is grouped to.
 
             - player_id: player_id of the player to handle the command.
         """
@@ -372,25 +396,25 @@ class HomeAssistantPlayers(PlayerProvider):
     ) -> None:
         """Handle setup of a Player from an hass entity."""
         hass_device: HassDevice | None = None
+        hass_domain: str | None = None
         if entity_registry_entry := entity_registry.get(state["entity_id"]):
             hass_device = device_registry.get(entity_registry_entry["device_id"])
-        hass_supported_features = MediaPlayerEntityFeature(
-            state["attributes"]["supported_features"]
-        )
-        supported_features: list[PlayerFeature] = []
-        if MediaPlayerEntityFeature.PAUSE in hass_supported_features:
-            supported_features.append(PlayerFeature.PAUSE)
-        if MediaPlayerEntityFeature.VOLUME_SET in hass_supported_features:
-            supported_features.append(PlayerFeature.VOLUME_SET)
-        if MediaPlayerEntityFeature.VOLUME_MUTE in hass_supported_features:
-            supported_features.append(PlayerFeature.VOLUME_MUTE)
-        if MediaPlayerEntityFeature.MEDIA_ENQUEUE in hass_supported_features:
-            supported_features.append(PlayerFeature.ENQUEUE)
-        if (
-            MediaPlayerEntityFeature.TURN_ON in hass_supported_features
-            and MediaPlayerEntityFeature.TURN_OFF in hass_supported_features
-        ):
-            supported_features.append(PlayerFeature.POWER)
+            hass_domain = entity_registry_entry["platform"]
+
+        dev_info: dict[str, Any] = {}
+        if hass_device and (model := hass_device.get("model")):
+            dev_info["model"] = model
+        if hass_device and (manufacturer := hass_device.get("manufacturer")):
+            dev_info["manufacturer"] = manufacturer
+        if hass_device and (model_id := hass_device.get("model_id")):
+            dev_info["model_id"] = model_id
+        if hass_device and (sw_version := hass_device.get("sw_version")):
+            dev_info["software_version"] = sw_version
+        if hass_device and (connections := hass_device.get("connections")):
+            for key, value in connections:
+                if key == "mac":
+                    dev_info["mac_address"] = value
+
         player = Player(
             player_id=state["entity_id"],
             provider=self.instance_id,
@@ -398,15 +422,38 @@ class HomeAssistantPlayers(PlayerProvider):
             name=state["attributes"]["friendly_name"],
             available=state["state"] not in ("unavailable", "unknown"),
             powered=state["state"] not in ("unavailable", "unknown", "standby", "off"),
-            device_info=DeviceInfo(
-                model=hass_device["model"] if hass_device else "Unknown model",
-                manufacturer=(
-                    hass_device["manufacturer"] if hass_device else "Unknown Manufacturer"
-                ),
-            ),
-            supported_features=tuple(supported_features),
+            device_info=DeviceInfo.from_dict(dev_info),
             state=StateMap.get(state["state"], PlayerState.IDLE),
+            extra_data={
+                "hass_domain": hass_domain,
+                "hass_device_id": hass_device["id"] if hass_device else None,
+            },
         )
+        # work out supported features
+        hass_supported_features = MediaPlayerEntityFeature(
+            state["attributes"]["supported_features"]
+        )
+        if MediaPlayerEntityFeature.PAUSE in hass_supported_features:
+            player.supported_features.add(PlayerFeature.PAUSE)
+        if MediaPlayerEntityFeature.VOLUME_SET in hass_supported_features:
+            player.supported_features.add(PlayerFeature.VOLUME_SET)
+        if MediaPlayerEntityFeature.VOLUME_MUTE in hass_supported_features:
+            player.supported_features.add(PlayerFeature.VOLUME_MUTE)
+        if MediaPlayerEntityFeature.MEDIA_ANNOUNCE in hass_supported_features:
+            player.supported_features.add(PlayerFeature.PLAY_ANNOUNCEMENT)
+        if hass_domain and MediaPlayerEntityFeature.GROUPING in hass_supported_features:
+            player.supported_features.add(PlayerFeature.SET_MEMBERS)
+            player.can_group_with = {
+                x["entity_id"]
+                for x in entity_registry.values()
+                if x["entity_id"].startswith("media_player") and x["platform"] == hass_domain
+            }
+        if (
+            MediaPlayerEntityFeature.TURN_ON in hass_supported_features
+            and MediaPlayerEntityFeature.TURN_OFF in hass_supported_features
+        ):
+            player.supported_features.add(PlayerFeature.POWER)
+
         self._update_player_attributes(player, state["attributes"])
         await self.mass.players.register_or_update(player)
 
@@ -460,13 +507,13 @@ class HomeAssistantPlayers(PlayerProvider):
                 player.current_item_id = value
             if key == "group_members":
                 if value and value[0] == player.player_id:
-                    player.group_childs = value
+                    player.group_childs.set(value)
                     player.synced_to = None
                 elif value and value[0] != player.player_id:
-                    player.group_childs = set()
+                    player.group_childs.clear()
                     player.synced_to = value[0]
                 else:
-                    player.group_childs = set()
+                    player.group_childs.clear()
                     player.synced_to = None
 
     async def _late_add_player(self, entity_id: str) -> None:

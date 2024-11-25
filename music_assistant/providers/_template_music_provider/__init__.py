@@ -127,7 +127,7 @@ class MyDemoMusicprovider(MusicProvider):
     """
 
     @property
-    def supported_features(self) -> tuple[ProviderFeature, ...]:
+    def supported_features(self) -> set[ProviderFeature]:
         """Return the features supported by this Provider."""
         # MANDATORY
         # you should return a tuple of provider-level features
@@ -367,7 +367,9 @@ class MyDemoMusicprovider(MusicProvider):
         # Get a list of similar tracks based on the provided track.
         # This is only called if the provider supports the SIMILAR_TRACKS feature.
 
-    async def get_stream_details(self, item_id: str) -> StreamDetails:
+    async def get_stream_details(
+        self, item_id: str, media_type: MediaType = MediaType.TRACK
+    ) -> StreamDetails:
         """Get streamdetails for a track/radio."""
         # Get stream details for a track or radio.
         # Implementing this method is MANDATORY to allow playback.

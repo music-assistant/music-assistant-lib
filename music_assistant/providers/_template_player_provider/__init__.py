@@ -105,7 +105,7 @@ class MyDemoPlayerprovider(PlayerProvider):
     """
 
     @property
-    def supported_features(self) -> tuple[ProviderFeature, ...]:
+    def supported_features(self) -> set[ProviderFeature]:
         """Return the features supported by this Provider."""
         # MANDATORY
         # you should return a tuple of provider-level features
@@ -210,16 +210,16 @@ class MyDemoPlayerprovider(PlayerProvider):
             device_info=DeviceInfo(
                 model="Model XYX",
                 manufacturer="Super Brand",
-                address=cur_address,
+                ip_address=cur_address,
             ),
             # set the supported features for this player only with
             # the ones the player actually supports
-            supported_features=(
+            supported_features={
                 PlayerFeature.POWER,  # if the player can be turned on/off
                 PlayerFeature.VOLUME_SET,
                 PlayerFeature.VOLUME_MUTE,
                 PlayerFeature.PLAY_ANNOUNCEMENT,  # see play_announcement method
-            ),
+            },
         )
         # register the player with the player manager
         await self.mass.players.register(mass_player)
@@ -339,8 +339,8 @@ class MyDemoPlayerprovider(PlayerProvider):
         """
         # this method should handle the enqueuing of the next queue item on the player.
 
-    async def cmd_sync(self, player_id: str, target_player: str) -> None:
-        """Handle SYNC command for given player.
+    async def cmd_group(self, player_id: str, target_player: str) -> None:
+        """Handle GROUP command for given player.
 
         Join/add the given player(id) to the given (master) player/sync group.
 
@@ -351,10 +351,10 @@ class MyDemoPlayerprovider(PlayerProvider):
         # this method should handle the sync command for the given player.
         # you should join the given player to the target_player/syncgroup.
 
-    async def cmd_unsync(self, player_id: str) -> None:
-        """Handle UNSYNC command for given player.
+    async def cmd_ungroup(self, player_id: str) -> None:
+        """Handle UNGROUP command for given player.
 
-        Remove the given player from any syncgroups it currently is synced to.
+        Remove the given player from any (sync)groups it currently is grouped to.
 
             - player_id: player_id of the player to handle the command.
         """

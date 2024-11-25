@@ -42,7 +42,7 @@ class Provider:
         self.available = False
 
     @property
-    def supported_features(self) -> tuple[ProviderFeature, ...]:
+    def supported_features(self) -> set[ProviderFeature]:
         """Return the features supported by this Provider."""
         return ()
 

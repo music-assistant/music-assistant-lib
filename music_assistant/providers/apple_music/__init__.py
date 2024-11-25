@@ -53,7 +53,7 @@ if TYPE_CHECKING:
     from music_assistant.models import ProviderInstanceType
 
 
-SUPPORTED_FEATURES = (
+SUPPORTED_FEATURES = {
     ProviderFeature.LIBRARY_ARTISTS,
     ProviderFeature.LIBRARY_ALBUMS,
     ProviderFeature.LIBRARY_TRACKS,
@@ -63,7 +63,7 @@ SUPPORTED_FEATURES = (
     ProviderFeature.ARTIST_ALBUMS,
     ProviderFeature.ARTIST_TOPTRACKS,
     ProviderFeature.SIMILAR_TRACKS,
-)
+}
 
 DEVELOPER_TOKEN = app_var(8)
 WIDEVINE_BASE_PATH = "/usr/local/bin/widevine_cdm"
@@ -127,7 +127,7 @@ class AppleMusicProvider(MusicProvider):
             self._decrypt_private_key = await _file.read()
 
     @property
-    def supported_features(self) -> tuple[ProviderFeature, ...]:
+    def supported_features(self) -> set[ProviderFeature]:
         """Return the features supported by this Provider."""
         return SUPPORTED_FEATURES
 
@@ -352,7 +352,9 @@ class AppleMusicProvider(MusicProvider):
                     found_tracks.append(self._parse_track(track))
         return found_tracks
 
-    async def get_stream_details(self, item_id: str) -> StreamDetails:
+    async def get_stream_details(
+        self, item_id: str, media_type: MediaType = MediaType.TRACK
+    ) -> StreamDetails:
         """Return the content details for the given track when it will be streamed."""
         stream_metadata = await self._fetch_song_stream_metadata(item_id)
         license_url = stream_metadata["hls-key-server-url"]

@@ -225,9 +225,9 @@ class SlimprotoProvider(PlayerProvider):
     _multi_streams: dict[str, MultiClientStream]
 
     @property
-    def supported_features(self) -> tuple[ProviderFeature, ...]:
+    def supported_features(self) -> set[ProviderFeature]:
         """Return the features supported by this Provider."""
-        return (ProviderFeature.SYNC_PLAYERS,)
+        return {ProviderFeature.SYNC_PLAYERS}
 
     async def handle_async_init(self) -> None:
         """Handle async initialization of the provider."""
@@ -535,8 +535,8 @@ class SlimprotoProvider(PlayerProvider):
         if slimplayer := self.slimproto.get_player(player_id):
             await slimplayer.mute(muted)
 
-    async def cmd_sync(self, player_id: str, target_player: str) -> None:
-        """Handle SYNC command for given player."""
+    async def cmd_group(self, player_id: str, target_player: str) -> None:
+        """Handle GROUP command for given player."""
         child_player = self.mass.players.get(player_id)
         assert child_player  # guard
         parent_player = self.mass.players.get(target_player)
@@ -546,8 +546,8 @@ class SlimprotoProvider(PlayerProvider):
         if child_player.synced_to and child_player.synced_to != target_player:
             raise RuntimeError("Player is already synced to another player")
         # always make sure that the parent player is part of the sync group
-        parent_player.group_childs.add(parent_player.player_id)
-        parent_player.group_childs.add(child_player.player_id)
+        parent_player.group_childs.append(parent_player.player_id)
+        parent_player.group_childs.append(child_player.player_id)
         child_player.synced_to = parent_player.player_id
         # check if we should (re)start or join a stream session
         # TODO: support late joining of a client into an existing stream session
@@ -569,10 +569,10 @@ class SlimprotoProvider(PlayerProvider):
             self.mass.players.update(child_player.player_id, skip_forward=True)
             self.mass.players.update(parent_player.player_id, skip_forward=True)
 
-    async def cmd_unsync(self, player_id: str) -> None:
-        """Handle UNSYNC command for given player.
+    async def cmd_ungroup(self, player_id: str) -> None:
+        """Handle UNGROUP command for given player.
 
-        Remove the given player from any syncgroups it currently is synced to.
+        Remove the given player from any (sync)groups it currently is grouped to.
 
             - player_id: player_id of the player to handle the command.
         """
@@ -638,17 +638,18 @@ class SlimprotoProvider(PlayerProvider):
                 powered=slimplayer.powered,
                 device_info=DeviceInfo(
                     model=slimplayer.device_model,
-                    address=slimplayer.device_address,
+                    ip_address=slimplayer.device_address,
                     manufacturer=slimplayer.device_type,
                 ),
-                supported_features=(
+                supported_features={
                     PlayerFeature.POWER,
-                    PlayerFeature.SYNC,
+                    PlayerFeature.SET_MEMBERS,
                     PlayerFeature.VOLUME_SET,
                     PlayerFeature.PAUSE,
                     PlayerFeature.VOLUME_MUTE,
                     PlayerFeature.ENQUEUE,
-                ),
+                },
+                can_group_with={self.instance_id},
             )
             await self.mass.players.register_or_update(player)
 

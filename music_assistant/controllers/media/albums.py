@@ -377,9 +377,12 @@ class AlbumsController(MediaControllerBase[Album]):
         # store (serializable items) in cache
         if prov.is_streaming_provider:
             self.mass.create_task(
-                self.mass.cache.set(cache_key, [x.to_dict() for x in items]),
-                category=cache_category,
-                base_key=cache_base_key,
+                self.mass.cache.set(
+                    cache_key,
+                    [x.to_dict() for x in items],
+                    category=cache_category,
+                    base_key=cache_base_key,
+                ),
             )
         for item in items:
             # if this is a complete track object, pre-cache it as

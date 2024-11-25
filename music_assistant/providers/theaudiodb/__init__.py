@@ -38,11 +38,11 @@ if TYPE_CHECKING:
     from music_assistant import MusicAssistant
     from music_assistant.models import ProviderInstanceType
 
-SUPPORTED_FEATURES = (
+SUPPORTED_FEATURES = {
     ProviderFeature.ARTIST_METADATA,
     ProviderFeature.ALBUM_METADATA,
     ProviderFeature.TRACK_METADATA,
-)
+}
 
 IMG_MAPPING = {
     "strArtistThumb": ImageType.THUMB,
@@ -143,7 +143,7 @@ class AudioDbMetadataProvider(MetadataProvider):
         self.throttler = Throttler(rate_limit=1, period=1)
 
     @property
-    def supported_features(self) -> tuple[ProviderFeature, ...]:
+    def supported_features(self) -> set[ProviderFeature]:
         """Return the features supported by this Provider."""
         return SUPPORTED_FEATURES
 

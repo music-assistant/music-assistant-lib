@@ -153,9 +153,9 @@ class JellyfinProvider(MusicProvider):
             raise LoginFailed(f"Authentication failed: {err}") from err
 
     @property
-    def supported_features(self) -> tuple[ProviderFeature, ...]:
+    def supported_features(self) -> set[ProviderFeature]:
         """Return a list of supported features."""
-        return (
+        return {
             ProviderFeature.LIBRARY_ARTISTS,
             ProviderFeature.LIBRARY_ALBUMS,
             ProviderFeature.LIBRARY_TRACKS,
@@ -164,7 +164,7 @@ class JellyfinProvider(MusicProvider):
             ProviderFeature.SEARCH,
             ProviderFeature.ARTIST_ALBUMS,
             ProviderFeature.SIMILAR_TRACKS,
-        )
+        }
 
     @property
     def is_streaming_provider(self) -> bool:
@@ -431,7 +431,9 @@ class JellyfinProvider(MusicProvider):
             for album in albums["Items"]
         ]
 
-    async def get_stream_details(self, item_id: str) -> StreamDetails:
+    async def get_stream_details(
+        self, item_id: str, media_type: MediaType = MediaType.TRACK
+    ) -> StreamDetails:
         """Return the content details for the given track when it will be streamed."""
         jellyfin_track = await self._client.get_track(item_id)
         mimetype = self._media_mime_type(jellyfin_track)

@@ -11,7 +11,10 @@ from music_assistant_models.errors import MediaNotFoundError, MusicAssistantErro
 from music_assistant_models.media_items import (
     Album,
     Artist,
+    Audiobook,
     BrowseFolder,
+    Chapter,
+    Episode,
     ItemMapping,
     MediaItemType,
     Playlist,
@@ -108,6 +111,18 @@ class MusicProvider(Provider):
             raise NotImplementedError
         yield  # type: ignore
 
+    async def get_library_audiobooks(self) -> AsyncGenerator[Audiobook, None]:
+        """Retrieve library/subscribed audiobooks from the provider."""
+        if ProviderFeature.LIBRARY_AUDIOBOOKS in self.supported_features:
+            raise NotImplementedError
+        yield  # type: ignore
+
+    async def get_library_podcasts(self) -> AsyncGenerator[Audiobook, None]:
+        """Retrieve library/subscribed podcasts from the provider."""
+        if ProviderFeature.LIBRARY_AUDIOBOOKS in self.supported_features:
+            raise NotImplementedError
+        yield  # type: ignore
+
     async def get_artist(self, prov_artist_id: str) -> Artist:
         """Get full artist details by id."""
         raise NotImplementedError
@@ -144,6 +159,26 @@ class MusicProvider(Provider):
         if ProviderFeature.LIBRARY_RADIOS in self.supported_features:
             raise NotImplementedError
 
+    async def get_audiobook(self, prov_audiobook_id: str) -> Audiobook:  # type: ignore[return]
+        """Get full audiobook details by id."""
+        if ProviderFeature.LIBRARY_AUDIOBOOKS in self.supported_features:
+            raise NotImplementedError
+
+    async def get_podcast(self, prov_podcast_id: str) -> Audiobook:  # type: ignore[return]
+        """Get full audiobook details by id."""
+        if ProviderFeature.LIBRARY_PODCASTS in self.supported_features:
+            raise NotImplementedError
+
+    async def get_chapter(self, prov_chapter_id: str) -> Chapter:  # type: ignore[return]
+        """Get (full) audiobook chapter details by id."""
+        if ProviderFeature.LIBRARY_AUDIOBOOKS in self.supported_features:
+            raise NotImplementedError
+
+    async def get_episode(self, prov_episode_id: str) -> Chapter:  # type: ignore[return]
+        """Get (full) podcast episode details by id."""
+        if ProviderFeature.LIBRARY_PODCASTS in self.supported_features:
+            raise NotImplementedError
+
     async def get_album_tracks(
         self,
         prov_album_id: str,  # type: ignore[return]
@@ -159,6 +194,22 @@ class MusicProvider(Provider):
     ) -> list[Track]:
         """Get all playlist tracks for given playlist id."""
         if ProviderFeature.LIBRARY_PLAYLISTS in self.supported_features:
+            raise NotImplementedError
+
+    async def get_audiobook_chapters(
+        self,
+        prov_audiobook_id: str,
+    ) -> list[Chapter]:
+        """Get all Chapters for given audiobook id."""
+        if ProviderFeature.LIBRARY_AUDIOBOOKS in self.supported_features:
+            raise NotImplementedError
+
+    async def get_podcast_episodes(
+        self,
+        prov_podcast_id: str,
+    ) -> list[Episode]:
+        """Get all Episodes for given podcast id."""
+        if ProviderFeature.LIBRARY_PODCASTS in self.supported_features:
             raise NotImplementedError
 
     async def library_add(self, item: MediaItemType) -> bool:
@@ -186,6 +237,16 @@ class MusicProvider(Provider):
         if (
             item.media_type == MediaType.RADIO
             and ProviderFeature.LIBRARY_RADIOS_EDIT in self.supported_features
+        ):
+            raise NotImplementedError
+        if (
+            item.media_type == MediaType.AUDIOBOOK
+            and ProviderFeature.LIBRARY_AUDIOBOOKS_EDIT in self.supported_features
+        ):
+            raise NotImplementedError
+        if (
+            item.media_type == MediaType.PODCAST
+            and ProviderFeature.LIBRARY_PODCASTS_EDIT in self.supported_features
         ):
             raise NotImplementedError
         self.logger.info(
@@ -222,6 +283,16 @@ class MusicProvider(Provider):
             and ProviderFeature.LIBRARY_RADIOS_EDIT in self.supported_features
         ):
             raise NotImplementedError
+        if (
+            media_type == MediaType.AUDIOBOOK
+            and ProviderFeature.LIBRARY_AUDIOBOOKS_EDIT in self.supported_features
+        ):
+            raise NotImplementedError
+        if (
+            media_type == MediaType.PODCAST
+            and ProviderFeature.LIBRARY_PODCASTS_EDIT in self.supported_features
+        ):
+            raise NotImplementedError
         self.logger.info(
             "Provider %s does not support library edit, "
             "the action will only be performed in the local database.",
@@ -253,8 +324,10 @@ class MusicProvider(Provider):
         if ProviderFeature.SIMILAR_TRACKS in self.supported_features:
             raise NotImplementedError
 
-    async def get_stream_details(self, item_id: str) -> StreamDetails:
-        """Get streamdetails for a track/radio."""
+    async def get_stream_details(
+        self, item_id: str, media_type: MediaType = MediaType.TRACK
+    ) -> StreamDetails:
+        """Get streamdetails for a track/radio/chapter/episode."""
         raise NotImplementedError
 
     async def get_audio_stream(  # type: ignore[return]
@@ -291,9 +364,17 @@ class MusicProvider(Provider):
             return await self.get_playlist(prov_item_id)
         if media_type == MediaType.RADIO:
             return await self.get_radio(prov_item_id)
+        if media_type == MediaType.AUDIOBOOK:
+            return await self.get_audiobook(prov_item_id)
+        if media_type == MediaType.PODCAST:
+            return await self.get_podcast(prov_item_id)
+        if media_type == MediaType.CHAPTER:
+            return await self.get_chapter(prov_item_id)
+        if media_type == MediaType.EPISODE:
+            return await self.get_episode(prov_item_id)
         return await self.get_track(prov_item_id)
 
-    async def browse(self, path: str) -> Sequence[MediaItemType | ItemMapping]:
+    async def browse(self, path: str) -> Sequence[MediaItemType | ItemMapping]:  # noqa: PLR0915
         """Browse this provider's items.
 
         :param path: The path to browse, (e.g. provider_id://artists).
@@ -369,6 +450,32 @@ class MusicProvider(Provider):
             return await self.mass.music.playlists.library_items(
                 extra_query=query, extra_query_params=query_params
             )
+        if subpath == "audiobooks":
+            library_items = await self.mass.cache.get(
+                "audiobook",
+                default=[],
+                category=CacheCategory.LIBRARY_ITEMS,
+                base_key=self.instance_id,
+            )
+            library_items = cast(list[int], library_items)
+            query = "audiobooks.item_id in :ids"
+            query_params = {"ids": library_items}
+            return await self.mass.music.audiobooks.library_items(
+                extra_query=query, extra_query_params=query_params
+            )
+        if subpath == "podcasts":
+            library_items = await self.mass.cache.get(
+                "podcast",
+                default=[],
+                category=CacheCategory.LIBRARY_ITEMS,
+                base_key=self.instance_id,
+            )
+            library_items = cast(list[int], library_items)
+            query = "podcasts.item_id in :ids"
+            query_params = {"ids": library_items}
+            return await self.mass.music.podcasts.library_items(
+                extra_query=query, extra_query_params=query_params
+            )
         if subpath:
             # unknown path
             msg = "Invalid subpath"
@@ -424,6 +531,26 @@ class MusicProvider(Provider):
                     path=path + "radios",
                     name="",
                     label="radios",
+                )
+            )
+        if ProviderFeature.LIBRARY_AUDIOBOOKS in self.supported_features:
+            items.append(
+                BrowseFolder(
+                    item_id="audiobooks",
+                    provider=self.domain,
+                    path=path + "audiobooks",
+                    name="",
+                    label="audiobooks",
+                )
+            )
+        if ProviderFeature.LIBRARY_PODCASTS in self.supported_features:
+            items.append(
+                BrowseFolder(
+                    item_id="podcasts",
+                    provider=self.domain,
+                    path=path + "podcasts",
+                    name="",
+                    label="podcasts",
                 )
             )
         return items
@@ -535,6 +662,10 @@ class MusicProvider(Provider):
             return ProviderFeature.LIBRARY_PLAYLISTS in self.supported_features
         if media_type == MediaType.RADIO:
             return ProviderFeature.LIBRARY_RADIOS in self.supported_features
+        if media_type == MediaType.AUDIOBOOK:
+            return ProviderFeature.LIBRARY_AUDIOBOOKS in self.supported_features
+        if media_type == MediaType.PODCAST:
+            return ProviderFeature.LIBRARY_PODCASTS in self.supported_features
         return False
 
     def library_edit_supported(self, media_type: MediaType) -> bool:
@@ -549,6 +680,8 @@ class MusicProvider(Provider):
             return ProviderFeature.LIBRARY_PLAYLISTS_EDIT in self.supported_features
         if media_type == MediaType.RADIO:
             return ProviderFeature.LIBRARY_RADIOS_EDIT in self.supported_features
+        if media_type == MediaType.AUDIOBOOK:
+            return ProviderFeature.LIBRARY_AUDIOBOOKS_EDIT in self.supported_features
         return False
 
     def _get_library_gen(self, media_type: MediaType) -> AsyncGenerator[MediaItemType, None]:
@@ -563,4 +696,8 @@ class MusicProvider(Provider):
             return self.get_library_playlists()
         if media_type == MediaType.RADIO:
             return self.get_library_radios()
+        if media_type == MediaType.AUDIOBOOK:
+            return self.get_library_audiobooks()
+        if media_type == MediaType.PODCAST:
+            return self.get_library_podcasts()
         raise NotImplementedError

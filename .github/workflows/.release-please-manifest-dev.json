@@ -1,3 +1,9 @@
 {
-  ".": "2.4.0b2"
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "include-v-in-tag": false,
+  "prerelease": true,
+  "versioning": "prerelease",
+  "packages": {
+    ".": {}
+  }
 }

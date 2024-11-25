@@ -83,6 +83,8 @@ DB_TABLE_ALBUMS: Final[str] = "albums"
 DB_TABLE_TRACKS: Final[str] = "tracks"
 DB_TABLE_PLAYLISTS: Final[str] = "playlists"
 DB_TABLE_RADIOS: Final[str] = "radios"
+DB_TABLE_AUDIOBOOKS: Final[str] = "audiobooks"
+DB_TABLE_PODCASTS: Final[str] = "podcasts"
 DB_TABLE_CACHE: Final[str] = "cache"
 DB_TABLE_SETTINGS: Final[str] = "settings"
 DB_TABLE_THUMBS: Final[str] = "thumbnails"
@@ -281,6 +283,9 @@ CONF_ENTRY_ENFORCE_MP3 = ConfigEntry(
 CONF_ENTRY_ENFORCE_MP3_DEFAULT_ENABLED = ConfigEntry.from_dict(
     {**CONF_ENTRY_ENFORCE_MP3.to_dict(), "default_value": True}
 )
+CONF_ENTRY_ENFORCE_MP3_HIDDEN = ConfigEntry.from_dict(
+    {**CONF_ENTRY_ENFORCE_MP3.to_dict(), "default_value": True, "hidden": True}
+)
 
 CONF_ENTRY_SYNC_ADJUST = ConfigEntry(
     key=CONF_SYNC_ADJUST,
@@ -318,12 +323,19 @@ CONF_ENTRY_ANNOUNCE_VOLUME_STRATEGY = ConfigEntry(
     category="announcements",
 )
 
+CONF_ENTRY_ANNOUNCE_VOLUME_STRATEGY_HIDDEN = ConfigEntry.from_dict(
+    {**CONF_ENTRY_ANNOUNCE_VOLUME_STRATEGY.to_dict(), "hidden": True}
+)
+
 CONF_ENTRY_ANNOUNCE_VOLUME = ConfigEntry(
     key=CONF_ANNOUNCE_VOLUME,
     type=ConfigEntryType.INTEGER,
     default_value=85,
     label="Volume for Announcements",
     category="announcements",
+)
+CONF_ENTRY_ANNOUNCE_VOLUME_HIDDEN = ConfigEntry.from_dict(
+    {**CONF_ENTRY_ANNOUNCE_VOLUME.to_dict(), "hidden": True}
 )
 
 CONF_ENTRY_ANNOUNCE_VOLUME_MIN = ConfigEntry(
@@ -334,6 +346,9 @@ CONF_ENTRY_ANNOUNCE_VOLUME_MIN = ConfigEntry(
     description="The volume (adjustment) of announcements should no go below this level.",
     category="announcements",
 )
+CONF_ENTRY_ANNOUNCE_VOLUME_MIN_HIDDEN = ConfigEntry.from_dict(
+    {**CONF_ENTRY_ANNOUNCE_VOLUME_MIN.to_dict(), "hidden": True}
+)
 
 CONF_ENTRY_ANNOUNCE_VOLUME_MAX = ConfigEntry(
     key=CONF_ANNOUNCE_VOLUME_MAX,
@@ -342,6 +357,15 @@ CONF_ENTRY_ANNOUNCE_VOLUME_MAX = ConfigEntry(
     label="Maximum Volume level for Announcements",
     description="The volume (adjustment) of announcements should no go above this level.",
     category="announcements",
+)
+CONF_ENTRY_ANNOUNCE_VOLUME_MAX_HIDDEN = ConfigEntry.from_dict(
+    {**CONF_ENTRY_ANNOUNCE_VOLUME_MAX.to_dict(), "hidden": True}
+)
+HIDDEN_ANNOUNCE_VOLUME_CONFIG_ENTRIES = (
+    CONF_ENTRY_ANNOUNCE_VOLUME_HIDDEN,
+    CONF_ENTRY_ANNOUNCE_VOLUME_MIN_HIDDEN,
+    CONF_ENTRY_ANNOUNCE_VOLUME_MAX_HIDDEN,
+    CONF_ENTRY_ANNOUNCE_VOLUME_STRATEGY_HIDDEN,
 )
 
 CONF_ENTRY_PLAYER_ICON = ConfigEntry(
