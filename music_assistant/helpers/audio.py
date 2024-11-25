@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import os
 import re
 import struct
@@ -14,6 +15,7 @@ from typing import TYPE_CHECKING
 
 import aiofiles
 from aiohttp import ClientTimeout
+from music_assistant_models.dsp import ParametricEQBandType, ParametricEQFilter
 from music_assistant_models.enums import ContentType, MediaType, StreamType, VolumeNormalizationMode
 from music_assistant_models.errors import (
     InvalidDataError,
@@ -834,32 +836,133 @@ def get_chunksize(
 def get_player_filter_params(
     mass: MusicAssistant,
     player_id: str,
+    input_format: AudioFormat,
 ) -> list[str]:
     """Get player specific filter parameters for ffmpeg (if any)."""
-    # collect all players-specific filter args
-    # TODO: add convolution/DSP/roomcorrections here?!
     filter_params = []
 
+    dsp = mass.config.get_player_dsp_config(player_id)
+
+    if dsp.enabled:
+        # Apply input gain
+        if dsp.input_gain != 0:
+            filter_params.append(f"volume={dsp.input_gain}dB")
+
+        # Process each DSP filter sequentially
+        for f in dsp.filters:
+            if not f.enabled:
+                continue
+
+            if isinstance(f, ParametricEQFilter):
+                for b in f.bands:
+                    if not b.enabled:
+                        continue
+                    # From https://webaudio.github.io/Audio-EQ-Cookbook/audio-eq-cookbook.html
+
+                    f_s = input_format.sample_rate
+                    f_0 = b.frequency
+                    db_gain = b.gain
+                    q = b.q
+
+                    a = math.sqrt(10 ** (db_gain / 20))
+                    w_0 = 2 * math.pi * f_0 / f_s
+                    alpha = math.sin(w_0) / (2 * q)
+
+                    if b.type == ParametricEQBandType.PEAK:
+                        b0 = 1 + alpha * a
+                        b1 = -2 * math.cos(w_0)
+                        b2 = 1 - alpha * a
+                        a0 = 1 + alpha / a
+                        a1 = -2 * math.cos(w_0)
+                        a2 = 1 - alpha / a
+
+                        filter_params.append(
+                            f"biquad=b0={b0}:b1={b1}:b2={b2}:a0={a0}:a1={a1}:a2={a2}"
+                        )
+                    elif b.type == ParametricEQBandType.LOW_SHELF:
+                        b0 = a * ((a + 1) - (a - 1) * math.cos(w_0) + 2 * math.sqrt(a) * alpha)
+                        b1 = 2 * a * ((a - 1) - (a + 1) * math.cos(w_0))
+                        b2 = a * ((a + 1) - (a - 1) * math.cos(w_0) - 2 * math.sqrt(a) * alpha)
+                        a0 = (a + 1) + (a - 1) * math.cos(w_0) + 2 * math.sqrt(a) * alpha
+                        a1 = -2 * ((a - 1) + (a + 1) * math.cos(w_0))
+                        a2 = (a + 1) + (a - 1) * math.cos(w_0) - 2 * math.sqrt(a) * alpha
+
+                        filter_params.append(
+                            f"biquad=b0={b0}:b1={b1}:b2={b2}:a0={a0}:a1={a1}:a2={a2}"
+                        )
+                    elif b.type == ParametricEQBandType.HIGH_SHELF:
+                        b0 = a * ((a + 1) + (a - 1) * math.cos(w_0) + 2 * math.sqrt(a) * alpha)
+                        b1 = -2 * a * ((a - 1) + (a + 1) * math.cos(w_0))
+                        b2 = a * ((a + 1) + (a - 1) * math.cos(w_0) - 2 * math.sqrt(a) * alpha)
+                        a0 = (a + 1) - (a - 1) * math.cos(w_0) + 2 * math.sqrt(a) * alpha
+                        a1 = 2 * ((a - 1) - (a + 1) * math.cos(w_0))
+                        a2 = (a + 1) - (a - 1) * math.cos(w_0) - 2 * math.sqrt(a) * alpha
+
+                        filter_params.append(
+                            f"biquad=b0={b0}:b1={b1}:b2={b2}:a0={a0}:a1={a1}:a2={a2}"
+                        )
+                    elif b.type == ParametricEQBandType.HIGH_PASS:
+                        b0 = (1 + math.cos(w_0)) / 2
+                        b1 = -(1 + math.cos(w_0))
+                        b2 = (1 + math.cos(w_0)) / 2
+                        a0 = 1 + alpha
+                        a1 = -2 * math.cos(w_0)
+                        a2 = 1 - alpha
+
+                        filter_params.append(
+                            f"biquad=b0={b0}:b1={b1}:b2={b2}:a0={a0}:a1={a1}:a2={a2}"
+                        )
+                    elif b.type == ParametricEQBandType.LOW_PASS:
+                        b0 = (1 - math.cos(w_0)) / 2
+                        b1 = 1 - math.cos(w_0)
+                        b2 = (1 - math.cos(w_0)) / 2
+                        a0 = 1 + alpha
+                        a1 = -2 * math.cos(w_0)
+                        a2 = 1 - alpha
+
+                        filter_params.append(
+                            f"biquad=b0={b0}:b1={b1}:b2={b2}:a0={a0}:a1={a1}:a2={a2}"
+                        )
+                    elif b.type == ParametricEQBandType.NOTCH:
+                        b0 = 1
+                        b1 = -2 * math.cos(w_0)
+                        b2 = 1
+                        a0 = 1 + alpha
+                        a1 = -2 * math.cos(w_0)
+                        a2 = 1 - alpha
+
+                        filter_params.append(
+                            f"biquad=b0={b0}:b1={b1}:b2={b2}:a0={a0}:a1={a1}:a2={a2}"
+                        )
+
+        # Apply output gain
+        if dsp.output_gain != 0:
+            filter_params.append(f"volume={dsp.output_gain}dB")
+
     # the below is a very basic 3-band equalizer,
-    # this could be a lot more sophisticated at some point
+    # this could be replaced with a "Tone Control" filter in the future
     if (eq_bass := mass.config.get_raw_player_config_value(player_id, CONF_EQ_BASS, 0)) != 0:
         filter_params.append(f"equalizer=frequency=100:width=200:width_type=h:gain={eq_bass}")
     if (eq_mid := mass.config.get_raw_player_config_value(player_id, CONF_EQ_MID, 0)) != 0:
         filter_params.append(f"equalizer=frequency=900:width=1800:width_type=h:gain={eq_mid}")
     if (eq_treble := mass.config.get_raw_player_config_value(player_id, CONF_EQ_TREBLE, 0)) != 0:
         filter_params.append(f"equalizer=frequency=9000:width=18000:width_type=h:gain={eq_treble}")
-    # handle output mixing only left or right
+
     conf_channels = mass.config.get_raw_player_config_value(
         player_id, CONF_OUTPUT_CHANNELS, "stereo"
     )
+
+    # handle output mixing only left or right
     if conf_channels == "left":
         filter_params.append("pan=mono|c0=FL")
     elif conf_channels == "right":
         filter_params.append("pan=mono|c0=FR")
 
-    # add a peak limiter at the end of the filter chain
-    filter_params.append("alimiter=limit=-2dB:level=false:asc=true")
+    # Add safety limiter at the end, if not explicitly disabled
+    if not dsp.enabled or dsp.output_limiter:
+        filter_params.append("alimiter=limit=-2dB:level=false:asc=true")
 
+    LOGGER.debug("Generated ffmpeg params for player %s: %s", player_id, filter_params)
     return filter_params
 
 
