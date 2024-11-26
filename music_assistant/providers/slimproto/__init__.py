@@ -962,7 +962,7 @@ class SlimprotoProvider(PlayerProvider):
 
         async for chunk in stream.get_stream(
             output_format=AudioFormat(content_type=ContentType.try_parse(fmt)),
-            filter_params=get_player_filter_params(self.mass, child_player_id)
+            filter_params=get_player_filter_params(self.mass, child_player_id, stream.audio_format)
             if child_player_id
             else None,
         ):
