@@ -27,9 +27,9 @@ from music_assistant_models.helpers import set_global_cache_values
 from music_assistant_models.streamdetails import AudioFormat
 
 from music_assistant.constants import (
-    CONF_EQ_BASS,
-    CONF_EQ_MID,
-    CONF_EQ_TREBLE,
+    CONF_DEPRECATED_EQ_BASS,
+    CONF_DEPRECATED_EQ_MID,
+    CONF_DEPRECATED_EQ_TREBLE,
     CONF_OUTPUT_CHANNELS,
     CONF_VOLUME_NORMALIZATION,
     CONF_VOLUME_NORMALIZATION_RADIO,
@@ -941,11 +941,19 @@ def get_player_filter_params(
 
     # the below is a very basic 3-band equalizer,
     # this could be replaced with a "Tone Control" filter in the future
-    if (eq_bass := mass.config.get_raw_player_config_value(player_id, CONF_EQ_BASS, 0)) != 0:
+    if (
+        eq_bass := mass.config.get_raw_player_config_value(player_id, CONF_DEPRECATED_EQ_BASS, 0)
+    ) != 0:
         filter_params.append(f"equalizer=frequency=100:width=200:width_type=h:gain={eq_bass}")
-    if (eq_mid := mass.config.get_raw_player_config_value(player_id, CONF_EQ_MID, 0)) != 0:
+    if (
+        eq_mid := mass.config.get_raw_player_config_value(player_id, CONF_DEPRECATED_EQ_MID, 0)
+    ) != 0:
         filter_params.append(f"equalizer=frequency=900:width=1800:width_type=h:gain={eq_mid}")
-    if (eq_treble := mass.config.get_raw_player_config_value(player_id, CONF_EQ_TREBLE, 0)) != 0:
+    if (
+        eq_treble := mass.config.get_raw_player_config_value(
+            player_id, CONF_DEPRECATED_EQ_TREBLE, 0
+        )
+    ) != 0:
         filter_params.append(f"equalizer=frequency=9000:width=18000:width_type=h:gain={eq_treble}")
 
     conf_channels = mass.config.get_raw_player_config_value(

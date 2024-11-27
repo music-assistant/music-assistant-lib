@@ -39,9 +39,9 @@ CONF_USERNAME: Final[str] = "username"
 CONF_PASSWORD: Final[str] = "password"
 CONF_VOLUME_NORMALIZATION: Final[str] = "volume_normalization"
 CONF_VOLUME_NORMALIZATION_TARGET: Final[str] = "volume_normalization_target"
-CONF_EQ_BASS: Final[str] = "eq_bass"
-CONF_EQ_MID: Final[str] = "eq_mid"
-CONF_EQ_TREBLE: Final[str] = "eq_treble"
+CONF_DEPRECATED_EQ_BASS: Final[str] = "eq_bass"
+CONF_DEPRECATED_EQ_MID: Final[str] = "eq_mid"
+CONF_DEPRECATED_EQ_TREBLE: Final[str] = "eq_treble"
 CONF_PLAYER_DSP: Final[str] = "player_dsp"
 CONF_OUTPUT_CHANNELS: Final[str] = "output_channels"
 CONF_FLOW_MODE: Final[str] = "flow_mode"
@@ -200,34 +200,39 @@ CONF_ENTRY_VOLUME_NORMALIZATION_TARGET = ConfigEntry(
     category="advanced",
 )
 
-CONF_ENTRY_EQ_BASS = ConfigEntry(
-    key=CONF_EQ_BASS,
+# These EQ Options are deprecated and will be removed in the future
+# To allow for automatic migration to the new DSP system, they are still included in the config
+CONF_ENTRY_DEPRECATED_EQ_BASS = ConfigEntry(
+    key=CONF_DEPRECATED_EQ_BASS,
     type=ConfigEntryType.INTEGER,
     range=(-10, 10),
     default_value=0,
     label="Equalizer: bass",
     description="Use the builtin basic equalizer to adjust the bass of audio.",
     category="audio",
+    hidden=True,  # Hidden, use DSP instead
 )
 
-CONF_ENTRY_EQ_MID = ConfigEntry(
-    key=CONF_EQ_MID,
+CONF_ENTRY_DEPRECATED_EQ_MID = ConfigEntry(
+    key=CONF_DEPRECATED_EQ_MID,
     type=ConfigEntryType.INTEGER,
     range=(-10, 10),
     default_value=0,
     label="Equalizer: midrange",
     description="Use the builtin basic equalizer to adjust the midrange of audio.",
     category="audio",
+    hidden=True,  # Hidden, use DSP instead
 )
 
-CONF_ENTRY_EQ_TREBLE = ConfigEntry(
-    key=CONF_EQ_TREBLE,
+CONF_ENTRY_DEPRECATED_EQ_TREBLE = ConfigEntry(
+    key=CONF_DEPRECATED_EQ_TREBLE,
     type=ConfigEntryType.INTEGER,
     range=(-10, 10),
     default_value=0,
     label="Equalizer: treble",
     description="Use the builtin basic equalizer to adjust the treble of audio.",
     category="audio",
+    hidden=True,  # Hidden, use DSP instead
 )
 
 
