@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING
 
 import aiofiles
 from aiohttp import ClientTimeout
-from music_assistant_models.dsp import ParametricEQBandType, ParametricEQFilter
+from music_assistant_models.dsp import ParametricEQBandType, ParametricEQFilter, ToneControlFilter
 from music_assistant_models.enums import ContentType, MediaType, StreamType, VolumeNormalizationMode
 from music_assistant_models.errors import (
     InvalidDataError,
@@ -27,9 +27,6 @@ from music_assistant_models.helpers import set_global_cache_values
 from music_assistant_models.streamdetails import AudioFormat
 
 from music_assistant.constants import (
-    CONF_DEPRECATED_EQ_BASS,
-    CONF_DEPRECATED_EQ_MID,
-    CONF_DEPRECATED_EQ_TREBLE,
     CONF_OUTPUT_CHANNELS,
     CONF_VOLUME_NORMALIZATION,
     CONF_VOLUME_NORMALIZATION_RADIO,
@@ -934,27 +931,24 @@ def get_player_filter_params(
                         filter_params.append(
                             f"biquad=b0={b0}:b1={b1}:b2={b2}:a0={a0}:a1={a1}:a2={a2}"
                         )
+            if isinstance(f, ToneControlFilter):
+                # A basic 3-band equalizer
+                if f.bass_level != 0:
+                    filter_params.append(
+                        f"equalizer=frequency=100:width=200:width_type=h:gain={f.bass_level}"
+                    )
+                if f.mid_level != 0:
+                    filter_params.append(
+                        f"equalizer=frequency=900:width=1800:width_type=h:gain={f.mid_level}"
+                    )
+                if f.treble_level != 0:
+                    filter_params.append(
+                        f"equalizer=frequency=9000:width=18000:width_type=h:gain={f.treble_level}"
+                    )
 
         # Apply output gain
         if dsp.output_gain != 0:
             filter_params.append(f"volume={dsp.output_gain}dB")
-
-    # the below is a very basic 3-band equalizer,
-    # this could be replaced with a "Tone Control" filter in the future
-    if (
-        eq_bass := mass.config.get_raw_player_config_value(player_id, CONF_DEPRECATED_EQ_BASS, 0)
-    ) != 0:
-        filter_params.append(f"equalizer=frequency=100:width=200:width_type=h:gain={eq_bass}")
-    if (
-        eq_mid := mass.config.get_raw_player_config_value(player_id, CONF_DEPRECATED_EQ_MID, 0)
-    ) != 0:
-        filter_params.append(f"equalizer=frequency=900:width=1800:width_type=h:gain={eq_mid}")
-    if (
-        eq_treble := mass.config.get_raw_player_config_value(
-            player_id, CONF_DEPRECATED_EQ_TREBLE, 0
-        )
-    ) != 0:
-        filter_params.append(f"equalizer=frequency=9000:width=18000:width_type=h:gain={eq_treble}")
 
     conf_channels = mass.config.get_raw_player_config_value(
         player_id, CONF_OUTPUT_CHANNELS, "stereo"
