@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import math
 import os
 import re
 import struct
@@ -15,7 +14,6 @@ from typing import TYPE_CHECKING
 
 import aiofiles
 from aiohttp import ClientTimeout
-from music_assistant_models.dsp import ParametricEQBandType, ParametricEQFilter, ToneControlFilter
 from music_assistant_models.enums import ContentType, MediaType, StreamType, VolumeNormalizationMode
 from music_assistant_models.errors import (
     InvalidDataError,
@@ -38,6 +36,7 @@ from music_assistant.constants import (
 from music_assistant.helpers.json import JSON_DECODE_EXCEPTIONS, json_loads
 from music_assistant.helpers.util import clean_stream_title
 
+from .dsp import filter_to_ffmpeg_params
 from .ffmpeg import FFMpeg, get_ffmpeg_stream
 from .playlists import IsHLSPlaylist, PlaylistItem, fetch_playlist, parse_m3u
 from .process import AsyncProcess, check_output, communicate
@@ -850,101 +849,8 @@ def get_player_filter_params(
             if not f.enabled:
                 continue
 
-            if isinstance(f, ParametricEQFilter):
-                for b in f.bands:
-                    if not b.enabled:
-                        continue
-                    # From https://webaudio.github.io/Audio-EQ-Cookbook/audio-eq-cookbook.html
-
-                    f_s = input_format.sample_rate
-                    f_0 = b.frequency
-                    db_gain = b.gain
-                    q = b.q
-
-                    a = math.sqrt(10 ** (db_gain / 20))
-                    w_0 = 2 * math.pi * f_0 / f_s
-                    alpha = math.sin(w_0) / (2 * q)
-
-                    if b.type == ParametricEQBandType.PEAK:
-                        b0 = 1 + alpha * a
-                        b1 = -2 * math.cos(w_0)
-                        b2 = 1 - alpha * a
-                        a0 = 1 + alpha / a
-                        a1 = -2 * math.cos(w_0)
-                        a2 = 1 - alpha / a
-
-                        filter_params.append(
-                            f"biquad=b0={b0}:b1={b1}:b2={b2}:a0={a0}:a1={a1}:a2={a2}"
-                        )
-                    elif b.type == ParametricEQBandType.LOW_SHELF:
-                        b0 = a * ((a + 1) - (a - 1) * math.cos(w_0) + 2 * math.sqrt(a) * alpha)
-                        b1 = 2 * a * ((a - 1) - (a + 1) * math.cos(w_0))
-                        b2 = a * ((a + 1) - (a - 1) * math.cos(w_0) - 2 * math.sqrt(a) * alpha)
-                        a0 = (a + 1) + (a - 1) * math.cos(w_0) + 2 * math.sqrt(a) * alpha
-                        a1 = -2 * ((a - 1) + (a + 1) * math.cos(w_0))
-                        a2 = (a + 1) + (a - 1) * math.cos(w_0) - 2 * math.sqrt(a) * alpha
-
-                        filter_params.append(
-                            f"biquad=b0={b0}:b1={b1}:b2={b2}:a0={a0}:a1={a1}:a2={a2}"
-                        )
-                    elif b.type == ParametricEQBandType.HIGH_SHELF:
-                        b0 = a * ((a + 1) + (a - 1) * math.cos(w_0) + 2 * math.sqrt(a) * alpha)
-                        b1 = -2 * a * ((a - 1) + (a + 1) * math.cos(w_0))
-                        b2 = a * ((a + 1) + (a - 1) * math.cos(w_0) - 2 * math.sqrt(a) * alpha)
-                        a0 = (a + 1) - (a - 1) * math.cos(w_0) + 2 * math.sqrt(a) * alpha
-                        a1 = 2 * ((a - 1) - (a + 1) * math.cos(w_0))
-                        a2 = (a + 1) - (a - 1) * math.cos(w_0) - 2 * math.sqrt(a) * alpha
-
-                        filter_params.append(
-                            f"biquad=b0={b0}:b1={b1}:b2={b2}:a0={a0}:a1={a1}:a2={a2}"
-                        )
-                    elif b.type == ParametricEQBandType.HIGH_PASS:
-                        b0 = (1 + math.cos(w_0)) / 2
-                        b1 = -(1 + math.cos(w_0))
-                        b2 = (1 + math.cos(w_0)) / 2
-                        a0 = 1 + alpha
-                        a1 = -2 * math.cos(w_0)
-                        a2 = 1 - alpha
-
-                        filter_params.append(
-                            f"biquad=b0={b0}:b1={b1}:b2={b2}:a0={a0}:a1={a1}:a2={a2}"
-                        )
-                    elif b.type == ParametricEQBandType.LOW_PASS:
-                        b0 = (1 - math.cos(w_0)) / 2
-                        b1 = 1 - math.cos(w_0)
-                        b2 = (1 - math.cos(w_0)) / 2
-                        a0 = 1 + alpha
-                        a1 = -2 * math.cos(w_0)
-                        a2 = 1 - alpha
-
-                        filter_params.append(
-                            f"biquad=b0={b0}:b1={b1}:b2={b2}:a0={a0}:a1={a1}:a2={a2}"
-                        )
-                    elif b.type == ParametricEQBandType.NOTCH:
-                        b0 = 1
-                        b1 = -2 * math.cos(w_0)
-                        b2 = 1
-                        a0 = 1 + alpha
-                        a1 = -2 * math.cos(w_0)
-                        a2 = 1 - alpha
-
-                        filter_params.append(
-                            f"biquad=b0={b0}:b1={b1}:b2={b2}:a0={a0}:a1={a1}:a2={a2}"
-                        )
-            if isinstance(f, ToneControlFilter):
-                # A basic 3-band equalizer
-                if f.bass_level != 0:
-                    filter_params.append(
-                        f"equalizer=frequency=100:width=200:width_type=h:gain={f.bass_level}"
-                    )
-                if f.mid_level != 0:
-                    filter_params.append(
-                        f"equalizer=frequency=900:width=1800:width_type=h:gain={f.mid_level}"
-                    )
-                if f.treble_level != 0:
-                    filter_params.append(
-                        f"equalizer=frequency=9000:width=18000:width_type=h:gain={f.treble_level}"
-                    )
+            # Apply filter
+            filter_params.extend(filter_to_ffmpeg_params(f, input_format))
 
         # Apply output gain
         if dsp.output_gain != 0:
