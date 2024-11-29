@@ -56,6 +56,7 @@ if TYPE_CHECKING:
 CONF_BASE_URL = "baseURL"
 CONF_ENABLE_PODCASTS = "enable_podcasts"
 CONF_ENABLE_LEGACY_AUTH = "enable_legacy_auth"
+CONF_OVERRIDE_OFFSET = "override_transcode_offest"
 
 UNKNOWN_ARTIST_ID = "fake_artist_unknown"
 
@@ -71,6 +72,7 @@ class OpenSonicProvider(MusicProvider):
     _conn: SonicConnection = None
     _enable_podcasts: bool = True
     _seek_support: bool = False
+    _ignore_offset: bool = False
 
     async def handle_async_init(self) -> None:
         """Set up the music provider and test the connection."""
@@ -101,11 +103,12 @@ class OpenSonicProvider(MusicProvider):
             )
             raise LoginFailed(msg) from e
         self._enable_podcasts = self.config.get_value(CONF_ENABLE_PODCASTS)
+        self._ignore_offset = self.config.get_value(CONF_OVERRIDE_OFFSET)
         try:
             ret = await self._run_async(self._conn.getOpenSubsonicExtensions)
             extensions = ret["openSubsonicExtensions"]
             for entry in extensions:
-                if entry["name"] == "transcodeOffset":
+                if entry["name"] == "transcodeOffset" and not self._ignore_offset:
                     self._seek_support = True
                     break
         except OSError:
