@@ -271,16 +271,23 @@ class OpenSonicProvider(MusicProvider):
 
         return album
 
-    def _parse_track(self, sonic_song: SonicSong) -> Track:
-        mapping = None
-        if sonic_song.album_id is not None and sonic_song.album is not None:
-            mapping = self._get_item_mapping(MediaType.ALBUM, sonic_song.album_id, sonic_song.album)
+    def _parse_track(self, sonic_song: SonicSong, album: Album = None) -> Track:
+        # Unfortunately, the Song response type is not defined in the open subsonic spec so we have
+        # implementations which disagree about where the album id for this song should be stored.
+        # We accept either song.ablum_id or song.parent but prefer album_id.
+        if not album:
+            if sonic_song.album_id and sonic_song.album:
+                album = self._get_item_mapping(
+                    MediaType.ALBUM, sonic_song.album_id, sonic_song.album
+                )
+            elif sonic_song.parent and sonic_song.album:
+                album = self._get_item_mapping(MediaType.ALBUM, sonic_song.parent, sonic_song.album)
 
         track = Track(
             item_id=sonic_song.id,
             provider=self.instance_id,
             name=sonic_song.title,
-            album=mapping,
+            album=album,
             duration=sonic_song.duration if sonic_song.duration is not None else 0,
             disc_number=sonic_song.disc_number or 0,
             favorite=bool(sonic_song.starred),
@@ -486,8 +493,11 @@ class OpenSonicProvider(MusicProvider):
                 songCount=count,
             )
         while results["songs"]:
+            album = None
             for entry in results["songs"]:
-                yield self._parse_track(entry)
+                if album is None or album.item_id != entry.parent:
+                    album = await self._run_async(self.get_album, prov_album_id=entry.parent)
+                yield self._parse_track(entry, album=album)
             offset += count
             results = await self._run_async(
                 self._conn.search3,
@@ -568,7 +578,8 @@ class OpenSonicProvider(MusicProvider):
         except (ParameterError, DataNotFoundError) as e:
             msg = f"Item {prov_track_id} not found"
             raise MediaNotFoundError(msg) from e
-        return self._parse_track(sonic_song)
+        album = await self._run_async(self.get_album, prov_ablum_id=sonic_song.parent)
+        return self._parse_track(sonic_song, album=album)
 
     async def get_artist_albums(self, prov_artist_id: str) -> list[Album]:
         """Return a list of all Albums by specified Artist."""
@@ -610,9 +621,11 @@ class OpenSonicProvider(MusicProvider):
             msg = f"Playlist {prov_playlist_id} not found"
             raise MediaNotFoundError(msg) from e
 
-        # TODO: figure out if subsonic supports paging here
+        album = None
         for index, sonic_song in enumerate(sonic_playlist.songs, 1):
-            track = self._parse_track(sonic_song)
+            if not album or album.item_id != sonic_song.parent:
+                album = await self._run_async(self.get_album, prov_album_id=sonic_song.parent)
+            track = self._parse_track(sonic_song, album=album)
             track.position = index
             result.append(track)
         return result
