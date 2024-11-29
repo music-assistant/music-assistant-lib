@@ -711,11 +711,14 @@ class OpenSonicProvider(MusicProvider):
         )
 
     async def _report_playback_started(self, item_id: str) -> None:
+        self.logger.debug("scrobble for now playing called for %s", item_id)
         await self._run_async(self._conn.scrobble, sid=item_id, submission=False)
 
     async def on_streamed(self, streamdetails: StreamDetails, seconds_streamed: int) -> None:
         """Handle callback when an item completed streaming."""
+        self.logger.debug("on_streamed called for %s", streamdetails.item_id)
         if seconds_streamed >= streamdetails.duration / 2:
+            self.logger.debug("scrobble for listen count called for %s", streamdetails.item_id)
             await self._run_async(self._conn.scrobble, sid=streamdetails.item_id, submission=True)
 
     async def get_audio_stream(
