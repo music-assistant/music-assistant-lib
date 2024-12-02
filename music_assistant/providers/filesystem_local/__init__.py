@@ -94,6 +94,7 @@ CONF_ENTRY_MISSING_ALBUM_ARTIST = ConfigEntry(
 
 TRACK_EXTENSIONS = (
     "mp3",
+    "MP3",
     "m4a",
     "m4b",
     "mp4",
