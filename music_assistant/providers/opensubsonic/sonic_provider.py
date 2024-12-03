@@ -25,9 +25,11 @@ from music_assistant_models.media_items import (
     Album,
     Artist,
     AudioFormat,
+    Episode,
     ItemMapping,
     MediaItemImage,
     Playlist,
+    Podcast,
     ProviderMapping,
     SearchResults,
     Track,
@@ -51,6 +53,8 @@ if TYPE_CHECKING:
     from libopensonic.media import Artist as SonicArtist
     from libopensonic.media import ArtistInfo as SonicArtistInfo
     from libopensonic.media import Playlist as SonicPlaylist
+    from libopensonic.media import PodcastChannel as SonicPodcast
+    from libopensonic.media import PodcastEpisode as SonicEpisode
     from libopensonic.media import Song as SonicSong
 
 CONF_BASE_URL = "baseURL"
@@ -64,6 +68,12 @@ UNKNOWN_ARTIST_ID = "fake_artist_unknown"
 # tracks on Various Artists albums, see the note in the _parse_track() method and the handling
 # in get_artist()
 NAVI_VARIOUS_PREFIX = "MA-NAVIDROME-"
+
+
+# Because of some subsonic API weirdness, we have to lookup any podcast episode by finding it in
+# the list of episodes in a channel, to facilitate, we will use both the episode id and the
+# channel id concatenated as an episode id to MA
+EP_CHAN_SEP = "$!$"
 
 
 class OpenSonicProvider(MusicProvider):
@@ -130,6 +140,8 @@ class OpenSonicProvider(MusicProvider):
             ProviderFeature.SIMILAR_TRACKS,
             ProviderFeature.PLAYLIST_TRACKS_EDIT,
             ProviderFeature.PLAYLIST_CREATE,
+            ProviderFeature.LIBRARY_PODCASTS,
+            ProviderFeature.LIBRARY_PODCASTS_EDIT,
         }
 
     @property
@@ -385,6 +397,66 @@ class OpenSonicProvider(MusicProvider):
             ]
         return playlist
 
+    def _parse_podcast(self, sonic_podcast: SonicPodcast) -> Podcast:
+        podcast = Podcast(
+            item_id=sonic_podcast.id,
+            provider=self.domain,
+            name=sonic_podcast.title,
+            uri=sonic_podcast.url,
+            total_episodes=len(sonic_podcast.episodes),
+            provider_mappings={
+                ProviderMapping(
+                    item_id=sonic_podcast.id,
+                    provider_domain=self.domain,
+                    provider_instance=self.instance_id,
+                )
+            },
+        )
+
+        podcast.metadata.description = sonic_podcast.description
+        podcast.metadata.images = []
+
+        if sonic_podcast.cover_id:
+            podcast.metadata.images.append(
+                MediaItemImage(
+                    type=ImageType.THUMB,
+                    path=sonic_podcast.cover_id,
+                    provider=self.instance_id,
+                    remotely_accessible=False,
+                )
+            )
+
+        return podcast
+
+    def _parse_epsiode(self, sonic_episode: SonicEpisode, sonic_channel: SonicPodcast) -> Episode:
+        eid = f"{sonic_episode.channel_id}{EP_CHAN_SEP}{sonic_episode.id}"
+        pos = 1
+        for ep in sonic_channel.episodes:
+            if ep.id == sonic_episode.id:
+                break
+            pos += 1
+
+        episode = Episode(
+            item_id=eid,
+            provider=self.domain,
+            name=sonic_episode.title,
+            position=pos,
+            podcast=self._parse_podcast(sonic_channel),
+            provider_mappings={
+                ProviderMapping(
+                    item_id=sonic_episode.id,
+                    provider_domain=self.domain,
+                    provider_instance=self.instance_id,
+                )
+            },
+            duration=sonic_episode.duration,
+        )
+
+        if sonic_episode.description:
+            episode.metadata.description = sonic_episode.description
+
+        return episode
+
     async def _run_async(self, call: Callable, *args, **kwargs):
         return await self.mass.create_task(call, *args, **kwargs)
 
@@ -595,6 +667,64 @@ class OpenSonicProvider(MusicProvider):
             msg = f"Playlist {prov_playlist_id} not found"
             raise MediaNotFoundError(msg) from e
         return self._parse_playlist(sonic_playlist)
+
+    async def get_podcast_episodes(
+        self,
+        prov_podcast_id: str,
+    ) -> list[Episode]:
+        """Get all Episodes for given podcast id."""
+        if not self._enable_podcasts:
+            return []
+
+        channels = await self._run_async(
+            self._conn.getPodcasts, incEpisodes=True, pid=prov_podcast_id
+        )
+
+        channel = channels[0]
+        episodes = []
+        pos = 1
+        for episode in channel.episodes:
+            episodes.append(self._parse_epsiode(episode, channel))
+            pos += 1
+        return episodes
+
+    async def get_episode(self, prov_episode_id: str) -> Episode:
+        """Get (full) podcast episode details by id."""
+        if not self._enable_podcasts:
+            return None
+        if EP_CHAN_SEP not in prov_episode_id:
+            return None
+
+        eid, chan_id = prov_episode_id.split(EP_CHAN_SEP)
+        channels = await self._run_async(self._conn.getPodcasts, incEpisodes=True, pid=chan_id)
+
+        sonic_podcast = channels[0]
+        sonic_episode = None
+        for ep in sonic_podcast.episodes:
+            if ep.id == eid:
+                sonic_episode = ep
+                break
+
+        return self._parse_epsiode(sonic_episode, sonic_podcast)
+
+    async def get_podcast(self, prov_podcast_id: str) -> Podcast:
+        """Get full Podcast details by id."""
+        if not self._enable_podcasts:
+            return None
+
+        channels = await self._run_async(
+            self._conn.getPodcasts, incEpisodes=True, pid=prov_podcast_id
+        )
+
+        return self._parse_podcast(channels[0])
+
+    async def get_library_podcasts(self) -> AsyncGenerator[Podcast, None]:
+        """Retrieve library/subscribed podcasts from the provider."""
+        if self._enable_podcasts:
+            channels = await self._run_async(self._conn.getPodcasts, incEpisodes=True)
+
+            for channel in channels:
+                yield self._parse_podcast(channel)
 
     async def get_playlist_tracks(self, prov_playlist_id: str, page: int = 0) -> list[Track]:
         """Get playlist tracks."""
