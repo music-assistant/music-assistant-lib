@@ -78,7 +78,7 @@ DEFAULT_SYNC_INTERVAL = 3 * 60  # default sync interval in minutes
 CONF_SYNC_INTERVAL = "sync_interval"
 CONF_DELETED_PROVIDERS = "deleted_providers"
 CONF_ADD_LIBRARY_ON_PLAY = "add_library_on_play"
-DB_SCHEMA_VERSION: Final[int] = 9
+DB_SCHEMA_VERSION: Final[int] = 10
 
 
 class MusicController(CoreController):
@@ -1162,6 +1162,15 @@ class MusicController(CoreController):
                 )
             await self.database.execute("DROP TABLE IF EXISTS track_loudness")
 
+        if prev_version <= 9:
+            try:
+                await self.database.execute(
+                    f"ALTER TABLE {DB_TABLE_PODCASTS} ADD COLUMN version TEXT"
+                )
+            except Exception as err:
+                if "duplicate column" not in str(err):
+                    raise
+
         # save changes
         await self.database.commit()
 
@@ -1300,6 +1309,7 @@ class MusicController(CoreController):
             [item_id] INTEGER PRIMARY KEY AUTOINCREMENT,
             [name] TEXT NOT NULL,
             [sort_name] TEXT NOT NULL,
+            [version] TEXT,
             [favorite] BOOLEAN DEFAULT 0,
             [publisher] TEXT NOT NULL,
             [total_episodes] INTEGER NOT NULL,
