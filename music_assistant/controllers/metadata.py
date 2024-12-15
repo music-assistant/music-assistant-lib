@@ -123,7 +123,7 @@ class MetaDataController(CoreController):
             "Music Assistant's core controller which handles all metadata for music."
         )
         self.manifest.icon = "book-information-variant"
-        self._lookup_jobs: MetadataLookupQueue = MetadataLookupQueue()
+        self._lookup_jobs: MetadataLookupQueue = MetadataLookupQueue(100)
         self._lookup_task: asyncio.Task | None = None
         self._throttler = Throttler(1, 30)
         self._missing_metadata_scan_task: asyncio.Task | None = None
@@ -796,7 +796,7 @@ class MetaDataController(CoreController):
 class MetadataLookupQueue(asyncio.Queue):
     """Representation of a queue for metadata lookups."""
 
-    def _init(self, maxlen: int = 100):
+    def _init(self, maxlen: int):
         self._queue: collections.deque[str] = collections.deque(maxlen=maxlen)
 
     def _put(self, item: str) -> None:
