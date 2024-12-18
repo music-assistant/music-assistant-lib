@@ -13,6 +13,7 @@ from .sonic_provider import (
     CONF_BASE_URL,
     CONF_ENABLE_LEGACY_AUTH,
     CONF_ENABLE_PODCASTS,
+    CONF_OVERRIDE_OFFSET,
     OpenSonicProvider,
 )
 
@@ -88,6 +89,15 @@ async def get_config_entries(
             label="Enable legacy auth",
             required=True,
             description='Enable OpenSubsonic "legacy" auth support',
+            default_value=False,
+        ),
+        ConfigEntry(
+            key=CONF_OVERRIDE_OFFSET,
+            type=ConfigEntryType.BOOLEAN,
+            label="Force player provider seek",
+            required=True,
+            description="Some Subsonic implementations advertise that they support seeking when "
+            "they do not always. If seeking does not work for you, enable this.",
             default_value=False,
         ),
     )

@@ -56,6 +56,7 @@ if TYPE_CHECKING:
 CONF_BASE_URL = "baseURL"
 CONF_ENABLE_PODCASTS = "enable_podcasts"
 CONF_ENABLE_LEGACY_AUTH = "enable_legacy_auth"
+CONF_OVERRIDE_OFFSET = "override_transcode_offest"
 
 UNKNOWN_ARTIST_ID = "fake_artist_unknown"
 
@@ -71,6 +72,7 @@ class OpenSonicProvider(MusicProvider):
     _conn: SonicConnection = None
     _enable_podcasts: bool = True
     _seek_support: bool = False
+    _ignore_offset: bool = False
 
     async def handle_async_init(self) -> None:
         """Set up the music provider and test the connection."""
@@ -101,11 +103,12 @@ class OpenSonicProvider(MusicProvider):
             )
             raise LoginFailed(msg) from e
         self._enable_podcasts = self.config.get_value(CONF_ENABLE_PODCASTS)
+        self._ignore_offset = self.config.get_value(CONF_OVERRIDE_OFFSET)
         try:
             ret = await self._run_async(self._conn.getOpenSubsonicExtensions)
             extensions = ret["openSubsonicExtensions"]
             for entry in extensions:
-                if entry["name"] == "transcodeOffset":
+                if entry["name"] == "transcodeOffset" and not self._ignore_offset:
                     self._seek_support = True
                     break
         except OSError:
@@ -708,11 +711,14 @@ class OpenSonicProvider(MusicProvider):
         )
 
     async def _report_playback_started(self, item_id: str) -> None:
+        self.logger.debug("scrobble for now playing called for %s", item_id)
         await self._run_async(self._conn.scrobble, sid=item_id, submission=False)
 
     async def on_streamed(self, streamdetails: StreamDetails, seconds_streamed: int) -> None:
         """Handle callback when an item completed streaming."""
+        self.logger.debug("on_streamed called for %s", streamdetails.item_id)
         if seconds_streamed >= streamdetails.duration / 2:
+            self.logger.debug("scrobble for listen count called for %s", streamdetails.item_id)
             await self._run_async(self._conn.scrobble, sid=streamdetails.item_id, submission=True)
 
     async def get_audio_stream(

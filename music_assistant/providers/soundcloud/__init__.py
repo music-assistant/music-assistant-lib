@@ -438,7 +438,7 @@ class SoundcloudMusicProvider(MusicProvider):
         if track_obj.get("description"):
             track.metadata.description = track_obj["description"]
         if track_obj.get("genre"):
-            track.metadata.genres = track_obj["genre"]
+            track.metadata.genres = [track_obj["genre"]]
         if track_obj.get("tag_list"):
             track.metadata.style = track_obj["tag_list"]
         return track

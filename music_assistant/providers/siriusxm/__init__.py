@@ -215,6 +215,15 @@ class SiriusXMProvider(MusicProvider):
         self, item_id: str, media_type: MediaType = MediaType.RADIO
     ) -> StreamDetails:
         """Get streamdetails for a track/radio."""
+        # There's a chance that the SiriusXM auth session has expired
+        # by the time the user clicks to play a station.  The sxm-client
+        # will attempt to reauthenticate automatically, but this causes
+        # a delay in streaming, and ffmpeg raises a TimeoutError.
+        # To prevent this, we're going to explicitly authenticate with
+        # SiriusXM proactively when a station has been chosen to avoid
+        # this.
+        await self._client.authenticate()
+
         hls_path = f"http://{self._base_url}/{item_id}.m3u8"
 
         # Keep a reference to the current `StreamDetails` object so that we can
