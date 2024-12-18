@@ -314,7 +314,7 @@ class LocalFileSystemProvider(MusicProvider):
         """Process a single item."""
         try:
             self.logger.debug("Processing: %s", item.path)
-            if item.ext in TRACK_EXTENSIONS:
+            if item.ext.lower() in TRACK_EXTENSIONS:
                 # add/update track to db
                 # note that filesystem items are always overwriting existing info
                 # when they are detected as changed
@@ -322,7 +322,7 @@ class LocalFileSystemProvider(MusicProvider):
                 await self.mass.music.tracks.add_item_to_library(
                     track, overwrite_existing=prev_checksum is not None
                 )
-            elif item.ext in PLAYLIST_EXTENSIONS:
+            elif item.ext.lower() in PLAYLIST_EXTENSIONS:
                 playlist = await self.get_playlist(item.path)
                 # add/update] playlist to db
                 playlist.cache_checksum = item.checksum
