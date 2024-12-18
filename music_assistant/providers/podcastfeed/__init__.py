@@ -14,34 +14,34 @@ from collections.abc import AsyncGenerator
 from typing import TYPE_CHECKING
 
 import podcastparser
-
-from music_assistant.common.models.config_entries import ConfigEntry, ConfigValueType
-from music_assistant.common.models.enums import (
+from music_assistant_models.config_entries import ConfigEntry, ConfigValueType
+from music_assistant_models.enums import (
     ConfigEntryType,
     ContentType,
     MediaType,
     ProviderFeature,
     StreamType,
 )
-from music_assistant.common.models.errors import InvalidProviderURI, MediaNotFoundError
-from music_assistant.common.models.media_items import (
+from music_assistant_models.errors import InvalidProviderURI, MediaNotFoundError
+from music_assistant_models.media_items import (
     Artist,
     AudioFormat,
-    ImageType,
-    MediaItemImage,
+    # MediaItemImage,
     MediaItemType,
     ProviderMapping,
     SearchResults,
     Track,
 )
-from music_assistant.common.models.streamdetails import StreamDetails
-from music_assistant.server.models.music_provider import MusicProvider
+from music_assistant_models.streamdetails import StreamDetails
+
+from music_assistant.models.music_provider import MusicProvider
 
 if TYPE_CHECKING:
-    from music_assistant.common.models.config_entries import ProviderConfig
-    from music_assistant.common.models.provider import ProviderManifest
-    from music_assistant.server import MusicAssistant
-    from music_assistant.server.models import ProviderInstanceType
+    from music_assistant_models.config_entries import ProviderConfig
+    from music_assistant_models.provider import ProviderManifest
+
+    from music_assistant import MusicAssistant
+    from music_assistant.models import ProviderInstanceType
 
 CONF_FEED_URL = "feed_url"
 
@@ -99,12 +99,12 @@ class PodcastMusicprovider(MusicProvider):
         """Handle async initialization of the provider."""
         # ruff: noqa: S310
         # ruff: noqa: ASYNC210
-        self.parsed = await podcastparser.parse(
-            self.config.get_value(CONF_FEED_URL),
-            urllib.request.urlopen(
-                podcastparser.normalize_feed_url(self.config.get_value(CONF_FEED_URL))
-            ),
-        )
+        # self.parsed = await podcastparser.parse(
+        #    self.config.get_value(CONF_FEED_URL),
+        #    urllib.request.urlopen(
+        #        podcastparser.normalize_feed_url(self.config.get_value(CONF_FEED_URL))
+        #    ),
+        # )
 
     @property
     def is_streaming_provider(self) -> bool:
@@ -228,16 +228,16 @@ class PodcastMusicprovider(MusicProvider):
         artist.metadata.description = self.parsed["description"]
         artist.metadata.style = "Podcast"
 
-        if self.parsed["cover_url"]:
-            img_url = self.parsed["cover_url"]
-            artist.metadata.images = [
-                MediaItemImage(
-                    type=ImageType.THUMB,
-                    path=img_url,
-                    provider=self.lookup_key,
-                    remotely_accessible=True,
-                )
-            ]
+        # if self.parsed["cover_url"]:
+        #    img_url = self.parsed["cover_url"]
+        #    artist.metadata.images = [
+        #        MediaItemImage(
+        #            type=ImageType.THUMB,
+        #            path=img_url,
+        #            provider=self.lookup_key,
+        #            remotely_accessible=True,
+        #        )
+        #    ]
 
         return artist
 
@@ -265,15 +265,15 @@ class PodcastMusicprovider(MusicProvider):
 
         track.artists.append(await self._parse_artist())
 
-        if "episode_art_url" in track_obj:
-            track.metadata.images = [
-                MediaItemImage(
-                    type=ImageType.THUMB,
-                    path=track_obj["episode_art_url"],
-                    provider=self.lookup_key,
-                    remotely_accessible=True,
-                )
-            ]
+        # if "episode_art_url" in track_obj:
+        #    track.metadata.images = [
+        #        MediaItemImage(
+        #            type=ImageType.THUMB,
+        #            path=track_obj["episode_art_url"],
+        #            provider=self.lookup_key,
+        #            remotely_accessible=True,
+        #        )
+        #    ]
         track.metadata.description = track_obj["description"]
         track.metadata.explicit = track_obj["explicit"]
 
