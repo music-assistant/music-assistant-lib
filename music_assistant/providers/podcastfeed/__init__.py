@@ -18,6 +18,7 @@ from music_assistant_models.config_entries import ConfigEntry, ConfigValueType
 from music_assistant_models.enums import (
     ConfigEntryType,
     ContentType,
+    ImageType,
     MediaType,
     ProviderFeature,
     StreamType,
@@ -26,7 +27,7 @@ from music_assistant_models.errors import InvalidProviderURI, MediaNotFoundError
 from music_assistant_models.media_items import (
     Artist,
     AudioFormat,
-    # MediaItemImage,
+    MediaItemImage,
     MediaItemType,
     ProviderMapping,
     SearchResults,
@@ -228,16 +229,16 @@ class PodcastMusicprovider(MusicProvider):
         artist.metadata.description = self.parsed["description"]
         artist.metadata.style = "Podcast"
 
-        # if self.parsed["cover_url"]:
-        #    img_url = self.parsed["cover_url"]
-        #    artist.metadata.images = [
-        #        MediaItemImage(
-        #            type=ImageType.THUMB,
-        #            path=img_url,
-        #            provider=self.lookup_key,
-        #            remotely_accessible=True,
-        #        )
-        #    ]
+        if self.parsed["cover_url"]:
+            img_url = self.parsed["cover_url"]
+            artist.metadata.images = [
+                MediaItemImage(
+                    type=ImageType.THUMB,
+                    path=img_url,
+                    provider=self.lookup_key,
+                    remotely_accessible=True,
+                )
+            ]
 
         return artist
 
@@ -265,15 +266,15 @@ class PodcastMusicprovider(MusicProvider):
 
         track.artists.append(await self._parse_artist())
 
-        # if "episode_art_url" in track_obj:
-        #    track.metadata.images = [
-        #        MediaItemImage(
-        #            type=ImageType.THUMB,
-        #            path=track_obj["episode_art_url"],
-        #            provider=self.lookup_key,
-        #            remotely_accessible=True,
-        #        )
-        #    ]
+        if "episode_art_url" in track_obj:
+            track.metadata.images = [
+                MediaItemImage(
+                    type=ImageType.THUMB,
+                    path=track_obj["episode_art_url"],
+                    provider=self.lookup_key,
+                    remotely_accessible=True,
+                )
+            ]
         track.metadata.description = track_obj["description"]
         track.metadata.explicit = track_obj["explicit"]
 
