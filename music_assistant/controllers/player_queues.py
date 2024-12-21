@@ -1261,7 +1261,7 @@ class PlayerQueuesController(CoreController):
                 album.name if (album := getattr(queue_item.media_item, "album", None)) else ""
             )
             if queue_item.image:
-                media.image_url = self.mass.metadata.get_image_url(queue_item.image)
+                media.image_url = self.mass.metadata.get_image_url(queue_item.image, size=512)
         return media
 
     async def get_artist_tracks(self, artist: Artist) -> list[Track]:

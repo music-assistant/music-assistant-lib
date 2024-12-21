@@ -675,7 +675,7 @@ class ChromecastProvider(PlayerProvider):
         # update metadata of current item chromecast
         if media_controller.status.media_custom_data["queue_item_id"] != current_item.queue_item_id:
             image_url = (
-                self.mass.metadata.get_image_url(current_item.image)
+                self.mass.metadata.get_image_url(current_item.image, size=512)
                 if current_item.image
                 else MASS_LOGO_ONLINE
             )
