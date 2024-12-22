@@ -748,7 +748,11 @@ class YoutubeMusicProvider(MusicProvider):
                 "cookiefile": StringIO(self._netscape_cookie),
                 # This enforces a player client and skips unnecessary scraping to increase speed
                 "extractor_args": {
-                    "youtube": {"skip": ["translated_subs", "dash"], "player_client": ["ios"]}
+                    "youtube": {
+                        "skip": ["translated_subs", "dash"],
+                        "player_client": ["web_music"],
+                        "player_skip": ["webpage"],
+                    }
                 },
             }
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:

@@ -21,6 +21,7 @@ from music_assistant_models.config_entries import (
     PlayerConfig,
     ProviderConfig,
 )
+from music_assistant_models.dsp import DSPConfig, ToneControlFilter
 from music_assistant_models.enums import EventType, ProviderFeature, ProviderType
 from music_assistant_models.errors import (
     ActionUnavailable,
@@ -32,6 +33,10 @@ from music_assistant_models.helpers import get_global_cache_value
 
 from music_assistant.constants import (
     CONF_CORE,
+    CONF_DEPRECATED_EQ_BASS,
+    CONF_DEPRECATED_EQ_MID,
+    CONF_DEPRECATED_EQ_TREBLE,
+    CONF_PLAYER_DSP,
     CONF_PLAYERS,
     CONF_PROVIDERS,
     CONF_SERVER_ID,
@@ -430,6 +435,70 @@ class ConfigController:
         self.mass.players.remove(player_id, cleanup_config=False)
         # remove the actual config if all of the above passed
         self.remove(conf_key)
+
+    @api_command("config/players/dsp/get")
+    def get_player_dsp_config(self, player_id: str) -> DSPConfig:
+        """
+        Return the DSP Configuration for a player.
+
+        In case the player does not have a DSP configuration, a default one is returned.
+        """
+        if raw_conf := self.get(f"{CONF_PLAYER_DSP}/{player_id}"):
+            return DSPConfig.from_dict(raw_conf)
+        else:
+            # return default DSP config
+            dsp_config = DSPConfig()
+
+            deprecated_eq_bass = self.mass.config.get_raw_player_config_value(
+                player_id, CONF_DEPRECATED_EQ_BASS, 0
+            )
+            deprecated_eq_mid = self.mass.config.get_raw_player_config_value(
+                player_id, CONF_DEPRECATED_EQ_MID, 0
+            )
+            deprecated_eq_treble = self.mass.config.get_raw_player_config_value(
+                player_id, CONF_DEPRECATED_EQ_TREBLE, 0
+            )
+            if deprecated_eq_bass != 0 or deprecated_eq_mid != 0 or deprecated_eq_treble != 0:
+                # the user previously used the now deprecated EQ settings:
+                # add a tone control filter with the old values, reset the deprecated values and
+                # save this as the new DSP config
+                # TODO: remove this in a future release
+                dsp_config.filters.append(
+                    ToneControlFilter(
+                        enabled=True,
+                        bass_level=deprecated_eq_bass,
+                        mid_level=deprecated_eq_mid,
+                        treble_level=deprecated_eq_treble,
+                    )
+                )
+
+                deprecated_eq_keys = [
+                    CONF_DEPRECATED_EQ_BASS,
+                    CONF_DEPRECATED_EQ_MID,
+                    CONF_DEPRECATED_EQ_TREBLE,
+                ]
+                for key in deprecated_eq_keys:
+                    if self.mass.config.get_raw_player_config_value(player_id, key, 0) != 0:
+                        self.mass.config.set_raw_player_config_value(player_id, key, 0)
+
+                self.set(f"{CONF_PLAYER_DSP}/{player_id}", dsp_config.to_dict())
+
+            return dsp_config
+
+    @api_command("config/players/dsp/save")
+    async def save_dsp_config(self, player_id: str, config: DSPConfig) -> DSPConfig:
+        """
+        Save/update DSPConfig for a player.
+
+        This method will validate the config and apply it to the player.
+        """
+        # validate the new config
+        config.validate()
+
+        # Save and apply the new config to the player
+        self.set(f"{CONF_PLAYER_DSP}/{player_id}", config.to_dict())
+        await self.mass.players.on_player_dsp_change(player_id)
+        return config
 
     def create_default_player_config(
         self,

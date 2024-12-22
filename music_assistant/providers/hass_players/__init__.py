@@ -255,6 +255,26 @@ class HomeAssistantPlayers(PlayerProvider):
         """Handle PLAY MEDIA on given player."""
         if self.mass.config.get_raw_player_config_value(player_id, CONF_ENFORCE_MP3, True):
             media.uri = media.uri.replace(".flac", ".mp3")
+        player = self.mass.players.get(player_id, True)
+        assert player
+        extra_data = {
+            # passing metadata to the player
+            # so far only supported by google cast, but maybe others can follow
+            "metadata": {
+                "title": media.title,
+                "artist": media.artist,
+                "metadataType": 3,
+                "album": media.album,
+                "albumName": media.album,
+                "images": [{"url": media.image_url}] if media.image_url else None,
+                "imageUrl": media.image_url,
+            },
+        }
+        if player.extra_data.get("hass_domain") == "esphome":
+            # tell esphome mediaproxy to bypass the proxy,
+            # as MA already delivers an optimized stream
+            extra_data["bypass_proxy"] = True
+
         await self.hass_prov.hass.call_service(
             domain="media_player",
             service="play_media",
@@ -262,22 +282,7 @@ class HomeAssistantPlayers(PlayerProvider):
                 "media_content_id": media.uri,
                 "media_content_type": "music",
                 "enqueue": "replace",
-                "extra": {
-                    # passing metadata to the player
-                    # so far only supported by google cast, but maybe others can follow
-                    "metadata": {
-                        "title": media.title,
-                        "artist": media.artist,
-                        "metadataType": 3,
-                        "album": media.album,
-                        "albumName": media.album,
-                        "images": [{"url": media.image_url}] if media.image_url else None,
-                        "imageUrl": media.image_url,
-                    },
-                    # tell esphome mediaproxy to bypass the proxy,
-                    # as MA already delivers an optimized stream
-                    "bypass_proxy": True,
-                },
+                "extra": extra_data,
             },
             target={"entity_id": player_id},
         )

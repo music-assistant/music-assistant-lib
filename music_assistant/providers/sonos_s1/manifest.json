@@ -7,7 +7,7 @@
     "@music-assistant"
   ],
   "requirements": [
-    "soco==0.30.5",
+    "soco==0.30.6",
     "defusedxml==0.7.1"
   ],
   "documentation": "https://music-assistant.io/player-support/sonos/",

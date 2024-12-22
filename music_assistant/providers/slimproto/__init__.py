@@ -45,10 +45,10 @@ from music_assistant.constants import (
     CONF_ENFORCE_MP3,
     CONF_ENTRY_CROSSFADE,
     CONF_ENTRY_CROSSFADE_DURATION,
+    CONF_ENTRY_DEPRECATED_EQ_BASS,
+    CONF_ENTRY_DEPRECATED_EQ_MID,
+    CONF_ENTRY_DEPRECATED_EQ_TREBLE,
     CONF_ENTRY_ENFORCE_MP3,
-    CONF_ENTRY_EQ_BASS,
-    CONF_ENTRY_EQ_MID,
-    CONF_ENTRY_EQ_TREBLE,
     CONF_ENTRY_HTTP_PROFILE_FORCED_2,
     CONF_ENTRY_OUTPUT_CHANNELS,
     CONF_ENTRY_SYNC_ADJUST,
@@ -305,9 +305,9 @@ class SlimprotoProvider(PlayerProvider):
             + preset_entries
             + (
                 CONF_ENTRY_CROSSFADE,
-                CONF_ENTRY_EQ_BASS,
-                CONF_ENTRY_EQ_MID,
-                CONF_ENTRY_EQ_TREBLE,
+                CONF_ENTRY_DEPRECATED_EQ_BASS,
+                CONF_ENTRY_DEPRECATED_EQ_MID,
+                CONF_ENTRY_DEPRECATED_EQ_TREBLE,
                 CONF_ENTRY_OUTPUT_CHANNELS,
                 CONF_ENTRY_CROSSFADE_DURATION,
                 CONF_ENTRY_ENFORCE_MP3,
@@ -962,7 +962,7 @@ class SlimprotoProvider(PlayerProvider):
 
         async for chunk in stream.get_stream(
             output_format=AudioFormat(content_type=ContentType.try_parse(fmt)),
-            filter_params=get_player_filter_params(self.mass, child_player_id)
+            filter_params=get_player_filter_params(self.mass, child_player_id, stream.audio_format)
             if child_player_id
             else None,
         ):

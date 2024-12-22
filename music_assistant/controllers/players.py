@@ -1112,6 +1112,16 @@ class PlayerController(CoreController):
                 )
         player.enabled = config.enabled
 
+    async def on_player_dsp_change(self, player_id: str) -> None:
+        """Call (by config manager) when the DSP settings of a player change."""
+        # signal player provider that the config changed
+        if not (player := self.get(player_id)):
+            return
+        if player.state == PlayerState.PLAYING:
+            self.logger.info("Restarting playback of Player %s after DSP change", player_id)
+            # this will restart ffmpeg with the new settings
+            self.mass.call_later(0, self.mass.player_queues.resume, player.active_source)
+
     def _get_player_with_redirect(self, player_id: str) -> Player:
         """Get player with check if playback related command should be redirected."""
         player = self.get(player_id, True)

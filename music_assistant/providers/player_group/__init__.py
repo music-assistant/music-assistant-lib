@@ -711,6 +711,7 @@ class PlayerGroupProvider(PlayerProvider):
             needs_poll=True,
             poll_interval=30,
             can_group_with=can_group_with,
+            group_childs=set(members),
         )
 
         await self.mass.players.register_or_update(player)

@@ -25,9 +25,6 @@ from music_assistant_models.helpers import set_global_cache_values
 from music_assistant_models.streamdetails import AudioFormat
 
 from music_assistant.constants import (
-    CONF_EQ_BASS,
-    CONF_EQ_MID,
-    CONF_EQ_TREBLE,
     CONF_OUTPUT_CHANNELS,
     CONF_VOLUME_NORMALIZATION,
     CONF_VOLUME_NORMALIZATION_RADIO,
@@ -39,6 +36,7 @@ from music_assistant.constants import (
 from music_assistant.helpers.json import JSON_DECODE_EXCEPTIONS, json_loads
 from music_assistant.helpers.util import clean_stream_title
 
+from .dsp import filter_to_ffmpeg_params
 from .ffmpeg import FFMpeg, get_ffmpeg_stream
 from .playlists import IsHLSPlaylist, PlaylistItem, fetch_playlist, parse_m3u
 from .process import AsyncProcess, check_output, communicate
@@ -834,32 +832,45 @@ def get_chunksize(
 def get_player_filter_params(
     mass: MusicAssistant,
     player_id: str,
+    input_format: AudioFormat,
 ) -> list[str]:
     """Get player specific filter parameters for ffmpeg (if any)."""
-    # collect all players-specific filter args
-    # TODO: add convolution/DSP/roomcorrections here?!
     filter_params = []
 
-    # the below is a very basic 3-band equalizer,
-    # this could be a lot more sophisticated at some point
-    if (eq_bass := mass.config.get_raw_player_config_value(player_id, CONF_EQ_BASS, 0)) != 0:
-        filter_params.append(f"equalizer=frequency=100:width=200:width_type=h:gain={eq_bass}")
-    if (eq_mid := mass.config.get_raw_player_config_value(player_id, CONF_EQ_MID, 0)) != 0:
-        filter_params.append(f"equalizer=frequency=900:width=1800:width_type=h:gain={eq_mid}")
-    if (eq_treble := mass.config.get_raw_player_config_value(player_id, CONF_EQ_TREBLE, 0)) != 0:
-        filter_params.append(f"equalizer=frequency=9000:width=18000:width_type=h:gain={eq_treble}")
-    # handle output mixing only left or right
+    dsp = mass.config.get_player_dsp_config(player_id)
+
+    if dsp.enabled:
+        # Apply input gain
+        if dsp.input_gain != 0:
+            filter_params.append(f"volume={dsp.input_gain}dB")
+
+        # Process each DSP filter sequentially
+        for f in dsp.filters:
+            if not f.enabled:
+                continue
+
+            # Apply filter
+            filter_params.extend(filter_to_ffmpeg_params(f, input_format))
+
+        # Apply output gain
+        if dsp.output_gain != 0:
+            filter_params.append(f"volume={dsp.output_gain}dB")
+
     conf_channels = mass.config.get_raw_player_config_value(
         player_id, CONF_OUTPUT_CHANNELS, "stereo"
     )
+
+    # handle output mixing only left or right
     if conf_channels == "left":
         filter_params.append("pan=mono|c0=FL")
     elif conf_channels == "right":
         filter_params.append("pan=mono|c0=FR")
 
-    # add a peak limiter at the end of the filter chain
-    filter_params.append("alimiter=limit=-2dB:level=false:asc=true")
+    # Add safety limiter at the end, if not explicitly disabled
+    if not dsp.enabled or dsp.output_limiter:
+        filter_params.append("alimiter=limit=-2dB:level=false:asc=true")
 
+    LOGGER.debug("Generated ffmpeg params for player %s: %s", player_id, filter_params)
     return filter_params
 
 

@@ -36,7 +36,8 @@ class FileSystemItem:
     def ext(self) -> str | None:
         """Return file extension."""
         try:
-            return self.filename.rsplit(".", 1)[1]
+            # convert to lowercase to make it case insensitive when comparing
+            return self.filename.rsplit(".", 1)[1].lower()
         except IndexError:
             return None
 
