@@ -13,7 +13,7 @@ async-upnp-client==0.41.0
 bidict==0.23.1
 certifi==2024.8.30
 colorlog==6.9.0
-cryptography==43.0.3
+cryptography==44.0.0
 deezer-python-async==0.3.0
 defusedxml==0.7.1
 eyeD3==0.9.7
