@@ -25,13 +25,13 @@ from music_assistant_models.enums import (
 )
 from music_assistant_models.errors import InvalidProviderURI, MediaNotFoundError
 from music_assistant_models.media_items import (
-    Artist,
     AudioFormat,
+    Episode,
     MediaItemImage,
     MediaItemType,
+    Podcast,
     ProviderMapping,
     SearchResults,
-    Track,
 )
 from music_assistant_models.streamdetails import StreamDetails
 
@@ -91,8 +91,7 @@ class PodcastMusicprovider(MusicProvider):
         return (
             ProviderFeature.BROWSE,
             ProviderFeature.SEARCH,
-            ProviderFeature.LIBRARY_ARTISTS,
-            ProviderFeature.LIBRARY_TRACKS,
+            ProviderFeature.LIBRARY_PODCASTS,
             # see the ProviderFeature enum for all available features
         )
 
@@ -136,38 +135,45 @@ class PodcastMusicprovider(MusicProvider):
         """
         result = SearchResults()
 
-        if MediaType.ARTIST in media_types or media_types is None:
+        if MediaType.PODCAST in media_types or media_types is None:
             # return podcast if artist matches podcast name
             if search_query in self.parsed["title"]:
-                result.artists.append(await self._parse_artist())
+                result.podcasts.append(await self._parse_podcast())
 
-        if MediaType.TRACK in media_types or media_types is None:
-            if search_query in self.parsed["title"]:
-                for episode in self.parsed["episodes"]:
-                    result.tracks.append(await self._parse_track(episode))
+        # if MediaType.EPISODE in media_types or media_types is None:
+        #    if search_query in self.parsed["title"]:
+        #        for episode in self.parsed["episodes"]:
+        #            result.podcasts.append(await self._parse_episode(episode))
 
         return result
 
-    async def get_library_artists(self) -> AsyncGenerator[Artist, None]:
-        """Retrieve library artists from the provider."""
-        yield await self._parse_artist()
+    async def get_library_podcasts(self) -> AsyncGenerator[Podcast, None]:
+        """Retrieve library/subscribed podcasts from the provider."""
+        yield await self._parse_podcast()
 
-    async def get_library_tracks(self) -> AsyncGenerator[Track, None]:
-        """Retrieve library tracks from the provider."""
-        for episode in self.parsed["episodes"]:
-            yield await self._parse_track(episode)
-
-    async def get_artist(self, prov_artist_id: str) -> Artist:
+    async def get_podcast(self, prov_podcast_id: str) -> Podcast:
         """Get full artist details by id."""
-        return await self._parse_artist()
+        return await self._parse_podcast()
 
     # type: ignore[return]
-    async def get_track(self, prov_track_id: str) -> Track:
-        """Get full track details by id."""
+    async def get_episode(self, prov_episode_id: str) -> Episode:
+        """Get (full) podcast episode details by id."""
         for episode in self.parsed["episodes"]:
-            if prov_track_id in episode["guid"]:
-                return await self._parse_track(episode)
+            if prov_episode_id in episode["guid"]:
+                return await self._parse_episode(episode)
         raise MediaNotFoundError("Track not found")
+
+    async def get_podcast_episodes(
+        self,
+        prov_podcast_id: str,
+    ) -> list[Episode]:
+        """List all episodes for the podcast."""
+        episodes = []
+
+        for episode in self.parsed["episodes"]:
+            episodes.append(await self._parse_episode(episode))
+
+        return episodes
 
     async def library_add(self, item: MediaItemType) -> bool:
         """Add item to provider's library. Return true on success."""
@@ -188,7 +194,7 @@ class PodcastMusicprovider(MusicProvider):
                         # hard coded mp3 for now
                         content_type=ContentType.MP3,
                     ),
-                    media_type=MediaType.TRACK,
+                    media_type=MediaType.PODCAST,
                     stream_type=StreamType.HTTP,
                     path=episode["enclosures"][0]["url"],
                 )
@@ -210,9 +216,9 @@ class PodcastMusicprovider(MusicProvider):
             urllib.request.urlopen(self.config.get_value(CONF_FEED_URL)),
         )
 
-    async def _parse_artist(self) -> Artist:
-        """Parse artist information from podcast feed."""
-        artist = Artist(
+    async def _parse_podcast(self) -> Podcast:
+        """Parse podcast information from podcast feed."""
+        podcast = Podcast(
             item_id=hash(self.parsed["title"]),
             name=self.parsed["title"],
             provider=self.domain,
@@ -226,12 +232,12 @@ class PodcastMusicprovider(MusicProvider):
             },
         )
 
-        artist.metadata.description = self.parsed["description"]
-        artist.metadata.style = "Podcast"
+        podcast.metadata.description = self.parsed["description"]
+        podcast.metadata.style = "Podcast"
 
         if self.parsed["cover_url"]:
             img_url = self.parsed["cover_url"]
-            artist.metadata.images = [
+            podcast.metadata.images = [
                 MediaItemImage(
                     type=ImageType.THUMB,
                     path=img_url,
@@ -240,12 +246,12 @@ class PodcastMusicprovider(MusicProvider):
                 )
             ]
 
-        return artist
+        return podcast
 
-    async def _parse_track(self, track_obj: dict, track_position: int = 0) -> Track:
+    async def _parse_episode(self, track_obj: dict, track_position: int = 0) -> Episode:
         name = track_obj["title"]
         track_id = track_obj["guid"]
-        track = Track(
+        episode = Episode(
             item_id=track_id,
             provider=self.domain,
             name=name,
@@ -264,10 +270,10 @@ class PodcastMusicprovider(MusicProvider):
             position=track_position,
         )
 
-        track.artists.append(await self._parse_artist())
+        episode.podcast.append(await self._parse_podcast())
 
         if "episode_art_url" in track_obj:
-            track.metadata.images = [
+            episode.metadata.images = [
                 MediaItemImage(
                     type=ImageType.THUMB,
                     path=track_obj["episode_art_url"],
@@ -275,7 +281,7 @@ class PodcastMusicprovider(MusicProvider):
                     remotely_accessible=True,
                 )
             ]
-        track.metadata.description = track_obj["description"]
-        track.metadata.explicit = track_obj["explicit"]
+        episode.metadata.description = track_obj["description"]
+        episode.metadata.explicit = track_obj["explicit"]
 
-        return track
+        return episode
