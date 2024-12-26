@@ -78,7 +78,7 @@ DEFAULT_SYNC_INTERVAL = 3 * 60  # default sync interval in minutes
 CONF_SYNC_INTERVAL = "sync_interval"
 CONF_DELETED_PROVIDERS = "deleted_providers"
 CONF_ADD_LIBRARY_ON_PLAY = "add_library_on_play"
-DB_SCHEMA_VERSION: Final[int] = 9
+DB_SCHEMA_VERSION: Final[int] = 10
 
 
 class MusicController(CoreController):
@@ -1094,7 +1094,7 @@ class MusicController(CoreController):
             "Migrating database from version %s to %s", prev_version, DB_SCHEMA_VERSION
         )
 
-        if prev_version <= 4:
+        if prev_version <= 6:
             # unhandled schema version
             # we do not try to handle more complex migrations
             self.logger.warning(
@@ -1161,6 +1161,12 @@ class MusicController(CoreController):
                     },
                 )
             await self.database.execute("DROP TABLE IF EXISTS track_loudness")
+
+        if prev_version <= 9:
+            # recreate db tables for audiobooks and podcasts due to some mistakes in early version
+            await self.database.execute(f"DROP TABLE IF EXISTS {DB_TABLE_AUDIOBOOKS}")
+            await self.database.execute(f"DROP TABLE IF EXISTS {DB_TABLE_PODCASTS}")
+            await self.__create_database_tables()
 
         # save changes
         await self.database.commit()
@@ -1281,9 +1287,10 @@ class MusicController(CoreController):
             [item_id] INTEGER PRIMARY KEY AUTOINCREMENT,
             [name] TEXT NOT NULL,
             [sort_name] TEXT NOT NULL,
+            [version] TEXT,
             [favorite] BOOLEAN DEFAULT 0,
             [publisher] TEXT NOT NULL,
-            [total_chapters] INTEGER NOT NULL,
+            [total_chapters] INTEGER,
             [authors] json NOT NULL,
             [narrators] json NOT NULL,
             [metadata] json NOT NULL,
@@ -1300,9 +1307,10 @@ class MusicController(CoreController):
             [item_id] INTEGER PRIMARY KEY AUTOINCREMENT,
             [name] TEXT NOT NULL,
             [sort_name] TEXT NOT NULL,
+            [version] TEXT,
             [favorite] BOOLEAN DEFAULT 0,
             [publisher] TEXT NOT NULL,
-            [total_episodes] INTEGER NOT NULL,
+            [total_episodes] INTEGER,
             [metadata] json NOT NULL,
             [external_ids] json NOT NULL,
             [play_count] INTEGER DEFAULT 0,

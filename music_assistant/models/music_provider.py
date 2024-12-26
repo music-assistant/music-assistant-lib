@@ -18,6 +18,7 @@ from music_assistant_models.media_items import (
     ItemMapping,
     MediaItemType,
     Playlist,
+    Podcast,
     Radio,
     SearchResults,
     Track,
@@ -117,7 +118,7 @@ class MusicProvider(Provider):
             raise NotImplementedError
         yield  # type: ignore
 
-    async def get_library_podcasts(self) -> AsyncGenerator[Audiobook, None]:
+    async def get_library_podcasts(self) -> AsyncGenerator[Podcast, None]:
         """Retrieve library/subscribed podcasts from the provider."""
         if ProviderFeature.LIBRARY_AUDIOBOOKS in self.supported_features:
             raise NotImplementedError
@@ -164,7 +165,7 @@ class MusicProvider(Provider):
         if ProviderFeature.LIBRARY_AUDIOBOOKS in self.supported_features:
             raise NotImplementedError
 
-    async def get_podcast(self, prov_podcast_id: str) -> Audiobook:  # type: ignore[return]
+    async def get_podcast(self, prov_podcast_id: str) -> Podcast:  # type: ignore[return]
         """Get full audiobook details by id."""
         if ProviderFeature.LIBRARY_PODCASTS in self.supported_features:
             raise NotImplementedError
@@ -174,7 +175,7 @@ class MusicProvider(Provider):
         if ProviderFeature.LIBRARY_AUDIOBOOKS in self.supported_features:
             raise NotImplementedError
 
-    async def get_episode(self, prov_episode_id: str) -> Chapter:  # type: ignore[return]
+    async def get_episode(self, prov_episode_id: str) -> Episode:  # type: ignore[return]
         """Get (full) podcast episode details by id."""
         if ProviderFeature.LIBRARY_PODCASTS in self.supported_features:
             raise NotImplementedError

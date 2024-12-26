@@ -154,8 +154,8 @@ class AudiobooksController(MediaControllerBase[Audiobook]):
                 "external_ids": serialize_to_json(item.external_ids),
                 "publisher": item.publisher,
                 "total_chapters": item.total_chapters,
-                "authors": item.authors,
-                "narrators": item.narrators,
+                "authors": serialize_to_json(item.authors),
+                "narrators": serialize_to_json(item.narrators),
             },
         )
         # update/set provider_mappings table
@@ -191,10 +191,12 @@ class AudiobooksController(MediaControllerBase[Audiobook]):
                 ),
                 "publisher": cur_item.publisher or update.publisher,
                 "total_chapters": cur_item.total_chapters or update.total_chapters,
-                "authors": update.authors if overwrite else cur_item.authors or update.authors,
-                "narrators": update.narrators
-                if overwrite
-                else cur_item.narrators or update.narrators,
+                "authors": serialize_to_json(
+                    update.authors if overwrite else cur_item.authors or update.authors
+                ),
+                "narrators": serialize_to_json(
+                    update.narrators if overwrite else cur_item.narrators or update.narrators
+                ),
             },
         )
         # update/set provider_mappings table
