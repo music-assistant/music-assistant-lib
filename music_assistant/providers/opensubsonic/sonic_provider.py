@@ -578,7 +578,7 @@ class OpenSonicProvider(MusicProvider):
         except (ParameterError, DataNotFoundError) as e:
             msg = f"Item {prov_track_id} not found"
             raise MediaNotFoundError(msg) from e
-        album = await self._run_async(self.get_album, prov_ablum_id=sonic_song.parent)
+        album = await self._run_async(self.get_album, prov_album_id=sonic_song.parent)
         return self._parse_track(sonic_song, album=album)
 
     async def get_artist_albums(self, prov_artist_id: str) -> list[Album]:
