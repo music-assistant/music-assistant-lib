@@ -1,5 +1,5 @@
 {
-  "type": "music",
+  "type": "player",
   "domain": "template_player_provider",
   "name": "Name of the Player provider goes here",
   "description": "Short description of the player provider goes here",
