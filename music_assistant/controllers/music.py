@@ -824,7 +824,13 @@ class MusicController(CoreController):
             return self.playlists
         if media_type == MediaType.AUDIOBOOK:
             return self.audiobooks
+        if media_type == MediaType.CHAPTER:
+            return self.audiobooks
+        if media_type == MediaType.EPISODE:
+            return self.podcasts
         if media_type == MediaType.PODCAST:
+            return self.podcasts
+        if media_type == MediaType.EPISODE:
             return self.podcasts
         return None
 

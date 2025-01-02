@@ -249,7 +249,7 @@ class TestProvider(MusicProvider):
         return Chapter(
             item_id=prov_chapter_id,
             provider=self.instance_id,
-            name=f"Test Chapter {prov_audiobook_id}-{prov_chapter_id}",
+            name=f"Test Chapter {prov_audiobook_id}-{chapter_idx}",
             duration=5,
             audiobook=ItemMapping(
                 item_id=prov_audiobook_id,
@@ -257,6 +257,13 @@ class TestProvider(MusicProvider):
                 name=f"Test Audiobook {prov_audiobook_id}",
                 media_type=MediaType.AUDIOBOOK,
             ),
+            provider_mappings={
+                ProviderMapping(
+                    item_id=prov_chapter_id,
+                    provider_domain=self.domain,
+                    provider_instance=self.instance_id,
+                )
+            },
         )
 
     async def get_episode(self, prov_episode_id: str) -> Episode:
