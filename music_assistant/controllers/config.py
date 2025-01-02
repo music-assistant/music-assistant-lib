@@ -463,6 +463,7 @@ class ConfigController:
                 # add a tone control filter with the old values, reset the deprecated values and
                 # save this as the new DSP config
                 # TODO: remove this in a future release
+                dsp_config.enabled = True
                 dsp_config.filters.append(
                     ToneControlFilter(
                         enabled=True,
@@ -482,6 +483,9 @@ class ConfigController:
                         self.mass.config.set_raw_player_config_value(player_id, key, 0)
 
                 self.set(f"{CONF_PLAYER_DSP}/{player_id}", dsp_config.to_dict())
+            else:
+                # The DSP config does not do anything by default, so we disable it
+                dsp_config.enabled = False
 
             return dsp_config
 
