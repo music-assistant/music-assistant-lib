@@ -441,7 +441,7 @@ class PlayerQueuesController(CoreController):
                 if radio_mode:
                     radio_source.append(media_item)
                 else:
-                    media_items += await self._resolve_media_items(item, start_item)
+                    media_items += await self._resolve_media_items(media_item, start_item)
 
             except MusicAssistantError as err:
                 # invalid MA uri or item not found error
@@ -1524,7 +1524,7 @@ class PlayerQueuesController(CoreController):
         self.mass.create_task(_enqueue_next())
 
     async def _resolve_media_items(
-        self, media_item: MediaItemType | str | dict, start_item: str | None = None
+        self, media_item: MediaItemType, start_item: str | None = None
     ) -> list[MediaItemType]:
         """Resolve/unwrap media items to enqueue."""
         if media_item.media_type == MediaType.PLAYLIST:
