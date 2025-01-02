@@ -100,19 +100,15 @@ class PodcastsController(MediaControllerBase[Podcast]):
     ) -> UniqueList[Episode]:
         """Return podcast episodes for the given provider podcast id."""
         # always check if we have a library item for this podcast
-        library_podcast = await self.get_library_item_by_prov_id(
+        if library_podcast := await self.get_library_item_by_prov_id(
             item_id, provider_instance_id_or_domain
-        )
-        if not library_podcast:
-            return await self._get_provider_podcast_episodes(
-                item_id, provider_instance_id_or_domain
-            )
-        # return items from first/only provider
-        for provider_mapping in library_podcast.provider_mappings:
-            return await self._get_provider_podcast_episodes(
-                provider_mapping.item_id, provider_mapping.provider_instance
-            )
-        return UniqueList()
+        ):
+            # return items from first/only provider
+            for provider_mapping in library_podcast.provider_mappings:
+                return await self._get_provider_podcast_episodes(
+                    provider_mapping.item_id, provider_mapping.provider_instance
+                )
+        return await self._get_provider_podcast_episodes(item_id, provider_instance_id_or_domain)
 
     async def versions(
         self,
@@ -202,28 +198,12 @@ class PodcastsController(MediaControllerBase[Podcast]):
         prov: MusicProvider = self.mass.get_provider(provider_instance_id_or_domain)
         if prov is None:
             return []
-        # prefer cache items (if any) - for streaming providers only
-        cache_base_key = prov.lookup_key
-        cache_key = f"podcast.{item_id}"
-        if (
-            prov.is_streaming_provider
-            and (cache := await self.mass.cache.get(cache_key, base_key=cache_base_key)) is not None
-        ):
-            return [Episode.from_dict(x) for x in cache]
-        # no items in cache - get listing from provider
-        items = await prov.get_podcast_episodes(item_id)
-        # store (serializable items) in cache
-        if prov.is_streaming_provider:
-            self.mass.create_task(
-                self.mass.cache.set(
-                    cache_key,
-                    [x.to_dict() for x in items],
-                    expiration=3600,
-                    base_key=cache_base_key,
-                ),
-            )
-
-        return items
+        # grab the episodes from the provider
+        # note that we do not cache any of this because its
+        # always a rather small list and we want fresh resume info
+        items = await prov.get_audiobook_chapters(item_id)
+        # TODO: inject resume position info here for providers that do not natively provide it
+        return items  # noqa: RET504
 
     async def _get_provider_dynamic_base_tracks(
         self,

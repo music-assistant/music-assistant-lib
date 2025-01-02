@@ -44,6 +44,7 @@ from music_assistant_models.media_items import (
     Chapter,
     Episode,
     MediaItemType,
+    PlayableMediaItemType,
     Playlist,
     media_from_dict,
 )
@@ -367,7 +368,7 @@ class PlayerQueuesController(CoreController):
         media: MediaItemType | list[MediaItemType] | str | list[str],
         option: QueueOption | None = None,
         radio_mode: bool = False,
-        start_item: str | None = None,
+        start_item: PlayableMediaItemType | str | None = None,
     ) -> None:
         """Play media item(s) on the given queue.
 
@@ -1427,7 +1428,7 @@ class PlayerQueuesController(CoreController):
         # get the index of the chapter
         chapter_index = all_chapters.index(chapter)
         # return the (remaining) chapter(s) to play
-        return all_chapters[:chapter_index]
+        return all_chapters[chapter_index:]
 
     async def get_next_podcast_episodes(
         self, podcast: Podcast | None, episode: Episode | str | None
@@ -1459,7 +1460,7 @@ class PlayerQueuesController(CoreController):
         # get the index of the episode
         episode_index = all_episodes.index(episode)
         # return the (remaining) episode(s) to play
-        return all_episodes[:episode_index]
+        return all_episodes[episode_index:]
 
     def _get_next_index(
         self, queue_id: str, cur_index: int | None, is_skip: bool = False, allow_repeat: bool = True
@@ -1555,7 +1556,7 @@ class PlayerQueuesController(CoreController):
             )
             return await self.get_next_audio_book_chapters(media_item, start_item)
         if media_item.media_type == MediaType.CHAPTER:
-            return await self.get_next_podcast_episodes(media_item, start_item or media_item)
+            return await self.get_next_audio_book_chapters(None, media_item)
         if media_item.media_type == MediaType.PODCAST:
             self.mass.create_task(
                 self.mass.music.mark_item_played(
@@ -1563,6 +1564,8 @@ class PlayerQueuesController(CoreController):
                 )
             )
             return await self.get_next_podcast_episodes(media_item, start_item or media_item)
+        if media_item.media_type == MediaType.EPISODE:
+            return await self.get_next_podcast_episodes(None, media_item)
         # all other: single track or radio item
         return [media_item]
 
