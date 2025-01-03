@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import TYPE_CHECKING, Any
 
 from music_assistant_models.enums import MediaType, ProviderFeature
 from music_assistant_models.errors import InvalidDataError
 from music_assistant_models.media_items import Artist, Episode, Podcast, UniqueList
 
-from music_assistant.constants import DB_TABLE_PODCASTS
+from music_assistant.constants import DB_TABLE_PLAYLOG, DB_TABLE_PODCASTS
 from music_assistant.controllers.media.base import MediaControllerBase
 from music_assistant.helpers.compare import (
     compare_media_item,
@@ -202,8 +203,31 @@ class PodcastsController(MediaControllerBase[Podcast]):
         # note that we do not cache any of this because its
         # always a rather small list and we want fresh resume info
         items = await prov.get_audiobook_chapters(item_id)
-        # TODO: inject resume position info here for providers that do not natively provide it
-        return items  # noqa: RET504
+
+        async def set_resume_position(episode: Episode) -> None:
+            if episode.resume_position_ms is not None:
+                return
+            if episode.fully_played is not None:
+                return
+            # TODO: inject resume position info here for providers that do not natively provide it
+            resume_info_db_row = await self.mass.music.database.get_row(
+                DB_TABLE_PLAYLOG,
+                {
+                    "item_id": episode.item_id,
+                    "provider": prov.lookup_key,
+                    "media_type": MediaType.CHAPTER,
+                },
+            )
+            if resume_info_db_row is None:
+                return
+            if resume_info_db_row["seconds_played"] is not None:
+                episode.resume_position_ms = resume_info_db_row["seconds_played"] * 1000
+            if resume_info_db_row["fully_played"] is not None:
+                episode.fully_played = resume_info_db_row["fully_played"]
+
+        await asyncio.gather(*[set_resume_position(chapter) for chapter in items])
+        return items
+        return items
 
     async def _get_provider_dynamic_base_tracks(
         self,

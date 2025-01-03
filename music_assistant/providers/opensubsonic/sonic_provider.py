@@ -699,25 +699,6 @@ class OpenSonicProvider(MusicProvider):
             pos += 1
         return episodes
 
-    async def get_episode(self, prov_episode_id: str) -> Episode:
-        """Get (full) podcast episode details by id."""
-        if not self._enable_podcasts:
-            return None
-        if EP_CHAN_SEP not in prov_episode_id:
-            return None
-
-        eid, chan_id = prov_episode_id.split(EP_CHAN_SEP)
-        channels = await self._run_async(self._conn.getPodcasts, incEpisodes=True, pid=chan_id)
-
-        sonic_podcast = channels[0]
-        sonic_episode = None
-        for ep in sonic_podcast.episodes:
-            if ep.id == eid:
-                sonic_episode = ep
-                break
-
-        return self._parse_epsiode(sonic_episode, sonic_podcast)
-
     async def get_podcast(self, prov_podcast_id: str) -> Podcast:
         """Get full Podcast details by id."""
         if not self._enable_podcasts:

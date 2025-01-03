@@ -1050,17 +1050,27 @@ class PlayerQueuesController(CoreController):
             and (queue_item := self.get_item(queue_id, prev_state["current_index"]))
             and (stream_details := queue_item.streamdetails)
         ):
-            seconds_streamed = prev_state["elapsed_time"]
+            seconds_played = prev_state["elapsed_time"]
+            fully_played = seconds_played >= (stream_details.duration or 3600) - 5
             if music_prov := self.mass.get_provider(stream_details.provider):
-                if seconds_streamed > 10:
-                    self.mass.create_task(music_prov.on_streamed(stream_details, seconds_streamed))
-            if queue_item.media_item and seconds_streamed > 10:
+                if fully_played or (seconds_played > 10):
+                    self.mass.create_task(music_prov.on_streamed(stream_details, seconds_played))
+                self.mass.create_task(
+                    self.mass.music.mark_item_played(
+                        stream_details.media_type,
+                        stream_details.item_id,
+                        stream_details.provider,
+                        fully_played=fully_played,
+                        seconds_played=seconds_played,
+                    )
+                )
+            if queue_item.media_item and (fully_played or seconds_played > 10):
                 # signal 'media item played' event,
                 # which is useful for plugins that want to do scrobbling
                 self.mass.signal_event(
                     EventType.MEDIA_ITEM_PLAYED,
                     object_id=queue_item.media_item.uri,
-                    data=round(seconds_streamed, 2),
+                    data=round(seconds_played, 2),
                 )
 
         if end_of_queue_reached:
