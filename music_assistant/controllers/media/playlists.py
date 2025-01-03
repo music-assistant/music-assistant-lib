@@ -14,7 +14,7 @@ from music_assistant_models.errors import (
     ProviderUnavailableError,
     UnsupportedFeaturedException,
 )
-from music_assistant_models.media_items import Playlist, PlaylistTrack, Track
+from music_assistant_models.media_items import Playlist, Track
 
 from music_assistant.constants import DB_TABLE_PLAYLISTS
 from music_assistant.helpers.json import serialize_to_json
@@ -50,7 +50,7 @@ class PlaylistController(MediaControllerBase[Playlist]):
         item_id: str,
         provider_instance_id_or_domain: str,
         force_refresh: bool = False,
-    ) -> AsyncGenerator[PlaylistTrack, None]:
+    ) -> AsyncGenerator[Track, None]:
         """Return playlist tracks for the given provider playlist id."""
         playlist = await self.get(
             item_id,
@@ -337,7 +337,7 @@ class PlaylistController(MediaControllerBase[Playlist]):
         cache_checksum: Any = None,
         page: int = 0,
         force_refresh: bool = False,
-    ) -> list[PlaylistTrack]:
+    ) -> list[Track]:
         """Return playlist tracks for the given provider playlist id."""
         assert provider_instance_id_or_domain != "library"
         provider: MusicProvider = self.mass.get_provider(provider_instance_id_or_domain)
@@ -359,7 +359,7 @@ class PlaylistController(MediaControllerBase[Playlist]):
             )
             is not None
         ):
-            return [PlaylistTrack.from_dict(x) for x in cache]
+            return [Track.from_dict(x) for x in cache]
         # no items in cache (or force_refresh) - get listing from provider
         items = await provider.get_playlist_tracks(item_id, page=page)
         # store (serializable items) in cache

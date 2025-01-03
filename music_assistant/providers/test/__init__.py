@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from collections.abc import AsyncGenerator
-from random import randint
 from typing import TYPE_CHECKING
 
 from music_assistant_models.config_entries import ConfigEntry
@@ -32,7 +31,7 @@ from music_assistant_models.media_items import (
 )
 from music_assistant_models.streamdetails import StreamDetails
 
-from music_assistant.constants import MASS_LOGO, VARIOUS_ARTISTS_FANART
+from music_assistant.constants import MASS_LOGO, SILENCE_FILE, VARIOUS_ARTISTS_FANART
 from music_assistant.models.music_provider import MusicProvider
 
 if TYPE_CHECKING:
@@ -243,47 +242,6 @@ class TestProvider(MusicProvider):
             total_chapters=10,
         )
 
-    async def get_chapter(self, prov_chapter_id: str) -> Chapter:
-        """Get (full) audiobook chapter details by id."""
-        prov_audiobook_id, chapter_idx = prov_chapter_id.split("_", 2)
-        return Chapter(
-            item_id=prov_chapter_id,
-            provider=self.instance_id,
-            name=f"Test Chapter {prov_audiobook_id}-{prov_chapter_id}",
-            duration=5,
-            audiobook=ItemMapping(
-                item_id=prov_audiobook_id,
-                provider=self.instance_id,
-                name=f"Test Audiobook {prov_audiobook_id}",
-                media_type=MediaType.AUDIOBOOK,
-            ),
-        )
-
-    async def get_episode(self, prov_episode_id: str) -> Episode:
-        """Get (full) podcast episode details by id."""
-        prov_podcast_id, episode_idx = prov_episode_id.split("_", 2)
-        return Episode(
-            item_id=f"{prov_podcast_id}_{episode_idx}",
-            provider=self.instance_id,
-            name=f"Test Episode {prov_podcast_id}-{episode_idx}",
-            duration=5,
-            podcast=ItemMapping(
-                item_id=prov_podcast_id,
-                provider=self.instance_id,
-                name=f"Test Podcast {prov_podcast_id}",
-                media_type=MediaType.PODCAST,
-            ),
-            provider_mappings={
-                ProviderMapping(
-                    item_id=f"{prov_podcast_id}_{episode_idx}",
-                    provider_domain=self.domain,
-                    provider_instance=self.instance_id,
-                )
-            },
-            metadata=MediaItemMetadata(images=UniqueList([DEFAULT_THUMB])),
-            episode_number=episode_idx,
-        )
-
     async def get_library_artists(self) -> AsyncGenerator[Artist, None]:
         """Retrieve library artists from the provider."""
         num_artists = self.config.get_value(CONF_KEY_NUM_ARTISTS)
@@ -327,9 +285,27 @@ class TestProvider(MusicProvider):
         prov_audiobook_id: str,
     ) -> list[Chapter]:
         """Get all Chapters for given audiobook id."""
-        num_chapters = randint(5, 75)
+        num_chapters = 25
         return [
-            await self.get_chapter(f"{prov_audiobook_id}_{chapter_idx}")
+            Chapter(
+                item_id=f"{prov_audiobook_id}_{chapter_idx}",
+                provider=self.instance_id,
+                name=f"Test Chapter {prov_audiobook_id}-{chapter_idx}",
+                duration=5,
+                audiobook=ItemMapping(
+                    item_id=prov_audiobook_id,
+                    provider=self.instance_id,
+                    name=f"Test Audiobook {prov_audiobook_id}",
+                    media_type=MediaType.AUDIOBOOK,
+                ),
+                provider_mappings={
+                    ProviderMapping(
+                        item_id=f"{prov_audiobook_id}_{chapter_idx}",
+                        provider_domain=self.domain,
+                        provider_instance=self.instance_id,
+                    )
+                },
+            )
             for chapter_idx in range(num_chapters)
         ]
 
@@ -338,9 +314,29 @@ class TestProvider(MusicProvider):
         prov_podcast_id: str,
     ) -> list[Episode]:
         """Get all Episodes for given podcast id."""
-        num_episodes = randint(5, 75)
+        num_episodes = 25
         return [
-            await self.get_episode(f"{prov_podcast_id}_{episode_idx}")
+            Episode(
+                item_id=f"{prov_podcast_id}_{episode_idx}",
+                provider=self.instance_id,
+                name=f"Test Episode {prov_podcast_id}-{episode_idx}",
+                duration=5,
+                podcast=ItemMapping(
+                    item_id=prov_podcast_id,
+                    provider=self.instance_id,
+                    name=f"Test Podcast {prov_podcast_id}",
+                    media_type=MediaType.PODCAST,
+                ),
+                provider_mappings={
+                    ProviderMapping(
+                        item_id=f"{prov_podcast_id}_{episode_idx}",
+                        provider_domain=self.domain,
+                        provider_instance=self.instance_id,
+                    )
+                },
+                metadata=MediaItemMetadata(images=UniqueList([DEFAULT_THUMB])),
+                episode_number=episode_idx,
+            )
             for episode_idx in range(num_episodes)
         ]
 
@@ -357,8 +353,8 @@ class TestProvider(MusicProvider):
                 bit_depth=16,
                 channels=2,
             ),
-            media_type=MediaType.TRACK,
+            media_type=media_type,
             stream_type=StreamType.HTTP,
-            path=item_id,
+            path=SILENCE_FILE,
             can_seek=True,
         )

@@ -211,7 +211,7 @@ async def get_stream_details(
         )
         or queue_item.media_item
     )
-    # sort by quality and check track availability
+    # sort by quality and check item's availability
     for prov_media in sorted(
         media_item.provider_mappings, key=lambda x: x.quality or 0, reverse=True
     ):
@@ -225,7 +225,9 @@ async def get_stream_details(
             continue  # provider not available ?
         # get streamdetails from provider
         try:
-            streamdetails: StreamDetails = await music_prov.get_stream_details(prov_media.item_id)
+            streamdetails: StreamDetails = await music_prov.get_stream_details(
+                prov_media.item_id, media_item.media_type
+            )
         except MusicAssistantError as err:
             LOGGER.warning(str(err))
         else:
@@ -412,18 +414,6 @@ async def get_media_stream(
                 # add background task to start analyzing the audio
                 task_id = f"analyze_loudness_{streamdetails.uri}"
                 mass.create_task(analyze_loudness, mass, streamdetails, task_id=task_id)
-
-        # mark item as played in db if finished or streamed for 30 seconds
-        # NOTE that this is not the actual played time but the buffered time
-        # the queue controller will update the actual played time when the item is played
-        if finished or seconds_streamed > 30:
-            mass.create_task(
-                mass.music.mark_item_played(
-                    streamdetails.media_type,
-                    streamdetails.item_id,
-                    streamdetails.provider,
-                )
-            )
 
 
 def create_wave_header(samplerate=44100, channels=2, bitspersample=16, duration=None):
