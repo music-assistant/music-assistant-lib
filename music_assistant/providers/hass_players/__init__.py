@@ -253,7 +253,10 @@ class HomeAssistantPlayers(PlayerProvider):
 
     async def play_media(self, player_id: str, media: PlayerMedia) -> None:
         """Handle PLAY MEDIA on given player."""
-        if self.mass.config.get_raw_player_config_value(player_id, CONF_ENFORCE_MP3, True):
+        is_voice_pe = self.mass.players.get(player_id).device_info.model in VOICE_PE_MODELS
+        if self.mass.config.get_raw_player_config_value(
+            player_id, CONF_ENFORCE_MP3, not is_voice_pe
+        ):
             media.uri = media.uri.replace(".flac", ".mp3")
         player = self.mass.players.get(player_id, True)
         assert player
