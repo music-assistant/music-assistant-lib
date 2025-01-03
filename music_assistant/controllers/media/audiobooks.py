@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import TYPE_CHECKING, Any
 
 from music_assistant_models.enums import MediaType, ProviderFeature
 from music_assistant_models.errors import InvalidDataError
 from music_assistant_models.media_items import Artist, Audiobook, Chapter, UniqueList
 
-from music_assistant.constants import DB_TABLE_AUDIOBOOKS
+from music_assistant.constants import DB_TABLE_AUDIOBOOKS, DB_TABLE_PLAYLOG
 from music_assistant.controllers.media.base import MediaControllerBase
 from music_assistant.helpers.compare import (
     compare_audiobook,
@@ -99,20 +100,15 @@ class AudiobooksController(MediaControllerBase[Audiobook]):
         provider_instance_id_or_domain: str,
     ) -> UniqueList[Chapter]:
         """Return audiobook chapters for the given provider audiobook id."""
-        # always check if we have a library item for this audiobook
-        library_audiobook = await self.get_library_item_by_prov_id(
+        if library_audiobook := await self.get_library_item_by_prov_id(
             item_id, provider_instance_id_or_domain
-        )
-        if not library_audiobook:
-            return await self._get_provider_audiobook_chapters(
-                item_id, provider_instance_id_or_domain
-            )
-        # return items from first/only provider
-        for provider_mapping in library_audiobook.provider_mappings:
-            return await self._get_provider_audiobook_chapters(
-                provider_mapping.item_id, provider_mapping.provider_instance
-            )
-        return UniqueList()
+        ):
+            # return items from first/only provider
+            for provider_mapping in library_audiobook.provider_mappings:
+                return await self._get_provider_audiobook_chapters(
+                    provider_mapping.item_id, provider_mapping.provider_instance
+                )
+        return await self._get_provider_audiobook_chapters(item_id, provider_instance_id_or_domain)
 
     async def versions(
         self,
@@ -210,27 +206,33 @@ class AudiobooksController(MediaControllerBase[Audiobook]):
         prov: MusicProvider = self.mass.get_provider(provider_instance_id_or_domain)
         if prov is None:
             return []
-        # prefer cache items (if any) - for streaming providers only
-        cache_base_key = prov.lookup_key
-        cache_key = f"audiobook.{item_id}"
-        if (
-            prov.is_streaming_provider
-            and (cache := await self.mass.cache.get(cache_key, base_key=cache_base_key)) is not None
-        ):
-            return [Chapter.from_dict(x) for x in cache]
-        # no items in cache - get listing from provider
+        # grab the chapters from the provider
+        # note that we do not cache any of this because its
+        # always a rather small list and we want fresh resume info
         items = await prov.get_audiobook_chapters(item_id)
-        # store (serializable items) in cache
-        if prov.is_streaming_provider:
-            self.mass.create_task(
-                self.mass.cache.set(
-                    cache_key,
-                    [x.to_dict() for x in items],
-                    expiration=3600,
-                    base_key=cache_base_key,
-                ),
-            )
 
+        async def set_resume_position(chapter: Chapter) -> None:
+            if chapter.resume_position_ms is not None:
+                return
+            if chapter.fully_played is not None:
+                return
+            # TODO: inject resume position info here for providers that do not natively provide it
+            resume_info_db_row = await self.mass.music.database.get_row(
+                DB_TABLE_PLAYLOG,
+                {
+                    "item_id": chapter.item_id,
+                    "provider": prov.lookup_key,
+                    "media_type": MediaType.CHAPTER,
+                },
+            )
+            if resume_info_db_row is None:
+                return
+            if resume_info_db_row["seconds_played"] is not None:
+                chapter.resume_position_ms = resume_info_db_row["seconds_played"] * 1000
+            if resume_info_db_row["fully_played"] is not None:
+                chapter.fully_played = resume_info_db_row["fully_played"]
+
+        await asyncio.gather(*[set_resume_position(chapter) for chapter in items])
         return items
 
     async def _get_provider_dynamic_base_tracks(

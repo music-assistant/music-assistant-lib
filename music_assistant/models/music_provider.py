@@ -170,16 +170,6 @@ class MusicProvider(Provider):
         if ProviderFeature.LIBRARY_PODCASTS in self.supported_features:
             raise NotImplementedError
 
-    async def get_chapter(self, prov_chapter_id: str) -> Chapter:  # type: ignore[return]
-        """Get (full) audiobook chapter details by id."""
-        if ProviderFeature.LIBRARY_AUDIOBOOKS in self.supported_features:
-            raise NotImplementedError
-
-    async def get_episode(self, prov_episode_id: str) -> Episode:  # type: ignore[return]
-        """Get (full) podcast episode details by id."""
-        if ProviderFeature.LIBRARY_PODCASTS in self.supported_features:
-            raise NotImplementedError
-
     async def get_album_tracks(
         self,
         prov_album_id: str,  # type: ignore[return]

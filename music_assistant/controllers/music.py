@@ -78,7 +78,7 @@ DEFAULT_SYNC_INTERVAL = 3 * 60  # default sync interval in minutes
 CONF_SYNC_INTERVAL = "sync_interval"
 CONF_DELETED_PROVIDERS = "deleted_providers"
 CONF_ADD_LIBRARY_ON_PLAY = "add_library_on_play"
-DB_SCHEMA_VERSION: Final[int] = 10
+DB_SCHEMA_VERSION: Final[int] = 11
 
 
 class MusicController(CoreController):
@@ -748,8 +748,14 @@ class MusicController(CoreController):
 
         return None
 
+    @api_command("music/mark_played")
     async def mark_item_played(
-        self, media_type: MediaType, item_id: str, provider_instance_id_or_domain: str
+        self,
+        media_type: MediaType,
+        item_id: str,
+        provider_instance_id_or_domain: str,
+        fully_played: bool | None = None,
+        seconds_played: int | None = None,
     ) -> None:
         """Mark item as played in playlog."""
         timestamp = utc_timestamp()
@@ -776,6 +782,8 @@ class MusicController(CoreController):
                 "item_id": item_id,
                 "provider": prov_key,
                 "media_type": media_type.value,
+                "fully_played": fully_played,
+                "seconds_played": seconds_played,
                 "timestamp": timestamp,
             },
             allow_replace=True,
@@ -799,6 +807,33 @@ class MusicController(CoreController):
                 f"last_played = {timestamp} WHERE item_id = {db_item.item_id}"
             )
         await self.database.commit()
+
+    @api_command("music/mark_unplayed")
+    async def mark_item_unplayed(
+        self, media_type: MediaType, item_id: str, provider_instance_id_or_domain: str
+    ) -> None:
+        """Mark item as unplayed in playlog."""
+        if provider_instance_id_or_domain == "library":
+            prov_key = "library"
+        elif prov := self.mass.get_provider(provider_instance_id_or_domain):
+            prov_key = prov.lookup_key
+        else:
+            prov_key = provider_instance_id_or_domain
+        # update generic playlog table
+        await self.database.delete(
+            DB_TABLE_PLAYLOG,
+            {
+                "item_id": item_id,
+                "provider": prov_key,
+                "media_type": media_type.value,
+            },
+        )
+        # also update playcount in library table
+        ctrl = self.get_controller(media_type)
+        db_item = await ctrl.get_library_item_by_prov_id(item_id, provider_instance_id_or_domain)
+        if db_item:
+            await self.database.execute(f"UPDATE {ctrl.db_table} SET play_count = play_count - 1")
+            await self.database.commit()
 
     def get_controller(
         self, media_type: MediaType
@@ -824,7 +859,13 @@ class MusicController(CoreController):
             return self.playlists
         if media_type == MediaType.AUDIOBOOK:
             return self.audiobooks
+        if media_type == MediaType.CHAPTER:
+            return self.audiobooks
+        if media_type == MediaType.EPISODE:
+            return self.podcasts
         if media_type == MediaType.PODCAST:
+            return self.podcasts
+        if media_type == MediaType.EPISODE:
             return self.podcasts
         return None
 
@@ -1162,11 +1203,21 @@ class MusicController(CoreController):
                 )
             await self.database.execute("DROP TABLE IF EXISTS track_loudness")
 
-        if prev_version <= 9:
+        if prev_version <= 10:
             # recreate db tables for audiobooks and podcasts due to some mistakes in early version
             await self.database.execute(f"DROP TABLE IF EXISTS {DB_TABLE_AUDIOBOOKS}")
             await self.database.execute(f"DROP TABLE IF EXISTS {DB_TABLE_PODCASTS}")
             await self.__create_database_tables()
+            try:
+                await self.database.execute(
+                    f"ALTER TABLE {DB_TABLE_PLAYLOG} ADD COLUMN fully_played BOOLEAN"
+                )
+                await self.database.execute(
+                    f"ALTER TABLE {DB_TABLE_PLAYLOG} ADD COLUMN seconds_played INTEGER"
+                )
+            except Exception as err:
+                if "duplicate column" not in str(err):
+                    raise
 
         # save changes
         await self.database.commit()
@@ -1197,6 +1248,8 @@ class MusicController(CoreController):
                 [provider] TEXT NOT NULL,
                 [media_type] TEXT NOT NULL DEFAULT 'track',
                 [timestamp] INTEGER DEFAULT 0,
+                [fully_played] BOOLEAN,
+                [seconds_played] INTEGER,
                 UNIQUE(item_id, provider, media_type));"""
         )
         await self.database.execute(
