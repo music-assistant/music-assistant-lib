@@ -37,7 +37,15 @@ if TYPE_CHECKING:
 
 ItemCls = TypeVar("ItemCls", bound="MediaItemType")
 
-JSON_KEYS = ("artists", "track_album", "metadata", "provider_mappings", "external_ids")
+JSON_KEYS = (
+    "artists",
+    "track_album",
+    "metadata",
+    "provider_mappings",
+    "external_ids",
+    "narrators",
+    "authors",
+)
 
 SORT_KEYS = {
     "name": "name COLLATE NOCASE ASC",

@@ -410,7 +410,7 @@ class MetaDataController(CoreController):
         fanart: bool = False,
     ) -> MediaItemImage | None:
         """Create collage thumb/fanart image for (in-library) playlist."""
-        if len(images) < 8 and fanart or len(images) < 3:
+        if (len(images) < 8 and fanart) or len(images) < 3:
             # require at least some images otherwise this does not make a lot of sense
             return None
         # limit to 50 images to prevent we're going OOM
