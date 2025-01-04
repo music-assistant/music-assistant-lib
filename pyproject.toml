@@ -129,7 +129,6 @@ asyncio_mode = "auto"
 ignore = [
   "ANN002", # Just annoying, not really useful
   "ANN003", # Just annoying, not really useful
-  "ANN101", # Self... explanatory
   "ANN401", # Opinioated warning on disallowing dynamically typed expressions
   "D203", # Conflicts with other rules
   "D213", # Conflicts with other rules
@@ -140,8 +139,8 @@ ignore = [
   "PLR2004", # Just annoying, not really useful
   "PD011", # Just annoying, not really useful
   "S101", # assert is often used to satisfy type checking
-  "TCH001", # Just annoying, not really useful
-  "TCH003", # Just annoying, not really useful
+  "TC001", # Just annoying, not really useful
+  "TC003", # Just annoying, not really useful
   "TD002", # Just annoying, not really useful
   "TD003", # Just annoying, not really useful
   "TD004", # Just annoying, not really useful
@@ -154,7 +153,6 @@ ignore = [
   "FBT002",
   "FBT003",
   "ANN001",
-  "ANN102",
   "ANN201",
   "ANN202",
   "TRY002",

@@ -164,7 +164,9 @@ async def fetch_playlist(
         msg = f"Error while fetching playlist {url}"
         raise InvalidDataError(msg) from err
 
-    if raise_on_hls and "#EXT-X-VERSION:" in playlist_data or "#EXT-X-STREAM-INF:" in playlist_data:
+    if (
+        raise_on_hls and "#EXT-X-VERSION:" in playlist_data
+    ) or "#EXT-X-STREAM-INF:" in playlist_data:
         raise IsHLSPlaylist
 
     if url.endswith((".m3u", ".m3u8")):
