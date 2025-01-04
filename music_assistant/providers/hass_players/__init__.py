@@ -13,8 +13,17 @@ from enum import IntFlag
 from typing import TYPE_CHECKING, Any
 
 from hass_client.exceptions import FailedCommand
-from music_assistant_models.config_entries import ConfigEntry, ConfigValueOption, ConfigValueType
-from music_assistant_models.enums import ConfigEntryType, PlayerFeature, PlayerState, PlayerType
+from music_assistant_models.config_entries import (
+    ConfigEntry,
+    ConfigValueOption,
+    ConfigValueType,
+)
+from music_assistant_models.enums import (
+    ConfigEntryType,
+    PlayerFeature,
+    PlayerState,
+    PlayerType,
+)
 from music_assistant_models.errors import SetupFailedError
 from music_assistant_models.player import DeviceInfo, Player, PlayerMedia
 
@@ -98,8 +107,18 @@ DEFAULT_PLAYER_CONFIG_ENTRIES = (
     CONF_ENTRY_ENABLE_ICY_METADATA,
     CONF_ENTRY_FLOW_MODE_ENFORCED,
 )
-VOICE_PE_MODELS = ("Home Assistant Voice PE",)
-VOICE_PE_MODELS_PLAYER_CONFIG_ENTRIES = (
+ESPHOME_V2_MODELS = (
+    # The Home Assistant Voice PE introduces a new ESPHome mediaplayer
+    # that supports FLAC 48khz/16 bits and has some other optimizations
+    # this player is also used in some other (voice) ESPHome projects
+    # so until the new media player component is merged into ESPHome
+    # we keep a list here of model names that use the new player
+    "Home Assistant Voice PE",
+    "Koala Satellite",
+    "Respeaker Lite Satellite",
+    "Satellite1",
+)
+ESPHOME_V2_MODELS_PLAYER_CONFIG_ENTRIES = (
     # New ESPHome mediaplayer (used in Voice PE) uses FLAC 48khz/16 bits
     CONF_ENTRY_CROSSFADE,
     CONF_ENTRY_CROSSFADE_DURATION,
@@ -209,9 +228,9 @@ class HomeAssistantPlayers(PlayerProvider):
         """Return all (provider/player specific) Config Entries for the given player (if any)."""
         base_entries = await super().get_player_config_entries(player_id)
         player = self.mass.players.get(player_id)
-        if player and player.device_info.model in VOICE_PE_MODELS:
-            # optimized config for Voice PE
-            return base_entries + VOICE_PE_MODELS_PLAYER_CONFIG_ENTRIES
+        if player and player.device_info.model in ESPHOME_V2_MODELS:
+            # optimized config for new ESPHome mediaplayer
+            return base_entries + ESPHOME_V2_MODELS_PLAYER_CONFIG_ENTRIES
         return base_entries + DEFAULT_PLAYER_CONFIG_ENTRIES
 
     async def cmd_stop(self, player_id: str) -> None:
@@ -221,7 +240,9 @@ class HomeAssistantPlayers(PlayerProvider):
         """
         try:
             await self.hass_prov.hass.call_service(
-                domain="media_player", service="media_stop", target={"entity_id": player_id}
+                domain="media_player",
+                service="media_stop",
+                target={"entity_id": player_id},
             )
         except FailedCommand as exc:
             # some HA players do not support STOP
@@ -253,9 +274,9 @@ class HomeAssistantPlayers(PlayerProvider):
 
     async def play_media(self, player_id: str, media: PlayerMedia) -> None:
         """Handle PLAY MEDIA on given player."""
-        is_voice_pe = self.mass.players.get(player_id).device_info.model in VOICE_PE_MODELS
+        is_esphome_v2 = self.mass.players.get(player_id).device_info.model in ESPHOME_V2_MODELS
         if self.mass.config.get_raw_player_config_value(
-            player_id, CONF_ENFORCE_MP3, not is_voice_pe
+            player_id, CONF_ENFORCE_MP3, not is_esphome_v2
         ):
             media.uri = media.uri.replace(".flac", ".mp3")
         player = self.mass.players.get(player_id, True)
@@ -306,7 +327,8 @@ class HomeAssistantPlayers(PlayerProvider):
         )
         if volume_level is not None:
             self.logger.warning(
-                "Announcement volume level is not supported for player %s", player.display_name
+                "Announcement volume level is not supported for player %s",
+                player.display_name,
             )
         await self.hass_prov.hass.call_service(
             domain="media_player",
