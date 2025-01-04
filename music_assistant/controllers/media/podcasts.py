@@ -202,7 +202,7 @@ class PodcastsController(MediaControllerBase[Podcast]):
         # grab the episodes from the provider
         # note that we do not cache any of this because its
         # always a rather small list and we want fresh resume info
-        items = await prov.get_audiobook_chapters(item_id)
+        items = await prov.get_podcast_episodes(item_id)
 
         async def set_resume_position(episode: Episode) -> None:
             if episode.resume_position_ms is not None:
@@ -215,18 +215,17 @@ class PodcastsController(MediaControllerBase[Podcast]):
                 {
                     "item_id": episode.item_id,
                     "provider": prov.lookup_key,
-                    "media_type": MediaType.CHAPTER,
+                    "media_type": MediaType.EPISODE,
                 },
             )
             if resume_info_db_row is None:
                 return
             if resume_info_db_row["seconds_played"] is not None:
-                episode.resume_position_ms = resume_info_db_row["seconds_played"] * 1000
+                episode.resume_position_ms = int(resume_info_db_row["seconds_played"] * 1000)
             if resume_info_db_row["fully_played"] is not None:
                 episode.fully_played = resume_info_db_row["fully_played"]
 
         await asyncio.gather(*[set_resume_position(chapter) for chapter in items])
-        return items
         return items
 
     async def _get_provider_dynamic_base_tracks(

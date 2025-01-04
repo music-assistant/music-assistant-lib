@@ -228,7 +228,7 @@ class AudiobooksController(MediaControllerBase[Audiobook]):
             if resume_info_db_row is None:
                 return
             if resume_info_db_row["seconds_played"] is not None:
-                chapter.resume_position_ms = resume_info_db_row["seconds_played"] * 1000
+                chapter.resume_position_ms = int(resume_info_db_row["seconds_played"] * 1000)
             if resume_info_db_row["fully_played"] is not None:
                 chapter.fully_played = resume_info_db_row["fully_played"]
 

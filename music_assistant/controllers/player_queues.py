@@ -785,9 +785,9 @@ class PlayerQueuesController(CoreController):
 
         # handle resume point of audiobook(chapter) or podcast(episode)
         if not seek_position and (
-            resume_position := getattr(queue_item.media_item, "resume_position", 0)
+            resume_position_ms := getattr(queue_item.media_item, "resume_position_ms", 0)
         ):
-            seek_position = resume_position
+            seek_position = max(0, int((resume_position_ms - 500) / 1000))
 
         # work out if we are playing an album and if we should prefer album loudness
         if (

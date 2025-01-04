@@ -240,6 +240,8 @@ class TestProvider(MusicProvider):
             },
             publisher="Test Publisher",
             total_chapters=10,
+            authors=UniqueList(["AudioBook Author"]),
+            narrators=UniqueList(["AudioBook Narrator"]),
         )
 
     async def get_library_artists(self) -> AsyncGenerator[Artist, None]:
@@ -297,6 +299,7 @@ class TestProvider(MusicProvider):
                     provider=self.instance_id,
                     name=f"Test Audiobook {prov_audiobook_id}",
                     media_type=MediaType.AUDIOBOOK,
+                    image=DEFAULT_THUMB,
                 ),
                 provider_mappings={
                     ProviderMapping(
@@ -305,6 +308,11 @@ class TestProvider(MusicProvider):
                         provider_instance=self.instance_id,
                     )
                 },
+                metadata=MediaItemMetadata(
+                    description="This is a description for "
+                    f"Test Chapter {chapter_idx} of Test Audiobook {prov_audiobook_id}"
+                ),
+                position=chapter_idx,
             )
             for chapter_idx in range(num_chapters)
         ]
@@ -326,6 +334,7 @@ class TestProvider(MusicProvider):
                     provider=self.instance_id,
                     name=f"Test Podcast {prov_podcast_id}",
                     media_type=MediaType.PODCAST,
+                    image=DEFAULT_THUMB,
                 ),
                 provider_mappings={
                     ProviderMapping(
@@ -334,8 +343,11 @@ class TestProvider(MusicProvider):
                         provider_instance=self.instance_id,
                     )
                 },
-                metadata=MediaItemMetadata(images=UniqueList([DEFAULT_THUMB])),
-                episode_number=episode_idx,
+                metadata=MediaItemMetadata(
+                    description="This is a description for "
+                    f"Test Episode {episode_idx} of Test Podcast {prov_podcast_id}"
+                ),
+                position=episode_idx,
             )
             for episode_idx in range(num_episodes)
         ]
