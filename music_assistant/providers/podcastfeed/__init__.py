@@ -27,6 +27,7 @@ from music_assistant_models.errors import InvalidProviderURI, MediaNotFoundError
 from music_assistant_models.media_items import (
     AudioFormat,
     Episode,
+    ItemMapping,
     MediaItemImage,
     MediaItemType,
     Podcast,
@@ -86,14 +87,9 @@ class PodcastMusicprovider(MusicProvider):
     """Podcast RSS Feed Music Provider."""
 
     @property
-    def supported_features(self) -> tuple[ProviderFeature, ...]:
+    def supported_features(self) -> set[ProviderFeature]:
         """Return the features supported by this Provider."""
-        return (
-            ProviderFeature.BROWSE,
-            ProviderFeature.SEARCH,
-            ProviderFeature.LIBRARY_PODCASTS,
-            # see the ProviderFeature enum for all available features
-        )
+        return {ProviderFeature.BROWSE, ProviderFeature.SEARCH, ProviderFeature.LIBRARY_PODCASTS}
 
     async def handle_async_init(self) -> None:
         """Handle async initialization of the provider."""
@@ -105,6 +101,10 @@ class PodcastMusicprovider(MusicProvider):
         #        podcastparser.normalize_feed_url(self.config.get_value(CONF_FEED_URL))
         #    ),
         # )
+        self.parsed = podcastparser.parse(
+            self.config.get_value(CONF_FEED_URL),
+            urllib.request.urlopen(self.config.get_value(CONF_FEED_URL)),
+        )
 
     @property
     def is_streaming_provider(self) -> bool:
@@ -119,7 +119,7 @@ class PodcastMusicprovider(MusicProvider):
         Setting this to True will only query one instance of the provider for search and lookups.
         Setting this to False will query all instances of this provider for search and lookups.
         """
-        return True
+        return False
 
     async def search(
         self,
@@ -171,7 +171,7 @@ class PodcastMusicprovider(MusicProvider):
         episodes = []
 
         for episode in self.parsed["episodes"]:
-            episodes.append(await self._parse_episode(episode))
+            episodes.append(await self._parse_episode(episode, prov_podcast_id))
 
         return episodes
 
@@ -209,27 +209,22 @@ class PodcastMusicprovider(MusicProvider):
         """
         return path
 
-    async def sync_library(self, media_types: tuple[MediaType, ...]) -> None:
-        """Run library sync for this provider."""
-        self.parsed = podcastparser.parse(
-            self.config.get_value(CONF_FEED_URL),
-            urllib.request.urlopen(self.config.get_value(CONF_FEED_URL)),
-        )
-
     async def _parse_podcast(self) -> Podcast:
         """Parse podcast information from podcast feed."""
         podcast = Podcast(
             item_id=hash(self.parsed["title"]),
             name=self.parsed["title"],
             provider=self.domain,
+            uri=self.parsed["link"],
+            total_episodes=len(self.parsed["episodes"]),
             provider_mappings={
                 ProviderMapping(
                     item_id=self.parsed["title"],
                     provider_domain=self.domain,
                     provider_instance=self.instance_id,
-                    url=self.parsed["link"],
                 )
             },
+            publisher="Test Publisher",
         )
 
         podcast.metadata.description = self.parsed["description"]
@@ -248,7 +243,7 @@ class PodcastMusicprovider(MusicProvider):
 
         return podcast
 
-    async def _parse_episode(self, track_obj: dict, track_position: int = 0) -> Episode:
+    async def _parse_episode(self, track_obj: dict, prov_podcast_id: str) -> Episode:
         name = track_obj["title"]
         track_id = track_obj["guid"]
         episode = Episode(
@@ -256,6 +251,12 @@ class PodcastMusicprovider(MusicProvider):
             provider=self.domain,
             name=name,
             duration=track_obj["total_time"],
+            podcast=ItemMapping(
+                item_id=prov_podcast_id,
+                provider=self.instance_id,
+                name=f"Test Podcast {prov_podcast_id}",
+                media_type=MediaType.PODCAST,
+            ),
             provider_mappings={
                 ProviderMapping(
                     item_id=track_id,
@@ -267,10 +268,7 @@ class PodcastMusicprovider(MusicProvider):
                     url=track_obj["link"],
                 )
             },
-            position=track_position,
         )
-
-        episode.podcast.append(await self._parse_podcast())
 
         if "episode_art_url" in track_obj:
             episode.metadata.images = [
