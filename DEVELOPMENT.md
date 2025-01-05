@@ -2,8 +2,8 @@ Developer docs
 ==================================
 
 ## 📝 Prerequisites
-* ffmpeg (minimum version 5, version 6 recommended), must be available in the path so install at OS level
-* Python 3.11 is minimal required (or check the pyproject for current required version)
+* ffmpeg (minimum version 6.1, version 7 recommended), must be available in the path so install at OS level
+* Python 3.11 is minimal required, 3.12 recommended (or check the pyproject for current required version)
 * [Python venv](https://docs.python.org/3/library/venv.html)
 
 We recommend developing on a (recent) MacOS or Linux machine.
@@ -11,15 +11,7 @@ It is recommended to use Visual Studio Code as your IDE, since launch files to s
 
 ## 🚀 Setting up your development environment
 
-### Using Devcontainer/Codespace
-* Using Codespace: Create/open your Codespace, and wait for the creation
-* Using VSCode Dev Container locally: `Dev Containers: Open Folder in Container...`, select the root of the project, and wait for the creation
-* Once VSCode has loaded, after a few seconds a terminal should pop with `Running postCreateCommand...`. Wait for the dependencies to install. You can monitor it with `Codespaces: View Creation Log`
-* Select the right Python interpreter with `Python: Select Interpreter`, and choose `./.venv/bin/python`
-* Hit (Fn +) F5 to start Music Assistant locally
-* Go to the `PORTS` tab in the bottom panel, open the `Forwarded Address` for the port `8095` to access the pre-compiled UI of Music Assistant 🎉
-
-### Manually
+### Python venv (recommended)
 With this repository cloned locally, execute the following commands in a terminal from the root of your repository:
 * Run our development setup script to setup the development environment:
 * `scripts/setup.sh` (creates a new separate virtual environment to nicely separate the project dependencies)
@@ -27,8 +19,19 @@ With this repository cloned locally, execute the following commands in a termina
 * Debug: Hit (Fn +) F5 to start Music Assistant locally
 * The pre-compiled UI of Music Assistant will be available at `localhost:8095` 🎉
 
+NOTE: Always re-run the setup script after you fetch the latest code because requirements could have changed.
 
+### Using Devcontainer/Codespace
+We removed support for devcontainers because we do not have anyone willing to maintain it.
+It also is not very convenient due to all the port requirements, binaries etc.
+If somebody is willing to create and maintain a devcontainer with host networking and based on our base alpine image, we will add the support back. Until then: Develop with Python venv on a Linux or MacOS machine (see above).
+
+## Note on async Python
 The Music Assistant server is fully built in Python. The Python language has no real supported for multi-threading. This is why Music Assistant heavily relies on asyncio to handle blocking IO. It is important to get a good understanding of asynchronous programming before building your first provider. [This](https://www.youtube.com/watch?v=M-UcUs7IMIM) video is an excellent first step in the world of asyncio.
+
+
+
+
 
 ## Building a new Music Provider
 A Music Provider is the provider type that adds support for a 'source of music' to Music Assistant. Spotify and Youtube Music are examples of a Music Provider, but also Filesystem and SMB can be put in the Music Provider category. All Providers (of all types) can be found in the `music_assistant/server/providers` folder.
