@@ -23,7 +23,12 @@ from async_upnp_client.exceptions import UpnpError, UpnpResponseError
 from async_upnp_client.profiles.dlna import DmrDevice, TransportState
 from async_upnp_client.search import async_search
 from music_assistant_models.config_entries import ConfigEntry, ConfigValueType
-from music_assistant_models.enums import ConfigEntryType, PlayerFeature, PlayerState, PlayerType
+from music_assistant_models.enums import (
+    ConfigEntryType,
+    PlayerFeature,
+    PlayerState,
+    PlayerType,
+)
 from music_assistant_models.errors import PlayerUnavailableError
 from music_assistant_models.player import DeviceInfo, Player, PlayerMedia
 
@@ -597,14 +602,12 @@ class DLNAPlayerProvider(PlayerProvider):
 
     def _set_player_features(self, dlna_player: DLNAPlayer) -> None:
         """Set Player Features based on config values and capabilities."""
-        supported_features: set[PlayerFeature] = set()
-        if not self.mass.config.get_raw_player_config_value(
-            dlna_player.udn,
-            CONF_ENTRY_FLOW_MODE_DEFAULT_ENABLED.key,
-            CONF_ENTRY_FLOW_MODE_DEFAULT_ENABLED.default_value,
-        ):
-            supported_features.add(PlayerFeature.ENQUEUE)
-
+        supported_features: set[PlayerFeature] = {
+            # there is no way to check if a dlna player support enqueuing
+            # so we simply assume it does and if it doesn't
+            # you'll find out at playback time and we log a warning
+            PlayerFeature.ENQUEUE,
+        }
         if dlna_player.device.has_volume_level:
             supported_features.add(PlayerFeature.VOLUME_SET)
         if dlna_player.device.has_volume_mute:
