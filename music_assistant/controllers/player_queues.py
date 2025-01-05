@@ -1630,6 +1630,11 @@ class PlayerQueuesController(CoreController):
         if not queue.radio_source:
             # this may happen during race conditions as this method is called delayed
             return None
+        self.logger.info(
+            "Fetching radio tracks for queue %s based on: %s",
+            queue.display_name,
+            ", ".join([x.name for x in queue.radio_source]),
+        )
         available_base_tracks: list[Track] = []
         base_track_sample_size = 5
         # Grab all the available base tracks based on the selected source items.
@@ -1688,12 +1693,16 @@ class PlayerQueuesController(CoreController):
             if len(base_tracks) > 1:
                 for base_track in base_tracks[1:]:
                     queue_tracks += [base_track]
-                    queue_tracks += random.sample(dynamic_tracks, 2)
+                    if len(dynamic_tracks) > 2:
+                        queue_tracks += random.sample(dynamic_tracks, 2)
+                    else:
+                        queue_tracks += dynamic_tracks
         # Add dynamic tracks to the queue, make sure to exclude already picked tracks
         remaining_dynamic_tracks = [t for t in dynamic_tracks if t not in queue_tracks]
-        queue_tracks += random.sample(
-            remaining_dynamic_tracks, min(len(remaining_dynamic_tracks), 25)
-        )
+        if remaining_dynamic_tracks:
+            queue_tracks += random.sample(
+                remaining_dynamic_tracks, min(len(remaining_dynamic_tracks), 25)
+            )
         return queue_tracks
 
     async def _check_clear_queue(self, queue: PlayerQueue) -> None:
