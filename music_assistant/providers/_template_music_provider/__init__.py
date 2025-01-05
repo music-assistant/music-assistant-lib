@@ -40,7 +40,12 @@ from __future__ import annotations
 from collections.abc import AsyncGenerator, Sequence
 from typing import TYPE_CHECKING
 
-from music_assistant_models.enums import ContentType, MediaType, ProviderFeature, StreamType
+from music_assistant_models.enums import (
+    ContentType,
+    MediaType,
+    ProviderFeature,
+    StreamType,
+)
 from music_assistant_models.media_items import (
     Album,
     Artist,
@@ -58,7 +63,11 @@ from music_assistant_models.streamdetails import StreamDetails
 from music_assistant.models.music_provider import MusicProvider
 
 if TYPE_CHECKING:
-    from music_assistant_models.config_entries import ConfigEntry, ConfigValueType, ProviderConfig
+    from music_assistant_models.config_entries import (
+        ConfigEntry,
+        ConfigValueType,
+        ProviderConfig,
+    )
     from music_assistant_models.provider import ProviderManifest
 
     from music_assistant import MusicAssistant
@@ -409,7 +418,12 @@ class MyDemoMusicprovider(MusicProvider):
         # stream_type is set to CUSTOM in the get_stream_details method.
         yield  # type: ignore
 
-    async def on_streamed(self, streamdetails: StreamDetails, seconds_streamed: int) -> None:
+    async def on_streamed(
+        self,
+        streamdetails: StreamDetails,
+        seconds_streamed: int,
+        fully_played: bool = False,
+    ) -> None:
         """Handle callback when an item completed streaming."""
         # This is OPTIONAL callback that is called when an item has been streamed.
         # You can use this e.g. for playback reporting or statistics.

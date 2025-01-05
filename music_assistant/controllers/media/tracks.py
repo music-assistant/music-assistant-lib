@@ -309,7 +309,7 @@ class TracksController(MediaControllerBase[Track]):
             raise UnsupportedFeaturedException(msg)
 
         if ref_item.provider == "library":
-            await self.mass.music.refresh_item(ref_item)
+            await self.mass.metadata.update_metadata(ref_item)
         else:
             await self.match_providers(ref_item)
 

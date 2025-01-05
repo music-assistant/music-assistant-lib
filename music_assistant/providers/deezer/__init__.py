@@ -11,7 +11,11 @@ import deezer
 from aiohttp import ClientSession, ClientTimeout
 from Crypto.Cipher import Blowfish
 from deezer import exceptions as deezer_exceptions
-from music_assistant_models.config_entries import ConfigEntry, ConfigValueType, ProviderConfig
+from music_assistant_models.config_entries import (
+    ConfigEntry,
+    ConfigValueType,
+    ProviderConfig,
+)
 from music_assistant_models.enums import (
     AlbumType,
     ConfigEntryType,
@@ -488,7 +492,12 @@ class DeezerProvider(MusicProvider):
                     del buffer[:2048]
         yield bytes(buffer)
 
-    async def on_streamed(self, streamdetails: StreamDetails, seconds_streamed: int) -> None:
+    async def on_streamed(
+        self,
+        streamdetails: StreamDetails,
+        seconds_streamed: int,
+        fully_played: bool = False,
+    ) -> None:
         """Handle callback when an item completed streaming."""
         await self.gw_client.log_listen(last_track=streamdetails)
 

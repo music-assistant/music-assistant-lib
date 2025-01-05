@@ -124,7 +124,7 @@ class PlayerQueuesController(CoreController):
         self._prev_states: dict[str, CompareState] = {}
         self.manifest.name = "Player Queues controller"
         self.manifest.description = (
-            "Music Assistant's core controller which manages the queues for all players."
+            "Music Assistant's core controller " "which manages the queues for all players."
         )
         self.manifest.icon = "playlist-music"
 
@@ -845,6 +845,7 @@ class PlayerQueuesController(CoreController):
         target_queue.shuffle_enabled = source_queue.shuffle_enabled
         target_queue.dont_stop_the_music_enabled = source_queue.dont_stop_the_music_enabled
         target_queue.radio_source = source_queue.radio_source
+        target_queue.enqueued_media_items = source_queue.enqueued_media_items
         target_queue.resume_pos = source_queue.elapsed_time
         target_queue.current_index = source_queue.current_index
         if source_queue.current_item:
@@ -1033,7 +1034,7 @@ class PlayerQueuesController(CoreController):
             and (prev_item := self.get_item(queue_id, prev_item_id))
             and (stream_details := prev_item.streamdetails)
         ):
-            seconds_played = prev_state["elapsed_time"]
+            seconds_played = int(prev_state["elapsed_time"])
             fully_played = seconds_played >= (stream_details.duration or 3600) - 5
             self.logger.debug(
                 "PlayerQueue %s played item %s for %s seconds",
@@ -1042,8 +1043,11 @@ class PlayerQueuesController(CoreController):
                 seconds_played,
             )
             if music_prov := self.mass.get_provider(stream_details.provider):
-                if fully_played or (seconds_played > 10):
-                    self.mass.create_task(music_prov.on_streamed(stream_details, seconds_played))
+                self.mass.create_task(
+                    music_prov.on_streamed(stream_details, seconds_played, fully_played)
+                )
+            if prev_item.media_item and (fully_played or seconds_played > 2):
+                # add entry to playlog - this also handles resume of podcasts/audiobooks
                 self.mass.create_task(
                     self.mass.music.mark_item_played(
                         stream_details.media_type,
@@ -1053,13 +1057,16 @@ class PlayerQueuesController(CoreController):
                         seconds_played=seconds_played,
                     )
                 )
-            if prev_item.media_item and (fully_played or seconds_played > 2):
                 # signal 'media item played' event,
                 # which is useful for plugins that want to do scrobbling
                 self.mass.signal_event(
                     EventType.MEDIA_ITEM_PLAYED,
                     object_id=prev_item.media_item.uri,
-                    data=round(seconds_played, 2),
+                    data={
+                        "media_item": prev_item.media_item.uri,
+                        "seconds_played": seconds_played,
+                        "fully_played": fully_played,
+                    },
                 )
 
         if end_of_queue_reached:

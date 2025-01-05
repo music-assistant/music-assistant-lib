@@ -333,7 +333,12 @@ class MusicProvider(Provider):
             yield
         raise NotImplementedError
 
-    async def on_streamed(self, streamdetails: StreamDetails, seconds_streamed: int) -> None:
+    async def on_streamed(
+        self,
+        streamdetails: StreamDetails,
+        seconds_streamed: int,
+        fully_played: bool = False,
+    ) -> None:
         """Handle callback when an item completed streaming."""
 
     async def resolve_image(self, path: str) -> str | bytes:
@@ -387,7 +392,9 @@ class MusicProvider(Provider):
             query = "artists.item_id in :ids"
             query_params = {"ids": library_items}
             return await self.mass.music.artists.library_items(
-                provider=self.instance_id, extra_query=query, extra_query_params=query_params
+                provider=self.instance_id,
+                extra_query=query,
+                extra_query_params=query_params,
             )
         if subpath == "albums":
             library_items = await self.mass.cache.get(
@@ -575,7 +582,8 @@ class MusicProvider(Provider):
                     if not library_item and not prov_item.available:
                         # skip unavailable tracks
                         self.logger.debug(
-                            "Skipping sync of item %s because it is unavailable", prov_item.uri
+                            "Skipping sync of item %s because it is unavailable",
+                            prov_item.uri,
                         )
                         continue
                     if not library_item:
@@ -601,7 +609,9 @@ class MusicProvider(Provider):
                     await asyncio.sleep(0)  # yield to eventloop
                 except MusicAssistantError as err:
                     self.logger.warning(
-                        "Skipping sync of item %s - error details: %s", prov_item.uri, str(err)
+                        "Skipping sync of item %s - error details: %s",
+                        prov_item.uri,
+                        str(err),
                     )
 
             # process deletions (= no longer in library)
@@ -636,7 +646,10 @@ class MusicProvider(Provider):
                             await controller.set_favorite(db_id, False)
                 await asyncio.sleep(0)  # yield to eventloop
             await self.mass.cache.set(
-                media_type.value, list(cur_db_ids), category=cache_category, base_key=cache_base_key
+                media_type.value,
+                list(cur_db_ids),
+                category=cache_category,
+                base_key=cache_base_key,
             )
 
     # DO NOT OVERRIDE BELOW

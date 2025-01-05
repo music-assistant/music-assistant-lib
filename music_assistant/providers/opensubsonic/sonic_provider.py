@@ -535,14 +535,20 @@ class OpenSonicProvider(MusicProvider):
         offset = 0
         size = 500
         albums = await self._run_async(
-            self._conn.getAlbumList2, ltype="alphabeticalByArtist", size=size, offset=offset
+            self._conn.getAlbumList2,
+            ltype="alphabeticalByArtist",
+            size=size,
+            offset=offset,
         )
         while albums:
             for album in albums:
                 yield self._parse_album(album)
             offset += size
             albums = await self._run_async(
-                self._conn.getAlbumList2, ltype="alphabeticalByArtist", size=size, offset=offset
+                self._conn.getAlbumList2,
+                ltype="alphabeticalByArtist",
+                size=size,
+                offset=offset,
             )
 
     async def get_library_playlists(self) -> AsyncGenerator[Playlist, None]:
@@ -795,7 +801,9 @@ class OpenSonicProvider(MusicProvider):
         """
         try:
             await self._run_async(
-                self._conn.updatePlaylist, lid=prov_playlist_id, songIdsToAdd=prov_track_ids
+                self._conn.updatePlaylist,
+                lid=prov_playlist_id,
+                songIdsToAdd=prov_track_ids,
             )
         except SonicError as ex:
             msg = f"Failed to add songs to {prov_playlist_id}, check your permissions."
@@ -866,7 +874,12 @@ class OpenSonicProvider(MusicProvider):
         self.logger.debug("scrobble for now playing called for %s", item_id)
         await self._run_async(self._conn.scrobble, sid=item_id, submission=False)
 
-    async def on_streamed(self, streamdetails: StreamDetails, seconds_streamed: int) -> None:
+    async def on_streamed(
+        self,
+        streamdetails: StreamDetails,
+        seconds_streamed: int,
+        fully_played: bool = False,
+    ) -> None:
         """Handle callback when an item completed streaming."""
         self.logger.debug("on_streamed called for %s", streamdetails.item_id)
         if seconds_streamed >= streamdetails.duration / 2:
@@ -885,7 +898,9 @@ class OpenSonicProvider(MusicProvider):
             self.logger.debug("starting stream of item '%s'", streamdetails.item_id)
             try:
                 with self._conn.stream(
-                    streamdetails.item_id, timeOffset=seek_position, estimateContentLength=True
+                    streamdetails.item_id,
+                    timeOffset=seek_position,
+                    estimateContentLength=True,
                 ) as stream:
                     for chunk in stream.iter_content(chunk_size=40960):
                         asyncio.run_coroutine_threadsafe(

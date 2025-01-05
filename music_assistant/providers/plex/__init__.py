@@ -235,7 +235,11 @@ async def get_config_entries(  # noqa: PLR0915
             action=CONF_ACTION_LIBRARY,
             action_label="Select Plex Music Library",
         )
-        if action in (CONF_ACTION_LIBRARY, CONF_ACTION_AUTH_MYPLEX, CONF_ACTION_AUTH_LOCAL):
+        if action in (
+            CONF_ACTION_LIBRARY,
+            CONF_ACTION_AUTH_MYPLEX,
+            CONF_ACTION_AUTH_LOCAL,
+        ):
             token = mass.config.decrypt_string(str(values.get(CONF_AUTH_TOKEN)))
             server_http_ip = str(values.get(CONF_LOCAL_SERVER_IP))
             server_http_port = str(values.get(CONF_LOCAL_SERVER_PORT))
@@ -933,12 +937,20 @@ class PlexProvider(MusicProvider):
 
         return stream_details
 
-    async def on_streamed(self, streamdetails: StreamDetails, seconds_streamed: int) -> None:
+    async def on_streamed(
+        self,
+        streamdetails: StreamDetails,
+        seconds_streamed: int,
+        fully_played: bool = False,
+    ) -> None:
         """Handle callback when an item completed streaming."""
 
         def mark_played() -> None:
             item = streamdetails.data
-            params = {"key": str(item.ratingKey), "identifier": "com.plexapp.plugins.library"}
+            params = {
+                "key": str(item.ratingKey),
+                "identifier": "com.plexapp.plugins.library",
+            }
             self._plex_server.query("/:/scrobble", params=params)
 
         await asyncio.to_thread(mark_played)
