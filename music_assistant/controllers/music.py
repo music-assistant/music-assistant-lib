@@ -78,7 +78,7 @@ DEFAULT_SYNC_INTERVAL = 3 * 60  # default sync interval in minutes
 CONF_SYNC_INTERVAL = "sync_interval"
 CONF_DELETED_PROVIDERS = "deleted_providers"
 CONF_ADD_LIBRARY_ON_PLAY = "add_library_on_play"
-DB_SCHEMA_VERSION: Final[int] = 11
+DB_SCHEMA_VERSION: Final[int] = 12
 
 
 class MusicController(CoreController):
@@ -1219,6 +1219,14 @@ class MusicController(CoreController):
                 if "duplicate column" not in str(err):
                     raise
 
+        if prev_version <= 11:
+            # Need to drop the NOT NULL requirement on podcasts.publisher and audiobooks.publisher
+            # However, because there is no ALTER COLUMN support in sqlite, we will need
+            # to create the tables again.
+            await self.database.execute(f"DROP TABLE IF EXISTS {DB_TABLE_AUDIOBOOKS}")
+            await self.database.execute(f"DROP TABLE IF EXISTS {DB_TABLE_PODCASTS}")
+            await self.__create_database_tables()
+
         # save changes
         await self.database.commit()
 
@@ -1342,7 +1350,7 @@ class MusicController(CoreController):
             [sort_name] TEXT NOT NULL,
             [version] TEXT,
             [favorite] BOOLEAN DEFAULT 0,
-            [publisher] TEXT NOT NULL,
+            [publisher] TEXT,
             [total_chapters] INTEGER,
             [authors] json NOT NULL,
             [narrators] json NOT NULL,
@@ -1362,7 +1370,7 @@ class MusicController(CoreController):
             [sort_name] TEXT NOT NULL,
             [version] TEXT,
             [favorite] BOOLEAN DEFAULT 0,
-            [publisher] TEXT NOT NULL,
+            [publisher] TEXT,
             [total_episodes] INTEGER,
             [metadata] json NOT NULL,
             [external_ids] json NOT NULL,
