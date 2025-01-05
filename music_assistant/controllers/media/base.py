@@ -26,7 +26,11 @@ from music_assistant_models.media_items import (
     Track,
 )
 
-from music_assistant.constants import DB_TABLE_PLAYLOG, DB_TABLE_PROVIDER_MAPPINGS, MASS_LOGGER_NAME
+from music_assistant.constants import (
+    DB_TABLE_PLAYLOG,
+    DB_TABLE_PROVIDER_MAPPINGS,
+    MASS_LOGGER_NAME,
+)
 from music_assistant.helpers.compare import compare_media_item
 from music_assistant.helpers.json import json_loads, serialize_to_json
 
@@ -430,7 +434,8 @@ class MediaControllerBase(Generic[ItemCls], metaclass=ABCMeta):
         else:
             external_id_str = f'%"{external_id}"%'
         for item in await self._get_library_items_by_query(
-            extra_query_parts=[query], extra_query_params={"external_id_str": external_id_str}
+            extra_query_parts=[query],
+            extra_query_params={"external_id_str": external_id_str},
         ):
             return item
         return None
@@ -477,7 +482,10 @@ class MediaControllerBase(Generic[ItemCls], metaclass=ABCMeta):
         subquery = f"SELECT item_id FROM provider_mappings WHERE {' AND '.join(subquery_parts)}"
         query = f"WHERE {self.db_table}.item_id IN ({subquery})"
         return await self._get_library_items_by_query(
-            limit=limit, offset=offset, extra_query_parts=[query], extra_query_params=query_params
+            limit=limit,
+            offset=offset,
+            extra_query_parts=[query],
+            extra_query_params=query_params,
         )
 
     async def iter_library_items_by_prov_id(
@@ -538,7 +546,10 @@ class MediaControllerBase(Generic[ItemCls], metaclass=ABCMeta):
             with suppress(MediaNotFoundError):
                 if item := await provider.get_item(self.media_type, item_id):
                     await self.mass.cache.set(
-                        cache_key, item.to_dict(), category=cache_category, base_key=cache_base_key
+                        cache_key,
+                        item.to_dict(),
+                        category=cache_category,
+                        base_key=cache_base_key,
                     )
                     return item
         # if we reach this point all possibilities failed and the item could not be found.
@@ -654,26 +665,6 @@ class MediaControllerBase(Generic[ItemCls], metaclass=ABCMeta):
             with suppress(AssertionError):
                 await self.remove_item_from_library(db_id)
 
-    async def dynamic_base_tracks(
-        self,
-        item_id: str,
-        provider_instance_id_or_domain: str,
-    ) -> list[Track]:
-        """Return a list of base tracks to calculate a list of dynamic tracks."""
-        ref_item = await self.get(item_id, provider_instance_id_or_domain)
-        for prov_mapping in ref_item.provider_mappings:
-            prov = self.mass.get_provider(prov_mapping.provider_instance)
-            if prov is None:
-                continue
-            if ProviderFeature.SIMILAR_TRACKS not in prov.supported_features:
-                continue
-            return await self._get_provider_dynamic_base_tracks(
-                prov_mapping.item_id,
-                prov_mapping.provider_instance,
-            )
-        # Fallback to the default implementation
-        return await self._get_dynamic_tracks(ref_item)
-
     @abstractmethod
     async def _add_library_item(
         self,
@@ -696,16 +687,12 @@ class MediaControllerBase(Generic[ItemCls], metaclass=ABCMeta):
         """
 
     @abstractmethod
-    async def _get_provider_dynamic_base_tracks(
+    async def radio_mode_base_tracks(
         self,
         item_id: str,
         provider_instance_id_or_domain: str,
     ) -> list[Track]:
         """Get the list of base tracks from the controller used to calculate the dynamic radio."""
-
-    @abstractmethod
-    async def _get_dynamic_tracks(self, media_item: ItemCls, limit: int = 25) -> list[Track]:
-        """Get dynamic list of tracks for given item, fallback/default implementation."""
 
     async def _get_library_items_by_query(
         self,

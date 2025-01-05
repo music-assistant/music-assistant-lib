@@ -2,17 +2,15 @@
 
 from __future__ import annotations
 
-import random
 import time
 from collections.abc import AsyncGenerator
 from typing import Any
 
-from music_assistant_models.enums import CacheCategory, MediaType, ProviderFeature, ProviderType
+from music_assistant_models.enums import CacheCategory, MediaType, ProviderFeature
 from music_assistant_models.errors import (
     InvalidDataError,
     MediaNotFoundError,
     ProviderUnavailableError,
-    UnsupportedFeaturedException,
 )
 from music_assistant_models.media_items import Playlist, Track
 
@@ -93,8 +91,9 @@ class PlaylistController(MediaControllerBase[Playlist]):
         # add the new playlist to the library
         return await self.add_item_to_library(playlist, False)
 
-    async def add_playlist_tracks(self, db_playlist_id: str | int, uris: list[str]) -> None:  # noqa: PLR0915
+    async def add_playlist_tracks(self, db_playlist_id: str | int, uris: list[str]) -> None:
         """Add tracks to playlist."""
+        # ruff: noqa: PLR0915
         db_id = int(db_playlist_id)  # ensure integer
         playlist = await self.get_library_item(db_id)
         if not playlist:
@@ -123,7 +122,9 @@ class PlaylistController(MediaControllerBase[Playlist]):
             # skip if item already in the playlist
             if uri in cur_playlist_track_uris:
                 self.logger.info(
-                    "Not adding %s to playlist %s - it already exists", uri, playlist.name
+                    "Not adding %s to playlist %s - it already exists",
+                    uri,
+                    playlist.name,
                 )
                 continue
 
@@ -133,7 +134,9 @@ class PlaylistController(MediaControllerBase[Playlist]):
             # skip if item already in the playlist
             if item_id in cur_playlist_track_ids:
                 self.logger.warning(
-                    "Not adding %s to playlist %s - it already exists", uri, playlist.name
+                    "Not adding %s to playlist %s - it already exists",
+                    uri,
+                    playlist.name,
                 )
                 continue
 
@@ -384,71 +387,15 @@ class PlaylistController(MediaControllerBase[Playlist]):
                 )
         return items
 
-    async def _get_provider_dynamic_base_tracks(
+    async def radio_mode_base_tracks(
         self,
         item_id: str,
         provider_instance_id_or_domain: str,
     ):
         """Get the list of base tracks from the controller used to calculate the dynamic radio."""
-        assert provider_instance_id_or_domain != "library"
-        playlist = await self.get(item_id, provider_instance_id_or_domain)
         return [
             x
-            async for x in self.tracks(playlist.item_id, playlist.provider)
+            async for x in self.tracks(item_id, provider_instance_id_or_domain)
             # filter out unavailable tracks
             if x.available
         ]
-
-    async def _get_dynamic_tracks(
-        self,
-        media_item: Playlist,
-        limit: int = 25,
-    ) -> list[Track]:
-        """Get dynamic list of tracks for given item, fallback/default implementation."""
-        # check if we have any provider that supports dynamic tracks
-        # TODO: query metadata provider(s) (such as lastfm?)
-        # to get similar tracks (or tracks from similar artists)
-        for prov in self.mass.get_providers(ProviderType.MUSIC):
-            if ProviderFeature.SIMILAR_TRACKS in prov.supported_features:
-                break
-        else:
-            msg = "No Music Provider found that supports requesting similar tracks."
-            raise UnsupportedFeaturedException(msg)
-
-        radio_items: list[Track] = []
-        radio_item_titles: set[str] = set()
-        playlist_tracks = [x async for x in self.tracks(media_item.item_id, media_item.provider)]
-        random.shuffle(playlist_tracks)
-        for playlist_track in playlist_tracks:
-            # prefer library item if available so we can use all providers
-            if playlist_track.provider != "library" and (
-                db_item := await self.mass.music.tracks.get_library_item_by_prov_id(
-                    playlist_track.item_id, playlist_track.provider
-                )
-            ):
-                playlist_track = db_item  # noqa: PLW2901
-
-            if not playlist_track.available:
-                continue
-            # include base item in the list
-            radio_items.append(playlist_track)
-            radio_item_titles.add(playlist_track.name)
-            # now try to find similar tracks
-            for item_prov_mapping in playlist_track.provider_mappings:
-                if not (prov := self.mass.get_provider(item_prov_mapping.provider_instance)):
-                    continue
-                if ProviderFeature.SIMILAR_TRACKS not in prov.supported_features:
-                    continue
-                # fetch some similar tracks on this provider
-                for similar_track in await prov.get_similar_tracks(
-                    prov_track_id=item_prov_mapping.item_id, limit=5
-                ):
-                    if similar_track.name not in radio_item_titles:
-                        radio_items.append(similar_track)
-                        radio_item_titles.add(similar_track.name)
-                continue
-            if len(radio_items) >= limit:
-                break
-        # Shuffle the final items list
-        random.shuffle(radio_items)
-        return radio_items

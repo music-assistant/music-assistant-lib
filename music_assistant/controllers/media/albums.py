@@ -6,15 +6,26 @@ import contextlib
 from collections.abc import Iterable
 from typing import TYPE_CHECKING, Any
 
-from music_assistant_models.enums import AlbumType, CacheCategory, MediaType, ProviderFeature
-from music_assistant_models.errors import (
-    InvalidDataError,
-    MediaNotFoundError,
-    UnsupportedFeaturedException,
+from music_assistant_models.enums import (
+    AlbumType,
+    CacheCategory,
+    MediaType,
+    ProviderFeature,
 )
-from music_assistant_models.media_items import Album, Artist, ItemMapping, Track, UniqueList
+from music_assistant_models.errors import InvalidDataError, MediaNotFoundError
+from music_assistant_models.media_items import (
+    Album,
+    Artist,
+    ItemMapping,
+    Track,
+    UniqueList,
+)
 
-from music_assistant.constants import DB_TABLE_ALBUM_ARTISTS, DB_TABLE_ALBUM_TRACKS, DB_TABLE_ALBUMS
+from music_assistant.constants import (
+    DB_TABLE_ALBUM_ARTISTS,
+    DB_TABLE_ALBUM_TRACKS,
+    DB_TABLE_ALBUMS,
+)
 from music_assistant.controllers.media.base import MediaControllerBase
 from music_assistant.helpers.compare import (
     compare_album,
@@ -396,27 +407,19 @@ class AlbumsController(MediaControllerBase[Album]):
                 )
         return items
 
-    async def _get_provider_dynamic_base_tracks(
+    async def radio_mode_base_tracks(
         self,
         item_id: str,
         provider_instance_id_or_domain: str,
     ):
         """Get the list of base tracks from the controller used to calculate the dynamic radio."""
-        assert provider_instance_id_or_domain != "library"
-        return await self._get_provider_album_tracks(item_id, provider_instance_id_or_domain)
-
-    async def _get_dynamic_tracks(
-        self,
-        media_item: Album,
-        limit: int = 25,
-    ) -> list[Track]:
-        """Get dynamic list of tracks for given item, fallback/default implementation."""
-        # TODO: query metadata provider(s) to get similar tracks (or tracks from similar artists)
-        msg = "No Music Provider found that supports requesting similar tracks."
-        raise UnsupportedFeaturedException(msg)
+        return await self.tracks(item_id, provider_instance_id_or_domain, in_library_only=False)
 
     async def _set_album_artists(
-        self, db_id: int, artists: Iterable[Artist | ItemMapping], overwrite: bool = False
+        self,
+        db_id: int,
+        artists: Iterable[Artist | ItemMapping],
+        overwrite: bool = False,
     ) -> None:
         """Store Album Artists."""
         if overwrite:

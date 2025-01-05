@@ -7,7 +7,7 @@ from collections.abc import Iterable
 from contextlib import suppress
 from typing import Any
 
-from music_assistant_models.enums import MediaType, ProviderFeature
+from music_assistant_models.enums import MediaType, ProviderFeature, ProviderType
 from music_assistant_models.errors import (
     InvalidDataError,
     MediaNotFoundError,
@@ -92,6 +92,7 @@ class TracksController(MediaControllerBase[Track]):
         self.mass.register_api_command(f"music/{api_base}/track_versions", self.versions)
         self.mass.register_api_command(f"music/{api_base}/track_albums", self.albums)
         self.mass.register_api_command(f"music/{api_base}/preview", self.get_preview_url)
+        self.mass.register_api_command(f"music/{api_base}/similar_tracks", self.similar_tracks)
 
     async def get(
         self,
@@ -277,6 +278,43 @@ class TracksController(MediaControllerBase[Track]):
                 result.append(prov_item.album)
         return result
 
+    async def similar_tracks(
+        self,
+        item_id: str,
+        provider_instance_id_or_domain: str,
+        limit: int = 25,
+        allow_lookup: bool = False,
+    ):
+        """Get a list of similar tracks for the given track."""
+        ref_item = await self.get(item_id, provider_instance_id_or_domain)
+        for prov_mapping in ref_item.provider_mappings:
+            prov = self.mass.get_provider(prov_mapping.provider_instance)
+            if prov is None:
+                continue
+            if ProviderFeature.SIMILAR_TRACKS not in prov.supported_features:
+                continue
+            # Grab similar tracks from the music provider
+            return await prov.get_similar_tracks(prov_track_id=prov_mapping.item_id, limit=limit)
+        if not allow_lookup:
+            return []
+
+        # check if we have any provider that supports dynamic tracks
+        # TODO: query metadata provider(s) (such as lastfm?)
+        # to get similar tracks (or tracks from similar artists)
+        for prov in self.mass.get_providers(ProviderType.MUSIC):
+            if ProviderFeature.SIMILAR_TRACKS in prov.supported_features:
+                break
+        else:
+            msg = "No Music Provider found that supports requesting similar tracks."
+            raise UnsupportedFeaturedException(msg)
+
+        if ref_item.provider == "library":
+            await self.mass.music.refresh_item(ref_item)
+        else:
+            await self.match_providers(ref_item)
+
+        return []
+
     async def remove_item_from_library(self, item_id: str | int) -> None:
         """Delete record from the database."""
         db_id = int(item_id)  # ensure integer
@@ -312,14 +350,12 @@ class TracksController(MediaControllerBase[Track]):
         query = f"{DB_TABLE_ALBUMS}.item_id in ({subquery})"
         return await self.mass.music.albums._get_library_items_by_query(extra_query_parts=[query])
 
-    async def match_providers(self, db_track: Track) -> None:
+    async def match_providers(self, ref_track: Track) -> None:
         """Try to find matching track on all providers for the provided (database) track_id.
 
         This is used to link objects of different providers/qualities together.
         """
-        if db_track.provider != "library":
-            return  # Matching only supported for database items
-        track_albums = await self.albums(db_track.item_id, db_track.provider)
+        track_albums = await self.albums(ref_track.item_id, ref_track.provider)
         for provider in self.mass.music.providers:
             if ProviderFeature.SEARCH not in provider.supported_features:
                 continue
@@ -329,12 +365,12 @@ class TracksController(MediaControllerBase[Track]):
             if not provider.library_supported(MediaType.TRACK):
                 continue
             provider_matches = await self.match_provider(
-                provider, db_track, strict=True, ref_albums=track_albums
+                provider, ref_track, strict=True, ref_albums=track_albums
             )
             for provider_mapping in provider_matches:
                 # 100% match, we update the db with the additional provider mapping(s)
-                await self.add_provider_mapping(db_track.item_id, provider_mapping)
-                db_track.provider_mappings.add(provider_mapping)
+                await self.add_provider_mapping(ref_track.item_id, provider_mapping)
+                ref_track.provider_mappings.add(provider_mapping)
 
     async def match_provider(
         self,
@@ -380,39 +416,13 @@ class TracksController(MediaControllerBase[Track]):
             )
         return matches
 
-    async def get_provider_similar_tracks(
-        self, item_id: str, provider_instance_id_or_domain: str, limit: int = 25
-    ):
-        """Get a list of similar tracks from the provider, based on the track."""
-        ref_item = await self.get(item_id, provider_instance_id_or_domain)
-        for prov_mapping in ref_item.provider_mappings:
-            prov = self.mass.get_provider(prov_mapping.provider_instance)
-            if prov is None:
-                continue
-            if ProviderFeature.SIMILAR_TRACKS not in prov.supported_features:
-                continue
-            # Grab similar tracks from the music provider
-            return await prov.get_similar_tracks(prov_track_id=prov_mapping.item_id, limit=limit)
-        return []
-
-    async def _get_provider_dynamic_base_tracks(
+    async def radio_mode_base_tracks(
         self,
         item_id: str,
         provider_instance_id_or_domain: str,
     ):
         """Get the list of base tracks from the controller used to calculate the dynamic radio."""
-        assert provider_instance_id_or_domain != "library"
         return [await self.get(item_id, provider_instance_id_or_domain)]
-
-    async def _get_dynamic_tracks(
-        self,
-        media_item: Track,
-        limit: int = 25,
-    ) -> list[Track]:
-        """Get dynamic list of tracks for given item, fallback/default implementation."""
-        # TODO: query metadata provider(s) to get similar tracks (or tracks from similar artists)
-        msg = "No Music Provider found that supports requesting similar tracks."
-        raise UnsupportedFeaturedException(msg)
 
     async def _add_library_item(self, item: Track) -> int:
         """Add a new item record to the database."""
@@ -551,7 +561,10 @@ class TracksController(MediaControllerBase[Track]):
         )
 
     async def _set_track_artists(
-        self, db_id: int, artists: Iterable[Artist | ItemMapping], overwrite: bool = False
+        self,
+        db_id: int,
+        artists: Iterable[Artist | ItemMapping],
+        overwrite: bool = False,
     ) -> None:
         """Store Track Artists."""
         if overwrite:

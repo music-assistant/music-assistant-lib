@@ -6,13 +6,20 @@ import asyncio
 import contextlib
 from typing import TYPE_CHECKING, Any
 
-from music_assistant_models.enums import AlbumType, CacheCategory, MediaType, ProviderFeature
-from music_assistant_models.errors import (
-    MediaNotFoundError,
-    ProviderUnavailableError,
-    UnsupportedFeaturedException,
+from music_assistant_models.enums import (
+    AlbumType,
+    CacheCategory,
+    MediaType,
+    ProviderFeature,
 )
-from music_assistant_models.media_items import Album, Artist, ItemMapping, Track, UniqueList
+from music_assistant_models.errors import MediaNotFoundError, ProviderUnavailableError
+from music_assistant_models.media_items import (
+    Album,
+    Artist,
+    ItemMapping,
+    Track,
+    UniqueList,
+)
 
 from music_assistant.constants import (
     DB_TABLE_ALBUM_ARTISTS,
@@ -400,27 +407,17 @@ class ArtistsController(MediaControllerBase[Artist]):
         await self._set_provider_mappings(db_id, provider_mappings, overwrite)
         self.logger.debug("updated %s in database: (id %s)", update.name, db_id)
 
-    async def _get_provider_dynamic_base_tracks(
+    async def radio_mode_base_tracks(
         self,
         item_id: str,
         provider_instance_id_or_domain: str,
     ):
         """Get the list of base tracks from the controller used to calculate the dynamic radio."""
-        assert provider_instance_id_or_domain != "library"
-        return await self.get_provider_artist_toptracks(
+        return await self.tracks(
             item_id,
             provider_instance_id_or_domain,
+            in_library_only=False,
         )
-
-    async def _get_dynamic_tracks(
-        self,
-        media_item: Artist,
-        limit: int = 25,
-    ) -> list[Track]:
-        """Get dynamic list of tracks for given item, fallback/default implementation."""
-        # TODO: query metadata provider(s) to get similar tracks (or tracks from similar artists)
-        msg = "No Music Provider found that supports requesting similar tracks."
-        raise UnsupportedFeaturedException(msg)
 
     async def match_providers(self, db_artist: Artist) -> None:
         """Try to find matching artists on all providers for the provided (database) item_id.

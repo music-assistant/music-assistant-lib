@@ -226,18 +226,13 @@ class PodcastsController(MediaControllerBase[Podcast]):
         await asyncio.gather(*[set_resume_position(chapter) for chapter in items])
         return items
 
-    async def _get_provider_dynamic_base_tracks(
+    async def radio_mode_base_tracks(
         self,
         item_id: str,
         provider_instance_id_or_domain: str,
         limit: int = 25,
     ) -> list[Track]:
         """Get the list of base tracks from the controller used to calculate the dynamic radio."""
-        msg = "Dynamic tracks not supported for Podcast MediaItem"
-        raise NotImplementedError(msg)
-
-    async def _get_dynamic_tracks(self, media_item: Podcast, limit: int = 25) -> list[Track]:
-        """Get dynamic list of tracks for given item, fallback/default implementation."""
         msg = "Dynamic tracks not supported for Podcast MediaItem"
         raise NotImplementedError(msg)
 

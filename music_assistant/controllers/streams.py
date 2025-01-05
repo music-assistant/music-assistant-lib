@@ -16,7 +16,11 @@ from typing import TYPE_CHECKING
 
 from aiofiles.os import wrap
 from aiohttp import web
-from music_assistant_models.config_entries import ConfigEntry, ConfigValueOption, ConfigValueType
+from music_assistant_models.config_entries import (
+    ConfigEntry,
+    ConfigValueOption,
+    ConfigValueType,
+)
 from music_assistant_models.enums import (
     ConfigEntryType,
     ContentType,
@@ -62,7 +66,12 @@ from music_assistant.helpers.audio import (
 )
 from music_assistant.helpers.ffmpeg import LOGGER as FFMPEG_LOGGER
 from music_assistant.helpers.ffmpeg import get_ffmpeg_stream
-from music_assistant.helpers.util import get_ip, get_ips, select_free_port, try_parse_bool
+from music_assistant.helpers.util import (
+    get_ip,
+    get_ips,
+    select_free_port,
+    try_parse_bool,
+)
 from music_assistant.helpers.webserver import Webserver
 from music_assistant.models.core_controller import CoreController
 from music_assistant.models.plugin import PluginProvider
@@ -469,7 +478,9 @@ class StreamsController(CoreController):
 
         async for chunk in get_ffmpeg_stream(
             audio_input=self.get_flow_stream(
-                queue=queue, start_queue_item=start_queue_item, pcm_format=flow_pcm_format
+                queue=queue,
+                start_queue_item=start_queue_item,
+                pcm_format=flow_pcm_format,
             ),
             input_format=flow_pcm_format,
             output_format=output_format,
@@ -743,13 +754,16 @@ class StreamsController(CoreController):
                 queue_track = start_queue_item
             else:
                 try:
-                    queue_track = await self.mass.player_queues.load_next_item(queue.queue_id)
+                    queue_track = await self.mass.player_queues.load_next_item(
+                        queue.queue_id, queue_track.queue_item_id
+                    )
                 except QueueEmpty:
                     break
 
             if queue_track.streamdetails is None:
                 raise RuntimeError(
-                    "No Streamdetails known for queue item %s", queue_track.queue_item_id
+                    "No Streamdetails known for queue item %s",
+                    queue_track.queue_item_id,
                 )
 
             self.logger.debug(
@@ -867,7 +881,10 @@ class StreamsController(CoreController):
         self.logger.info("Finished Queue Flow stream for Queue %s", queue.display_name)
 
     async def get_announcement_stream(
-        self, announcement_url: str, output_format: AudioFormat, use_pre_announce: bool = False
+        self,
+        announcement_url: str,
+        output_format: AudioFormat,
+        use_pre_announce: bool = False,
     ) -> AsyncGenerator[bytes, None]:
         """Get the special announcement stream."""
         # work out output format/details

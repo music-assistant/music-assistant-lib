@@ -233,7 +233,7 @@ class AudiobooksController(MediaControllerBase[Audiobook]):
         await asyncio.gather(*[set_resume_position(chapter) for chapter in items])
         return items
 
-    async def _get_provider_dynamic_base_tracks(
+    async def radio_mode_base_tracks(
         self,
         item_id: str,
         provider_instance_id_or_domain: str,
@@ -241,11 +241,6 @@ class AudiobooksController(MediaControllerBase[Audiobook]):
     ) -> list[Track]:
         """Get the list of base tracks from the controller used to calculate the dynamic radio."""
         msg = "Dynamic tracks not supported for Radio MediaItem"
-        raise NotImplementedError(msg)
-
-    async def _get_dynamic_tracks(self, media_item: Audiobook, limit: int = 25) -> list[Track]:
-        """Get dynamic list of tracks for given item, fallback/default implementation."""
-        msg = "Dynamic tracks not supported for Audiobook MediaItem"
         raise NotImplementedError(msg)
 
     async def match_providers(self, db_audiobook: Audiobook) -> None:

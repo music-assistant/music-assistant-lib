@@ -14,7 +14,12 @@ from typing import TYPE_CHECKING
 
 import aiofiles
 from aiohttp import ClientTimeout
-from music_assistant_models.enums import ContentType, MediaType, StreamType, VolumeNormalizationMode
+from music_assistant_models.enums import (
+    ContentType,
+    MediaType,
+    StreamType,
+    VolumeNormalizationMode,
+)
 from music_assistant_models.errors import (
     InvalidDataError,
     MediaNotFoundError,
@@ -40,7 +45,6 @@ from .dsp import filter_to_ffmpeg_params
 from .ffmpeg import FFMpeg, get_ffmpeg_stream
 from .playlists import IsHLSPlaylist, PlaylistItem, fetch_playlist, parse_m3u
 from .process import AsyncProcess, check_output, communicate
-from .throttle_retry import BYPASS_THROTTLER
 from .util import TimedAsyncGenerator, create_tempfile, detect_charset
 
 if TYPE_CHECKING:
@@ -183,59 +187,54 @@ async def get_stream_details(
     fade_in: bool = False,
     prefer_album_loudness: bool = False,
 ) -> StreamDetails:
-    """Get streamdetails for the given QueueItem.
+    """
+    Get streamdetails for the given QueueItem.
 
     This is called just-in-time when a PlayerQueue wants a MediaItem to be played.
-    Do not try to request streamdetails in advance as this is expiring data.
-        param media_item: The QueueItem for which to request the streamdetails for.
+    Do not try to request streamdetails too much in advance as this is expiring data.
     """
     time_start = time.time()
     LOGGER.debug("Getting streamdetails for %s", queue_item.uri)
     if seek_position and (queue_item.media_type == MediaType.RADIO or not queue_item.duration):
         LOGGER.warning("seeking is not possible on duration-less streams!")
         seek_position = 0
-    # we use a contextvar to bypass the throttler for this asyncio task/context
-    # this makes sure that playback has priority over other requests that may be
-    # happening in the background
-    BYPASS_THROTTLER.set(True)
-    if not queue_item.media_item:
+
+    if not queue_item.media_item and not queue_item.streamdetails:
+        # in case of a non-media item queue item, the streamdetails should already be provided
         # this should not happen, but guard it just in case
-        assert queue_item.streamdetails, "streamdetails required for non-mediaitem queueitems"
-        return queue_item.streamdetails
-    # always request the full library item as there might be other qualities available
-    media_item = (
-        await mass.music.get_library_item_by_prov_id(
-            queue_item.media_item.media_type,
-            queue_item.media_item.item_id,
-            queue_item.media_item.provider,
-        )
-        or queue_item.media_item
-    )
-    # sort by quality and check item's availability
-    for prov_media in sorted(
-        media_item.provider_mappings, key=lambda x: x.quality or 0, reverse=True
-    ):
-        if not prov_media.available:
-            LOGGER.debug(f"Skipping unavailable {prov_media}")
-            continue
-        # guard that provider is available
-        music_prov = mass.get_provider(prov_media.provider_instance)
-        if not music_prov:
-            LOGGER.debug(f"Skipping {prov_media} - provider not available")
-            continue  # provider not available ?
-        # get streamdetails from provider
-        try:
-            streamdetails: StreamDetails = await music_prov.get_stream_details(
-                prov_media.item_id, media_item.media_type
-            )
-        except MusicAssistantError as err:
-            LOGGER.warning(str(err))
-        else:
-            break
-    else:
         raise MediaNotFoundError(
             f"Unable to retrieve streamdetails for {queue_item.name} ({queue_item.uri})"
         )
+    if queue_item.streamdetails and not queue_item.streamdetails.seconds_streamed:
+        # already got a fresh/unused streamdetails
+        streamdetails = queue_item.streamdetails
+    else:
+        media_item = queue_item.media_item
+        # sort by quality and check item's availability
+        for prov_media in sorted(
+            media_item.provider_mappings, key=lambda x: x.quality or 0, reverse=True
+        ):
+            if not prov_media.available:
+                LOGGER.debug(f"Skipping unavailable {prov_media}")
+                continue
+            # guard that provider is available
+            music_prov = mass.get_provider(prov_media.provider_instance)
+            if not music_prov:
+                LOGGER.debug(f"Skipping {prov_media} - provider not available")
+                continue  # provider not available ?
+            # get streamdetails from provider
+            try:
+                streamdetails: StreamDetails = await music_prov.get_stream_details(
+                    prov_media.item_id, media_item.media_type
+                )
+            except MusicAssistantError as err:
+                LOGGER.warning(str(err))
+            else:
+                break
+        else:
+            raise MediaNotFoundError(
+                f"Unable to retrieve streamdetails for {queue_item.name} ({queue_item.uri})"
+            )
 
     # work out how to handle radio stream
     if (
@@ -269,7 +268,11 @@ async def get_stream_details(
     streamdetails.target_loudness = player_settings.get_value(CONF_VOLUME_NORMALIZATION_TARGET)
 
     process_time = int((time.time() - time_start) * 1000)
-    LOGGER.debug("retrieved streamdetails for %s in %s milliseconds", queue_item.uri, process_time)
+    LOGGER.debug(
+        "retrieved streamdetails for %s in %s milliseconds",
+        queue_item.uri,
+        process_time,
+    )
     return streamdetails
 
 
@@ -562,9 +565,15 @@ async def get_icy_radio_stream(
                 stream_title = stream_title.group(1).decode("iso-8859-1", errors="replace")
             cleaned_stream_title = clean_stream_title(stream_title)
             if cleaned_stream_title != streamdetails.stream_title:
-                LOGGER.log(VERBOSE_LOG_LEVEL, "ICY Radio streamtitle original: %s", stream_title)
                 LOGGER.log(
-                    VERBOSE_LOG_LEVEL, "ICY Radio streamtitle cleaned: %s", cleaned_stream_title
+                    VERBOSE_LOG_LEVEL,
+                    "ICY Radio streamtitle original: %s",
+                    stream_title,
+                )
+                LOGGER.log(
+                    VERBOSE_LOG_LEVEL,
+                    "ICY Radio streamtitle cleaned: %s",
+                    cleaned_stream_title,
                 )
                 streamdetails.stream_title = cleaned_stream_title
 
