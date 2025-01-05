@@ -192,7 +192,8 @@ class PodcastMusicprovider(MusicProvider):
         )
 
         podcast.metadata.description = self.parsed["description"]
-        podcast.metadata.style = "Podcast"
+        if self.parsed["itunes_categories"].len() > 0:
+            podcast.metadata.style = self.parsed["itunes_categories"][0]
 
         if self.parsed["cover_url"]:
             img_url = self.parsed["cover_url"]
@@ -218,7 +219,7 @@ class PodcastMusicprovider(MusicProvider):
             podcast=ItemMapping(
                 item_id=prov_podcast_id,
                 provider=self.instance_id,
-                name=f"Test Podcast {prov_podcast_id}",
+                name=self.parsed["title"],
                 media_type=MediaType.PODCAST,
             ),
             provider_mappings={
