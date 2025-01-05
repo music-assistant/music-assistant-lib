@@ -29,7 +29,6 @@ from music_assistant_models.media_items import (
     Episode,
     ItemMapping,
     MediaItemImage,
-    MediaItemType,
     Podcast,
     ProviderMapping,
 )
@@ -147,14 +146,6 @@ class PodcastMusicprovider(MusicProvider):
             episodes.append(await self._parse_episode(episode, prov_podcast_id))
 
         return episodes
-
-    async def library_add(self, item: MediaItemType) -> bool:
-        """Add item to provider's library. Return true on success."""
-        return True
-
-    async def library_remove(self, prov_item_id: str, media_type: MediaType) -> bool:
-        """Remove item from provider's library. Return true on success."""
-        return True
 
     async def get_stream_details(self, item_id: str) -> StreamDetails:
         """Get streamdetails for a track/radio."""
