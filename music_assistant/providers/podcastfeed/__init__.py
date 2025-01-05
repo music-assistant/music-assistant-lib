@@ -9,10 +9,11 @@ multiple instances with each one feed must exist.
 
 from __future__ import annotations
 
-import urllib.request
 from collections.abc import AsyncGenerator
+from io import BytesIO
 from typing import TYPE_CHECKING
 
+import aiohttp
 import podcastparser
 from music_assistant_models.config_entries import ConfigEntry, ConfigValueType
 from music_assistant_models.enums import (
@@ -94,17 +95,17 @@ class PodcastMusicprovider(MusicProvider):
     async def handle_async_init(self) -> None:
         """Handle async initialization of the provider."""
         # ruff: noqa: S310
-        # ruff: noqa: ASYNC210
-        # self.parsed = await podcastparser.parse(
-        #    self.config.get_value(CONF_FEED_URL),
-        #    urllib.request.urlopen(
-        #        podcastparser.normalize_feed_url(self.config.get_value(CONF_FEED_URL))
-        #    ),
-        # )
-        self.parsed = podcastparser.parse(
-            self.config.get_value(CONF_FEED_URL),
-            urllib.request.urlopen(self.config.get_value(CONF_FEED_URL)),
-        )
+        feed_url = podcastparser.normalize_feed_url(self.config.get_value(CONF_FEED_URL))
+        async with aiohttp.ClientSession() as session, session.get(feed_url) as response:
+            if response.status == 200:
+                feed_data = await response.read()
+                feed_stream = BytesIO(feed_data)
+                self.parsed = podcastparser.parse(feed_url, feed_stream)
+            else:
+                raise Exception(
+                    f"Failed to fetch RSS podcast feed: {
+                        response.status}"
+                )
 
     @property
     def is_streaming_provider(self) -> bool:
@@ -224,7 +225,7 @@ class PodcastMusicprovider(MusicProvider):
                     provider_instance=self.instance_id,
                 )
             },
-            publisher="Test Publisher",
+            publisher=self.parsed["itunes_author"],
         )
 
         podcast.metadata.description = self.parsed["description"]
