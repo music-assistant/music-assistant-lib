@@ -100,10 +100,7 @@ class PodcastMusicprovider(MusicProvider):
                 feed_stream = BytesIO(feed_data)
                 self.parsed = podcastparser.parse(feed_url, feed_stream)
             else:
-                raise Exception(
-                    f"Failed to fetch RSS podcast feed: {
-                        response.status}"
-                )
+                raise Exception(f"Failed to fetch RSS podcast feed: {response.status}")
 
     @property
     def is_streaming_provider(self) -> bool:
