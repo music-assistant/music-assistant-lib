@@ -164,8 +164,8 @@ class PodcastMusicprovider(MusicProvider):
                     provider=self.instance_id,
                     item_id=item_id,
                     audio_format=AudioFormat(
-                        # hard coded mp3 for now
-                        content_type=ContentType.MP3,
+                        # hard coded to unknown, so ffmpeg figures out
+                        content_type=ContentType.UNKNOWN,
                     ),
                     media_type=MediaType.PODCAST,
                     stream_type=StreamType.HTTP,
