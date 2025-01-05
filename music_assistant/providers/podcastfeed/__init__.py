@@ -135,7 +135,6 @@ class PodcastMusicprovider(MusicProvider):
         else:
             raise Exception(f"Podcast id not in provider: {prov_podcast_id}")
 
-    # type: ignore[return]
     async def get_episode(self, prov_episode_id: str) -> Episode:
         """Get (full) podcast episode details by id."""
         for episode in self.parsed["episodes"]:
