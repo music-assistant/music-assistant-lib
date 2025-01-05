@@ -96,7 +96,7 @@ class PodcastMusicprovider(MusicProvider):
         """Handle async initialization of the provider."""
         # ruff: noqa: S310
         feed_url = podcastparser.normalize_feed_url(self.config.get_value(CONF_FEED_URL))
-        async with aiohttp.ClientSession() as session, session.get(feed_url) as response:
+        async self.mass.http_session.get(feed_url) as response:
             if response.status == 200:
                 feed_data = await response.read()
                 feed_stream = BytesIO(feed_data)
