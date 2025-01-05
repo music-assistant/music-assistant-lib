@@ -20,7 +20,12 @@ from music_assistant_models.enums import (
     ProviderFeature,
     StreamType,
 )
-from music_assistant_models.errors import LoginFailed, MediaNotFoundError, ProviderPermissionDenied
+from music_assistant_models.errors import (
+    LoginFailed,
+    MediaNotFoundError,
+    ProviderPermissionDenied,
+    UnsupportedFeaturedException,
+)
 from music_assistant_models.media_items import (
     Album,
     Artist,
@@ -451,7 +456,7 @@ class OpenSonicProvider(MusicProvider):
             podcast=self._parse_podcast(sonic_channel),
             provider_mappings={
                 ProviderMapping(
-                    item_id=sonic_episode.id,
+                    item_id=eid,
                     provider_domain=self.domain,
                     provider_instance=self.instance_id,
                 )
@@ -463,6 +468,17 @@ class OpenSonicProvider(MusicProvider):
             episode.metadata.description = sonic_episode.description
 
         return episode
+
+    async def _get_podcast_episode(self, eid: str) -> SonicEpisode:
+        chan_id, ep_id = eid.split(EP_CHAN_SEP)
+        chan = await self._run_async(self._conn.getPodcasts, incEpisodes=True, pid=chan_id)
+
+        for episode in chan[0].episodes:
+            if episode.id == ep_id:
+                return episode
+
+        msg = f"Can't find episode {ep_id} in podcast {chan_id}"
+        raise MediaNotFoundError(msg)
 
     async def _run_async(self, call: Callable, *args, **kwargs):
         return await self.mass.create_task(call, *args, **kwargs)
@@ -693,10 +709,8 @@ class OpenSonicProvider(MusicProvider):
 
         channel = channels[0]
         episodes = []
-        pos = 1
         for episode in channel.episodes:
             episodes.append(self._parse_epsiode(episode, channel))
-            pos += 1
         return episodes
 
     async def get_podcast(self, prov_podcast_id: str) -> Podcast:
@@ -806,32 +820,46 @@ class OpenSonicProvider(MusicProvider):
         self, item_id: str, media_type: MediaType = MediaType.TRACK
     ) -> StreamDetails:
         """Get the details needed to process a specified track."""
-        try:
-            sonic_song: SonicSong = await self._run_async(self._conn.getSong, item_id)
-        except (ParameterError, DataNotFoundError) as e:
-            msg = f"Item {item_id} not found"
-            raise MediaNotFoundError(msg) from e
+        if media_type == MediaType.TRACK:
+            try:
+                item: SonicSong = await self._run_async(self._conn.getSong, item_id)
+            except (ParameterError, DataNotFoundError) as e:
+                msg = f"Item {item_id} not found"
+                raise MediaNotFoundError(msg) from e
 
-        self.mass.create_task(self._report_playback_started(item_id))
+            self.logger.debug(
+                "Fetching stream details for id %s '%s' with format '%s'",
+                item.id,
+                item.title,
+                item.content_type,
+            )
 
-        mime_type = sonic_song.content_type
+            self.mass.create_task(self._report_playback_started(item_id))
+        elif media_type == MediaType.EPISODE:
+            item: SonicEpisode = await self._get_podcast_episode(item_id)
+
+            self.logger.debug(
+                "Fetching stream details for podcast episode '%s' with format '%s'",
+                item.id,
+                item.content_type,
+            )
+            self.mass.create_task(self._report_playback_started(item.id))
+        else:
+            msg = f"Unsupported media type encountered '{media_type}'"
+            raise UnsupportedFeaturedException(msg)
+
+        mime_type = item.content_type
         if mime_type.endswith("mpeg"):
-            mime_type = sonic_song.suffix
-
-        self.logger.debug(
-            "Fetching stream details for id %s '%s' with format '%s'",
-            sonic_song.id,
-            sonic_song.title,
-            mime_type,
-        )
+            mime_type = item.suffix
 
         return StreamDetails(
-            item_id=sonic_song.id,
+            item_id=item.id,
             provider=self.instance_id,
             can_seek=self._seek_support,
+            media_type=media_type,
             audio_format=AudioFormat(content_type=ContentType.try_parse(mime_type)),
             stream_type=StreamType.CUSTOM,
-            duration=sonic_song.duration if sonic_song.duration is not None else 0,
+            duration=item.duration if item.duration else 0,
         )
 
     async def _report_playback_started(self, item_id: str) -> None:
@@ -854,15 +882,20 @@ class OpenSonicProvider(MusicProvider):
         self.logger.debug("Streaming %s", streamdetails.item_id)
 
         def _streamer() -> None:
-            with self._conn.stream(
-                streamdetails.item_id, timeOffset=seek_position, estimateContentLength=True
-            ) as stream:
-                for chunk in stream.iter_content(chunk_size=40960):
-                    asyncio.run_coroutine_threadsafe(
-                        audio_buffer.put(chunk), self.mass.loop
-                    ).result()
-            # send empty chunk when we're done
-            asyncio.run_coroutine_threadsafe(audio_buffer.put(b"EOF"), self.mass.loop).result()
+            self.logger.debug("starting stream of item '%s'", streamdetails.item_id)
+            try:
+                with self._conn.stream(
+                    streamdetails.item_id, timeOffset=seek_position, estimateContentLength=True
+                ) as stream:
+                    for chunk in stream.iter_content(chunk_size=40960):
+                        asyncio.run_coroutine_threadsafe(
+                            audio_buffer.put(chunk), self.mass.loop
+                        ).result()
+                # send empty chunk when we're done
+                asyncio.run_coroutine_threadsafe(audio_buffer.put(b"EOF"), self.mass.loop).result()
+            except DataNotFoundError as err:
+                msg = f"Item '{streamdetails.item_id}' not found"
+                raise MediaNotFoundError(msg) from err
 
         # fire up an executor thread to put the audio chunks (threadsafe) on the audio buffer
         streamer_task = self.mass.loop.run_in_executor(None, _streamer)

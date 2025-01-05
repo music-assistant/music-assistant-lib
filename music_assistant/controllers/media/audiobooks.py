@@ -212,9 +212,7 @@ class AudiobooksController(MediaControllerBase[Audiobook]):
         items = await prov.get_audiobook_chapters(item_id)
 
         async def set_resume_position(chapter: Chapter) -> None:
-            if chapter.resume_position_ms is not None:
-                return
-            if chapter.fully_played is not None:
+            if chapter.fully_played is not None or chapter.resume_position_ms:
                 return
             # TODO: inject resume position info here for providers that do not natively provide it
             resume_info_db_row = await self.mass.music.database.get_row(
@@ -227,7 +225,7 @@ class AudiobooksController(MediaControllerBase[Audiobook]):
             )
             if resume_info_db_row is None:
                 return
-            if resume_info_db_row["seconds_played"] is not None:
+            if resume_info_db_row["seconds_played"]:
                 chapter.resume_position_ms = int(resume_info_db_row["seconds_played"] * 1000)
             if resume_info_db_row["fully_played"] is not None:
                 chapter.fully_played = resume_info_db_row["fully_played"]
@@ -263,7 +261,9 @@ class AudiobooksController(MediaControllerBase[Audiobook]):
 
         async def find_prov_match(provider: MusicProvider):
             self.logger.debug(
-                "Trying to match audiobook %s on provider %s", db_audiobook.name, provider.name
+                "Trying to match audiobook %s on provider %s",
+                db_audiobook.name,
+                provider.name,
             )
             match_found = False
             search_str = f"{author_name} - {db_audiobook.name}"

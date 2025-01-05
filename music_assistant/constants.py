@@ -3,7 +3,11 @@
 import pathlib
 from typing import Final
 
-from music_assistant_models.config_entries import ConfigEntry, ConfigEntryType, ConfigValueOption
+from music_assistant_models.config_entries import (
+    ConfigEntry,
+    ConfigEntryType,
+    ConfigValueOption,
+)
 
 API_SCHEMA_VERSION: Final[int] = 26
 MIN_SCHEMA_VERSION: Final[int] = 24
@@ -23,6 +27,7 @@ RESOURCES_DIR: Final[pathlib.Path] = (
 
 ANNOUNCE_ALERT_FILE: Final[str] = str(RESOURCES_DIR.joinpath("announce.mp3"))
 SILENCE_FILE: Final[str] = str(RESOURCES_DIR.joinpath("silence.mp3"))
+SILENCE_FILE_LONG: Final[str] = str(RESOURCES_DIR.joinpath("silence_long.ogg"))
 VARIOUS_ARTISTS_FANART: Final[str] = str(RESOURCES_DIR.joinpath("fallback_fanart.jpeg"))
 MASS_LOGO: Final[str] = str(RESOURCES_DIR.joinpath("logo.png"))
 
@@ -149,11 +154,21 @@ CONF_ENTRY_FLOW_MODE_DEFAULT_ENABLED = ConfigEntry.from_dict(
 )
 
 CONF_ENTRY_FLOW_MODE_ENFORCED = ConfigEntry.from_dict(
-    {**CONF_ENTRY_FLOW_MODE.to_dict(), "default_value": True, "value": True, "hidden": True}
+    {
+        **CONF_ENTRY_FLOW_MODE.to_dict(),
+        "default_value": True,
+        "value": True,
+        "hidden": True,
+    }
 )
 
 CONF_ENTRY_FLOW_MODE_HIDDEN_DISABLED = ConfigEntry.from_dict(
-    {**CONF_ENTRY_FLOW_MODE.to_dict(), "default_value": False, "value": False, "hidden": True}
+    {
+        **CONF_ENTRY_FLOW_MODE.to_dict(),
+        "default_value": False,
+        "value": False,
+        "hidden": True,
+    }
 )
 
 
@@ -439,7 +454,11 @@ CONF_ENTRY_HTTP_PROFILE_FORCED_1 = ConfigEntry.from_dict(
     {**CONF_ENTRY_HTTP_PROFILE.to_dict(), "default_value": "chunked", "hidden": True}
 )
 CONF_ENTRY_HTTP_PROFILE_FORCED_2 = ConfigEntry.from_dict(
-    {**CONF_ENTRY_HTTP_PROFILE.to_dict(), "default_value": "no_content_length", "hidden": True}
+    {
+        **CONF_ENTRY_HTTP_PROFILE.to_dict(),
+        "default_value": "no_content_length",
+        "hidden": True,
+    }
 )
 
 CONF_ENTRY_ENABLE_ICY_METADATA = ConfigEntry(

@@ -205,9 +205,7 @@ class PodcastsController(MediaControllerBase[Podcast]):
         items = await prov.get_podcast_episodes(item_id)
 
         async def set_resume_position(episode: Episode) -> None:
-            if episode.resume_position_ms is not None:
-                return
-            if episode.fully_played is not None:
+            if episode.fully_played is not None or episode.resume_position_ms:
                 return
             # TODO: inject resume position info here for providers that do not natively provide it
             resume_info_db_row = await self.mass.music.database.get_row(
@@ -220,7 +218,7 @@ class PodcastsController(MediaControllerBase[Podcast]):
             )
             if resume_info_db_row is None:
                 return
-            if resume_info_db_row["seconds_played"] is not None:
+            if resume_info_db_row["seconds_played"]:
                 episode.resume_position_ms = int(resume_info_db_row["seconds_played"] * 1000)
             if resume_info_db_row["fully_played"] is not None:
                 episode.fully_played = resume_info_db_row["fully_played"]
@@ -253,7 +251,9 @@ class PodcastsController(MediaControllerBase[Podcast]):
 
         async def find_prov_match(provider: MusicProvider):
             self.logger.debug(
-                "Trying to match podcast %s on provider %s", db_podcast.name, provider.name
+                "Trying to match podcast %s on provider %s",
+                db_podcast.name,
+                provider.name,
             )
             match_found = False
             search_str = db_podcast.name

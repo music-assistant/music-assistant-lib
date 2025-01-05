@@ -31,7 +31,11 @@ from music_assistant_models.media_items import (
 )
 from music_assistant_models.streamdetails import StreamDetails
 
-from music_assistant.constants import MASS_LOGO, SILENCE_FILE, VARIOUS_ARTISTS_FANART
+from music_assistant.constants import (
+    MASS_LOGO,
+    SILENCE_FILE_LONG,
+    VARIOUS_ARTISTS_FANART,
+)
 from music_assistant.models.music_provider import MusicProvider
 
 if TYPE_CHECKING:
@@ -158,7 +162,7 @@ class TestProvider(MusicProvider):
             item_id=prov_track_id,
             provider=self.instance_id,
             name=f"Test Track {artist_idx} - {album_idx} - {track_idx}",
-            duration=5,
+            duration=60,
             artists=UniqueList([await self.get_artist(artist_idx)]),
             album=await self.get_album(f"{artist_idx}_{album_idx}"),
             provider_mappings={
@@ -293,7 +297,7 @@ class TestProvider(MusicProvider):
                 item_id=f"{prov_audiobook_id}_{chapter_idx}",
                 provider=self.instance_id,
                 name=f"Test Chapter {prov_audiobook_id}-{chapter_idx}",
-                duration=5,
+                duration=60,
                 audiobook=ItemMapping(
                     item_id=prov_audiobook_id,
                     provider=self.instance_id,
@@ -328,7 +332,7 @@ class TestProvider(MusicProvider):
                 item_id=f"{prov_podcast_id}_{episode_idx}",
                 provider=self.instance_id,
                 name=f"Test Episode {prov_podcast_id}-{episode_idx}",
-                duration=5,
+                duration=60,
                 podcast=ItemMapping(
                     item_id=prov_podcast_id,
                     provider=self.instance_id,
@@ -360,13 +364,13 @@ class TestProvider(MusicProvider):
             provider=self.instance_id,
             item_id=item_id,
             audio_format=AudioFormat(
-                content_type=ContentType.MP3,
-                sample_rate=44100,
+                content_type=ContentType.OGG,
+                sample_rate=48000,
                 bit_depth=16,
                 channels=2,
             ),
             media_type=media_type,
             stream_type=StreamType.HTTP,
-            path=SILENCE_FILE,
+            path=SILENCE_FILE_LONG,
             can_seek=True,
         )
