@@ -93,6 +93,7 @@ class PodcastMusicprovider(MusicProvider):
         """Handle async initialization of the provider."""
         # ruff: noqa: S310
         feed_url = podcastparser.normalize_feed_url(self.config.get_value(CONF_FEED_URL))
+        self.podcast_id = hash(feed_url)
         async with self.mass.http_session.get(feed_url) as response:
             if response.status == 200:
                 feed_data = await response.read()
@@ -121,11 +122,18 @@ class PodcastMusicprovider(MusicProvider):
 
     async def get_library_podcasts(self) -> AsyncGenerator[Podcast, None]:
         """Retrieve library/subscribed podcasts from the provider."""
+        """
+        Only one podcast per rss feed is supported. The data format of the rss feed supports
+        only one podcast.
+        """
         yield await self._parse_podcast()
 
     async def get_podcast(self, prov_podcast_id: str) -> Podcast:
         """Get full artist details by id."""
-        return await self._parse_podcast()
+        if prov_podcast_id in self.podcast_id:
+            return await self._parse_podcast()
+        else:
+            raise Exception(f"Podcast id not in provider: {prov_podcast_id}")
 
     # type: ignore[return]
     async def get_episode(self, prov_episode_id: str) -> Episode:
@@ -147,7 +155,9 @@ class PodcastMusicprovider(MusicProvider):
 
         return episodes
 
-    async def get_stream_details(self, item_id: str, media_type: MediaType = MediaType.TRACK) -> StreamDetails:
+    async def get_stream_details(
+        self, item_id: str, media_type: MediaType = MediaType.TRACK
+    ) -> StreamDetails:
         """Get streamdetails for a track/radio."""
         for episode in self.parsed["episodes"]:
             if item_id in episode["guid"]:
@@ -176,7 +186,7 @@ class PodcastMusicprovider(MusicProvider):
     async def _parse_podcast(self) -> Podcast:
         """Parse podcast information from podcast feed."""
         podcast = Podcast(
-            item_id=hash(self.parsed["title"]),
+            item_id=self.podcast_id,
             name=self.parsed["title"],
             provider=self.domain,
             uri=self.parsed["link"],
