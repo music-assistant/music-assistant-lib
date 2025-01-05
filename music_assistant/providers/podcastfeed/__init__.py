@@ -189,7 +189,7 @@ class PodcastMusicprovider(MusicProvider):
         )
 
         podcast.metadata.description = self.parsed["description"]
-        if self.parsed["itunes_categories"].len() > 0:
+        if len(self.parsed["itunes_categories"]) > 0:
             podcast.metadata.style = self.parsed["itunes_categories"][0]
 
         if self.parsed["cover_url"]:
