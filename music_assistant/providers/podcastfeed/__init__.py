@@ -13,7 +13,6 @@ from collections.abc import AsyncGenerator
 from io import BytesIO
 from typing import TYPE_CHECKING
 
-import aiohttp
 import podcastparser
 from music_assistant_models.config_entries import ConfigEntry, ConfigValueType
 from music_assistant_models.enums import (
@@ -33,7 +32,6 @@ from music_assistant_models.media_items import (
     MediaItemType,
     Podcast,
     ProviderMapping,
-    SearchResults,
 )
 from music_assistant_models.streamdetails import StreamDetails
 
@@ -96,13 +94,16 @@ class PodcastMusicprovider(MusicProvider):
         """Handle async initialization of the provider."""
         # ruff: noqa: S310
         feed_url = podcastparser.normalize_feed_url(self.config.get_value(CONF_FEED_URL))
-        async self.mass.http_session.get(feed_url) as response:
+        async with self.mass.http_session.get(feed_url) as response:
             if response.status == 200:
                 feed_data = await response.read()
                 feed_stream = BytesIO(feed_data)
                 self.parsed = podcastparser.parse(feed_url, feed_stream)
             else:
-                raise Exception(f"Failed to fetch RSS podcast feed: {response.status}")
+                raise Exception(
+                    f"Failed to fetch RSS podcast feed: {
+                        response.status}"
+                )
 
     @property
     def is_streaming_provider(self) -> bool:
@@ -118,32 +119,6 @@ class PodcastMusicprovider(MusicProvider):
         Setting this to False will query all instances of this provider for search and lookups.
         """
         return False
-
-    async def search(
-        self,
-        search_query: str,
-        media_types: list[MediaType],
-        limit: int = 5,
-    ) -> SearchResults:
-        """Perform search on musicprovider.
-
-        :param search_query: Search query.
-        :param media_types: A list of media_types to include.
-        :param limit: Number of items to return in the search (per type).
-        """
-        result = SearchResults()
-
-        if MediaType.PODCAST in media_types or media_types is None:
-            # return podcast if artist matches podcast name
-            if search_query in self.parsed["title"]:
-                result.podcasts.append(await self._parse_podcast())
-
-        # if MediaType.EPISODE in media_types or media_types is None:
-        #    if search_query in self.parsed["title"]:
-        #        for episode in self.parsed["episodes"]:
-        #            result.podcasts.append(await self._parse_episode(episode))
-
-        return result
 
     async def get_library_podcasts(self) -> AsyncGenerator[Podcast, None]:
         """Retrieve library/subscribed podcasts from the provider."""
