@@ -16,6 +16,7 @@ With this repository cloned locally, execute the following commands in a termina
 * Run our development setup script to setup the development environment:
 * `scripts/setup.sh` (creates a new separate virtual environment to nicely separate the project dependencies)
 * The setup script will create a separate virtual environment (if needed), install all the project/test dependencies and configure pre-commit for linting and testing.
+* Make sure, that the python interpreter in VS Code is set to the newly generated venv.
 * Debug: Hit (Fn +) F5 to start Music Assistant locally
 * The pre-compiled UI of Music Assistant will be available at `localhost:8095` 🎉
 
