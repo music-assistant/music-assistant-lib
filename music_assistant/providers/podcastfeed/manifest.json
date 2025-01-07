@@ -5,6 +5,6 @@
   "description": "A parser for podcast rss feeds",
   "codeowners": ["@saeugetier"],
   "requirements": ["podcastparser==0.6.10"],
-  "documentation": "Link to the documentation on the music-assistant.io helppage (may be added later).",
+  "documentation": "https://music-assistant.io/music-providers/podcastfeed/",
   "multi_instance": true
 }

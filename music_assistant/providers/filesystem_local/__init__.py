@@ -13,7 +13,11 @@ import aiofiles
 import shortuuid
 import xmltodict
 from aiofiles.os import wrap
-from music_assistant_models.config_entries import ConfigEntry, ConfigValueOption, ConfigValueType
+from music_assistant_models.config_entries import (
+    ConfigEntry,
+    ConfigValueOption,
+    ConfigValueType,
+)
 from music_assistant_models.enums import (
     ConfigEntryType,
     ContentType,
@@ -22,7 +26,11 @@ from music_assistant_models.enums import (
     ProviderFeature,
     StreamType,
 )
-from music_assistant_models.errors import MediaNotFoundError, MusicAssistantError, SetupFailedError
+from music_assistant_models.errors import (
+    MediaNotFoundError,
+    MusicAssistantError,
+    SetupFailedError,
+)
 from music_assistant_models.media_items import (
     Album,
     Artist,
@@ -156,7 +164,12 @@ async def get_config_entries(
     """
     # ruff: noqa: ARG001
     return (
-        ConfigEntry(key="path", type=ConfigEntryType.STRING, label="Path", default_value="/media"),
+        ConfigEntry(
+            key="path",
+            type=ConfigEntryType.STRING,
+            label="Path",
+            default_value="/media",
+        ),
         CONF_ENTRY_MISSING_ALBUM_ARTIST,
     )
 
@@ -777,11 +790,14 @@ class LocalFileSystemProvider(MusicProvider):
             track.metadata.explicit = explicit_tag == "1"
         if tags.musicbrainz_recordingid:
             track.mbid = tags.musicbrainz_recordingid
-        track.metadata.chapters = UniqueList(tags.chapters)
+
         # handle (optional) loudness measurement tag(s)
         if tags.track_loudness is not None:
             await self.mass.music.set_loudness(
-                track.item_id, self.instance_id, tags.track_loudness, tags.track_album_loudness
+                track.item_id,
+                self.instance_id,
+                tags.track_loudness,
+                tags.track_album_loudness,
             )
         return track
 

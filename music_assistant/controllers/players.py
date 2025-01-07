@@ -47,7 +47,7 @@ from music_assistant.helpers.api import api_command
 from music_assistant.helpers.tags import parse_tags
 from music_assistant.helpers.throttle_retry import Throttler
 from music_assistant.helpers.uri import parse_uri
-from music_assistant.helpers.util import TaskManager, get_changed_values, lock
+from music_assistant.helpers.util import TaskManager, get_changed_values
 from music_assistant.models.core_controller import CoreController
 from music_assistant.models.player_provider import PlayerProvider
 
@@ -110,6 +110,7 @@ class PlayerController(CoreController):
         self.manifest.icon = "speaker-multiple"
         self._poll_task: asyncio.Task | None = None
         self._player_throttlers: dict[str, Throttler] = {}
+        self._player_locks: dict[str, asyncio.Lock] = {}
         # TEMP 2024-11-20: register some aliases for renamed commands
         # remove after a few releases
         self.mass.register_api_command("players/cmd/sync", self.cmd_group)
@@ -218,7 +219,8 @@ class PlayerController(CoreController):
         if PlayerFeature.PAUSE not in player.supported_features:
             # if player does not support pause, we need to send stop
             self.logger.info(
-                "Player %s does not support pause, using STOP instead", player.display_name
+                "Player %s does not support pause, using STOP instead",
+                player.display_name,
             )
             await self.cmd_stop(player.player_id)
             return
@@ -509,7 +511,8 @@ class PlayerController(CoreController):
         assert player
         if PlayerFeature.VOLUME_MUTE not in player.supported_features:
             self.logger.info(
-                "Player %s does not support muting, using volume instead", player.display_name
+                "Player %s does not support muting, using volume instead",
+                player.display_name,
             )
             if muted:
                 player._prev_volume_level = player.volume_level
@@ -524,7 +527,6 @@ class PlayerController(CoreController):
             await player_provider.cmd_volume_mute(player_id, muted)
 
     @api_command("players/cmd/play_announcement")
-    @lock
     async def play_announcement(
         self,
         player_id: str,
@@ -536,61 +538,69 @@ class PlayerController(CoreController):
         player = self.get(player_id, True)
         if not url.startswith("http"):
             raise PlayerCommandFailed("Only URLs are supported for announcements")
-        try:
-            # mark announcement_in_progress on player
-            player.announcement_in_progress = True
-            # determine if the player has native announcements support
-            native_announce_support = PlayerFeature.PLAY_ANNOUNCEMENT in player.supported_features
-            # determine pre-announce from (group)player config
-            if use_pre_announce is None and "tts" in url:
-                use_pre_announce = await self.mass.config.get_player_config_value(
-                    player_id,
-                    CONF_TTS_PRE_ANNOUNCE,
+        # prevent multiple announcements at the same time to the same player with a lock
+        if player_id not in self._player_locks:
+            self._player_locks[player_id] = lock = asyncio.Lock()
+        else:
+            lock = self._player_locks[player_id]
+        async with lock:
+            try:
+                # mark announcement_in_progress on player
+                player.announcement_in_progress = True
+                # determine if the player has native announcements support
+                native_announce_support = (
+                    PlayerFeature.PLAY_ANNOUNCEMENT in player.supported_features
                 )
-            # if player type is group with all members supporting announcements,
-            # we forward the request to each individual player
-            if player.type == PlayerType.GROUP and (
-                all(
-                    PlayerFeature.PLAY_ANNOUNCEMENT in x.supported_features
-                    for x in self.iter_group_members(player)
-                )
-            ):
-                # forward the request to each individual player
-                async with TaskManager(self.mass) as tg:
-                    for group_member in player.group_childs:
-                        tg.create_task(
-                            self.play_announcement(
-                                group_member,
-                                url=url,
-                                use_pre_announce=use_pre_announce,
-                                volume_level=volume_level,
+                # determine pre-announce from (group)player config
+                if use_pre_announce is None and "tts" in url:
+                    use_pre_announce = await self.mass.config.get_player_config_value(
+                        player_id,
+                        CONF_TTS_PRE_ANNOUNCE,
+                    )
+                # if player type is group with all members supporting announcements,
+                # we forward the request to each individual player
+                if player.type == PlayerType.GROUP and (
+                    all(
+                        PlayerFeature.PLAY_ANNOUNCEMENT in x.supported_features
+                        for x in self.iter_group_members(player)
+                    )
+                ):
+                    # forward the request to each individual player
+                    async with TaskManager(self.mass) as tg:
+                        for group_member in player.group_childs:
+                            tg.create_task(
+                                self.play_announcement(
+                                    group_member,
+                                    url=url,
+                                    use_pre_announce=use_pre_announce,
+                                    volume_level=volume_level,
+                                )
                             )
-                        )
-                return
-            self.logger.info(
-                "Playback announcement to player %s (with pre-announce: %s): %s",
-                player.display_name,
-                use_pre_announce,
-                url,
-            )
-            # create a PlayerMedia object for the announcement so
-            # we can send a regular play-media call downstream
-            announcement = PlayerMedia(
-                uri=self.mass.streams.get_announcement_url(player_id, url, use_pre_announce),
-                media_type=MediaType.ANNOUNCEMENT,
-                title="Announcement",
-                custom_data={"url": url, "use_pre_announce": use_pre_announce},
-            )
-            # handle native announce support
-            if native_announce_support:
-                if prov := self.mass.get_provider(player.provider):
-                    announcement_volume = self.get_announcement_volume(player_id, volume_level)
-                    await prov.play_announcement(player_id, announcement, announcement_volume)
                     return
-            # use fallback/default implementation
-            await self._play_announcement(player, announcement, volume_level)
-        finally:
-            player.announcement_in_progress = False
+                self.logger.info(
+                    "Playback announcement to player %s (with pre-announce: %s): %s",
+                    player.display_name,
+                    use_pre_announce,
+                    url,
+                )
+                # create a PlayerMedia object for the announcement so
+                # we can send a regular play-media call downstream
+                announcement = PlayerMedia(
+                    uri=self.mass.streams.get_announcement_url(player_id, url, use_pre_announce),
+                    media_type=MediaType.ANNOUNCEMENT,
+                    title="Announcement",
+                    custom_data={"url": url, "use_pre_announce": use_pre_announce},
+                )
+                # handle native announce support
+                if native_announce_support:
+                    if prov := self.mass.get_provider(player.provider):
+                        announcement_volume = self.get_announcement_volume(player_id, volume_level)
+                        await prov.play_announcement(player_id, announcement, announcement_volume)
+                        return
+                # use fallback/default implementation
+                await self._play_announcement(player, announcement, volume_level)
+            finally:
+                player.announcement_in_progress = False
 
     @handle_player_command
     async def play_media(self, player_id: str, media: PlayerMedia) -> None:

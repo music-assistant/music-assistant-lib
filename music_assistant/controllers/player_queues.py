@@ -1559,7 +1559,7 @@ class PlayerQueuesController(CoreController):
             track_time = queue.current_item.streamdetails.duration
         else:
             track_time = current_item.duration or 10
-        if (queue.corrected_elapsed_time - track_time) < (track_time / 2):
+        if not (queue.corrected_elapsed_time - track_time) < (track_time / 2):
             return
 
         async def _enqueue_next():
@@ -1567,12 +1567,17 @@ class PlayerQueuesController(CoreController):
             # abort if we already enqueued the (selected) next track
             if queue.next_track_enqueued == next_item.queue_item_id:
                 return
-            queue.next_track_enqueued = next_item.queue_item_id
             if not queue.flow_mode:
                 await self.mass.players.enqueue_next_media(
                     player_id=queue.queue_id,
                     media=self.player_media_from_queue_item(next_item, False),
                 )
+            queue.next_track_enqueued = next_item.queue_item_id
+            self.logger.debug(
+                "Preloaded next track %s on queue %s",
+                next_item.name,
+                queue.display_name,
+            )
 
         self.mass.create_task(_enqueue_next())
 

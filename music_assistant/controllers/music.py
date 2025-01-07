@@ -56,6 +56,7 @@ from music_assistant.constants import (
 from music_assistant.helpers.api import api_command
 from music_assistant.helpers.database import DatabaseConnection
 from music_assistant.helpers.datetime import utc_timestamp
+from music_assistant.helpers.json import json_loads, serialize_to_json
 from music_assistant.helpers.uri import parse_uri
 from music_assistant.helpers.util import TaskManager
 from music_assistant.models.core_controller import CoreController
@@ -78,7 +79,7 @@ DEFAULT_SYNC_INTERVAL = 3 * 60  # default sync interval in minutes
 CONF_SYNC_INTERVAL = "sync_interval"
 CONF_DELETED_PROVIDERS = "deleted_providers"
 CONF_ADD_LIBRARY_ON_PLAY = "add_library_on_play"
-DB_SCHEMA_VERSION: Final[int] = 13
+DB_SCHEMA_VERSION: Final[int] = 14
 
 
 class MusicController(CoreController):
@@ -986,6 +987,8 @@ class MusicController(CoreController):
             self.mass.music.tracks,
             self.mass.music.albums,
             self.mass.music.artists,
+            self.mass.music.podcasts,
+            self.mass.music.audiobooks,
             # run main controllers twice to rule out relations
             self.mass.music.tracks,
             self.mass.music.albums,
@@ -1236,6 +1239,18 @@ class MusicController(CoreController):
             await self.database.execute(f"DROP TABLE IF EXISTS {DB_TABLE_AUDIOBOOKS}")
             await self.database.execute(f"DROP TABLE IF EXISTS {DB_TABLE_PODCASTS}")
             await self.__create_database_tables()
+
+        if prev_version <= 13:
+            # migrate chapters in metadata
+            # this is leftover mess from the old chapters implementation
+            for db_row in await self.database.search(DB_TABLE_TRACKS, "position_start", "metadata"):
+                metadata = json_loads(db_row["metadata"])
+                metadata["chapters"] = None
+                await self.database.update(
+                    DB_TABLE_TRACKS,
+                    {"item_id": db_row["item_id"]},
+                    {"metadata": serialize_to_json(metadata)},
+                )
 
         # save changes
         await self.database.commit()
