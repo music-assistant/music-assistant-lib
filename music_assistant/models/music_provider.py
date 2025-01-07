@@ -63,7 +63,6 @@ class MusicProvider(Provider):
 
     async def loaded_in_mass(self) -> None:
         """Call after the provider has been loaded."""
-        self.mass.music.start_sync(providers=[self.instance_id])
 
     async def search(
         self,

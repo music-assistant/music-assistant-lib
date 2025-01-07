@@ -34,7 +34,7 @@ from music_assistant_models.media_items import (
     MediaItemType,
     SearchResults,
 )
-from music_assistant_models.provider import ProviderInstance, SyncTask
+from music_assistant_models.provider import SyncTask
 
 from music_assistant.constants import (
     DB_TABLE_ALBUM_ARTISTS,
@@ -74,7 +74,7 @@ if TYPE_CHECKING:
     from music_assistant.models.music_provider import MusicProvider
 
 CONF_RESET_DB = "reset_db"
-DEFAULT_SYNC_INTERVAL = 3 * 60  # default sync interval in minutes
+DEFAULT_SYNC_INTERVAL = 12 * 60  # default sync interval in minutes
 CONF_SYNC_INTERVAL = "sync_interval"
 CONF_DELETED_PROVIDERS = "deleted_providers"
 CONF_ADD_LIBRARY_ON_PLAY = "add_library_on_play"
@@ -846,7 +846,7 @@ class MusicController(CoreController):
         return instances
 
     def _start_provider_sync(
-        self, provider: ProviderInstance, media_types: tuple[MediaType, ...]
+        self, provider: MusicProvider, media_types: tuple[MediaType, ...]
     ) -> None:
         """Start sync task on provider and track progress."""
         # check if we're not already running a sync task for this provider/mediatype
@@ -994,11 +994,16 @@ class MusicController(CoreController):
 
     def _schedule_sync(self) -> None:
         """Schedule the periodic sync."""
-        self.start_sync()
-        sync_interval = self.config.get_value(CONF_SYNC_INTERVAL)
-        # we reschedule ourselves right after execution
-        # NOTE: sync_interval is stored in minutes, we need seconds
-        self.mass.loop.call_later(sync_interval * 60, self._schedule_sync)
+        sync_interval = self.config.get_value(CONF_SYNC_INTERVAL) * 60
+
+        def run_scheduled_sync() -> None:
+            # kickoff the sync job
+            self.start_sync()
+            # reschedule ourselves
+            self.mass.loop.call_later(sync_interval, self._schedule_sync)
+
+        # schedule the first sync run
+        self.mass.loop.call_later(sync_interval, run_scheduled_sync)
 
     async def _cleanup_database(self) -> None:
         """Perform database cleanup/maintenance."""

@@ -838,4 +838,7 @@ class ConfigController:
             # loading failed, remove config
             self.remove(conf_key)
             raise
+        if prov.type == ProviderType.MUSIC:
+            # kick off initial library scan
+            self.mass.music.start_sync(None, [config.instance_id])
         return config
