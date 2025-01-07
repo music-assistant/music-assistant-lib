@@ -457,9 +457,11 @@ class MusicController(CoreController):
         if media_types is None:
             media_types = MediaType.ALL
         media_types_str = "(" + ",".join(f'"{x}"' for x in media_types) + ")"
+        # temporary fix to avoid too many queries on providers:
+        # we only query for library items for now
         query = (
-            f"SELECT * FROM {DB_TABLE_PLAYLOG} WHERE media_type "
-            f"in {media_types_str} ORDER BY timestamp DESC"
+            f"SELECT * FROM {DB_TABLE_PLAYLOG} WHERE provider = 'library' "
+            f"AND media_type in {media_types_str} ORDER BY timestamp DESC"
         )
         db_rows = await self.mass.music.database.get_rows_from_query(query, limit=limit)
         result: list[MediaItemType] = []
