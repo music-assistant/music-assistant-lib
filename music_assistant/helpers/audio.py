@@ -43,7 +43,7 @@ from .ffmpeg import FFMpeg, get_ffmpeg_stream
 from .playlists import IsHLSPlaylist, PlaylistItem, fetch_playlist, parse_m3u
 from .process import AsyncProcess, check_output, communicate
 from .throttle_retry import BYPASS_THROTTLER
-from .util import TimedAsyncGenerator, create_tempfile, detect_charset
+from .util import create_tempfile, detect_charset
 
 if TYPE_CHECKING:
     from music_assistant_models.config_entries import CoreConfig, PlayerConfig
@@ -304,9 +304,7 @@ async def get_media_stream(
     )
     try:
         await ffmpeg_proc.start()
-        async for chunk in TimedAsyncGenerator(
-            ffmpeg_proc.iter_chunked(pcm_format.pcm_sample_size), 300
-        ):
+        async for chunk in ffmpeg_proc.iter_chunked(pcm_format.pcm_sample_size):
             # for radio streams we just yield all chunks directly
             if streamdetails.media_type == MediaType.RADIO:
                 yield chunk
