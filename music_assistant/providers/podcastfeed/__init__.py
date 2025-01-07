@@ -266,6 +266,7 @@ class PodcastMusicprovider(MusicProvider):
                 )
             ]
         episode.metadata.description = episode_obj["description"]
-        episode.metadata.explicit = episode_obj["explicit"]
+        if "explicit" in episode_obj:
+            episode.metadata.explicit = episode_obj["explicit"]
 
         return episode
