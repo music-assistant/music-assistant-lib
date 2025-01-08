@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import mimetypes
 import hashlib
+import mimetypes
 import socket
 from asyncio import TaskGroup
 from collections.abc import AsyncGenerator
@@ -149,7 +149,7 @@ class JellyfinProvider(MusicProvider):
         # token and server_id is used in zeroconf) but hash them anyway as its meant
         # to be an opaque identifier
 
-        device_id = hashlib.sha256(f"{self.mass.server_id}+{username}".encode("utf-8")).hexdigest()
+        device_id = hashlib.sha256(f"{self.mass.server_id}+{username}".encode()).hexdigest()
 
         session_config = SessionConfiguration(
             session=self.mass.http_session,
