@@ -7,7 +7,6 @@ from collections.abc import AsyncGenerator
 import pytest
 
 from music_assistant import MusicAssistant
-from tests.common import wait_for_sync_completion
 
 
 @pytest.fixture(name="caplog")
@@ -27,8 +26,7 @@ async def mass(tmp_path: pathlib.Path) -> AsyncGenerator[MusicAssistant, None]:
 
     mass = MusicAssistant(str(storage_path))
 
-    async with wait_for_sync_completion(mass):
-        await mass.start()
+    await mass.start()
 
     try:
         yield mass

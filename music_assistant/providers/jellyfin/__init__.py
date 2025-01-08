@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import hashlib
 import mimetypes
 import socket
-import uuid
 from asyncio import TaskGroup
 from collections.abc import AsyncGenerator
 from typing import TYPE_CHECKING
@@ -133,6 +133,24 @@ class JellyfinProvider(MusicProvider):
 
     async def handle_async_init(self) -> None:
         """Initialize provider(instance) with given configuration."""
+        username = str(self.config.get_value(CONF_USERNAME))
+
+        # Device ID should be stable between reboots
+        # Otherwise every time the provider starts we "leak" a new device
+        # entry in the Jellyfin backend, which creates devices and entities
+        # in HA if they also use the Jellyfin integration there.
+
+        # We follow a suggestion a Jellyfin dev gave to HA and use an ID
+        # that is stable even if provider is removed and re-added.
+        # They said mix in username in case the same device/app has 2
+        # connections to the same servers
+
+        # Neither of these are secrets (username is handed over to mint a
+        # token and server_id is used in zeroconf) but hash them anyway as its meant
+        # to be an opaque identifier
+
+        device_id = hashlib.sha256(f"{self.mass.server_id}+{username}".encode()).hexdigest()
+
         session_config = SessionConfiguration(
             session=self.mass.http_session,
             url=str(self.config.get_value(CONF_URL)),
@@ -140,13 +158,13 @@ class JellyfinProvider(MusicProvider):
             app_name=USER_APP_NAME,
             app_version=CLIENT_VERSION,
             device_name=socket.gethostname(),
-            device_id=str(uuid.uuid4()),
+            device_id=device_id,
         )
 
         try:
             self._client = await authenticate_by_name(
                 session_config,
-                str(self.config.get_value(CONF_USERNAME)),
+                username,
                 str(self.config.get_value(CONF_PASSWORD)),
             )
         except Exception as err:
