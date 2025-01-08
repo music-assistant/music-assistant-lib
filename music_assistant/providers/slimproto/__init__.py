@@ -644,6 +644,7 @@ class SlimprotoProvider(PlayerProvider):
                 supported_features={
                     PlayerFeature.POWER,
                     PlayerFeature.SET_MEMBERS,
+                    PlayerFeature.MULTI_DEVICE_DSP,
                     PlayerFeature.VOLUME_SET,
                     PlayerFeature.PAUSE,
                     PlayerFeature.VOLUME_MUTE,

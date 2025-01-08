@@ -516,6 +516,7 @@ class AirplayProvider(PlayerProvider):
             supported_features={
                 PlayerFeature.PAUSE,
                 PlayerFeature.SET_MEMBERS,
+                PlayerFeature.MULTI_DEVICE_DSP,
                 PlayerFeature.VOLUME_SET,
             },
             volume_level=volume,
