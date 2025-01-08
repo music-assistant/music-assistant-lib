@@ -10,6 +10,7 @@ aioslimproto==3.1.0
 aiosonos==0.1.7
 aiosqlite==0.20.0
 async-upnp-client==0.42.0
+audible==0.10.0
 bidict==0.23.1
 certifi==2024.12.14
 colorlog==6.9.0
