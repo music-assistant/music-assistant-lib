@@ -5,6 +5,5 @@
   "description": "Audible provider",
   "codeowners": ["@ztripez"],
   "requirements": ["audible==0.10.0"],
-  "documentation": "Link to the documentation on the music-assistant.io helppage (may be added later).",
-  "mdns_discovery": ["_optional_mdns_service_type._tcp.local."]
+  "documentation": "Link to the documentation on the music-assistant.io helppage (may be added later)."
 }
