@@ -1,7 +1,6 @@
 """Tests for utility/helper functions."""
 
 import pytest
-from music_assistant_models import media_items
 from music_assistant_models.enums import MediaType
 from music_assistant_models.errors import MusicAssistantError
 
