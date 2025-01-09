@@ -211,7 +211,7 @@ async def get_config_entries(
 class Audibleprovider(MusicProvider):
     """Implementation of a Audible Audiobook Provider."""
 
-    def __init__(self, mass: MusicAssistant, manifest: ProviderManifest, config: ProviderConfig):
+    def __init__(self, mass: MusicAssistant, manifest: ProviderManifest, config: ProviderConfig) -> None:
         """Initialize the Audible Audiobook Provider."""
         super().__init__(mass, manifest, config)
         self.locale = self.config.get_value(CONF_LOCALE) or "us"
