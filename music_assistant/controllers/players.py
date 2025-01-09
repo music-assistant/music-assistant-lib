@@ -44,7 +44,7 @@ from music_assistant.constants import (
     CONF_TTS_PRE_ANNOUNCE,
 )
 from music_assistant.helpers.api import api_command
-from music_assistant.helpers.tags import parse_tags
+from music_assistant.helpers.tags import async_parse_tags
 from music_assistant.helpers.throttle_retry import Throttler
 from music_assistant.helpers.uri import parse_uri
 from music_assistant.helpers.util import TaskManager, get_changed_values
@@ -1323,7 +1323,7 @@ class PlayerController(CoreController):
         await self.wait_for_state(player, PlayerState.PLAYING, 10, minimal_time=0.1)
         # wait for the player to stop playing
         if not announcement.duration:
-            media_info = await parse_tags(announcement.custom_data["url"])
+            media_info = await async_parse_tags(announcement.custom_data["url"])
             announcement.duration = media_info.duration or 60
         media_info.duration += 2
         await self.wait_for_state(

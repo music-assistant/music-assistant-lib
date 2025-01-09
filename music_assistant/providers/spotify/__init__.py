@@ -207,9 +207,11 @@ async def get_config_entries(
             key=CONF_CLIENT_ID,
             type=ConfigEntryType.SECURE_STRING,
             label="Client ID (optional)",
-            description="By default, a generic client ID is used which is heavy rate limited. "
-            "It is advised that you create your own Spotify Developer account and use "
-            "that client ID here to speedup performance. \n\n"
+            description="By default, a generic client ID is used which is (heavy) rate limited. "
+            "To speedup performance, it is advised that you create your own Spotify Developer "
+            "account and use that client ID here, but this comes at the cost of some features "
+            "due to Spotify policies. For example Radio mode/recommendations and featured playlists"
+            "will not work with a custom client ID. \n\n"
             f"Use {CALLBACK_REDIRECT_URL} as callback URL.",
             required=False,
             value=values.get(CONF_CLIENT_ID) if values else None,
@@ -242,6 +244,7 @@ class SpotifyProvider(MusicProvider):
     _auth_info: str | None = None
     _sp_user: dict[str, Any] | None = None
     _librespot_bin: str | None = None
+    custom_client_id_active: bool = False
     throttler: ThrottlerManager
 
     async def handle_async_init(self) -> None:
@@ -252,6 +255,7 @@ class SpotifyProvider(MusicProvider):
             # loosen the throttler a bit when a custom client id is used
             self.throttler.rate_limit = 45
             self.throttler.period = 30
+            self.custom_client_id_active = True
         # check if we have a librespot binary for this arch
         self._librespot_bin = await get_librespot_binary()
         # try login which will raise if it fails
@@ -260,7 +264,7 @@ class SpotifyProvider(MusicProvider):
     @property
     def supported_features(self) -> set[ProviderFeature]:
         """Return the features supported by this Provider."""
-        return {
+        base = {
             ProviderFeature.LIBRARY_ARTISTS,
             ProviderFeature.LIBRARY_ALBUMS,
             ProviderFeature.LIBRARY_TRACKS,
@@ -275,8 +279,12 @@ class SpotifyProvider(MusicProvider):
             ProviderFeature.SEARCH,
             ProviderFeature.ARTIST_ALBUMS,
             ProviderFeature.ARTIST_TOPTRACKS,
-            ProviderFeature.SIMILAR_TRACKS,
         }
+        if not self.custom_client_id_active:
+            # Spotify has killed the similar tracks api for developers
+            # https://developer.spotify.com/blog/2024-11-27-changes-to-the-web-api
+            base.add(ProviderFeature.SIMILAR_TRACKS)
+        return base
 
     @property
     def name(self) -> str:

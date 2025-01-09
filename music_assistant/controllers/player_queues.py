@@ -19,11 +19,7 @@ import time
 from types import NoneType
 from typing import TYPE_CHECKING, Any, TypedDict
 
-from music_assistant_models.config_entries import (
-    ConfigEntry,
-    ConfigValueOption,
-    ConfigValueType,
-)
+from music_assistant_models.config_entries import ConfigEntry, ConfigValueOption, ConfigValueType
 from music_assistant_models.enums import (
     CacheCategory,
     ConfigEntryType,
@@ -1013,16 +1009,18 @@ class PlayerQueuesController(CoreController):
             self._prev_states.pop(queue_id, None)
 
         # detect change in current index to report that a item has been played
-        end_of_queue_reached = (
+        player_stopped = (
             prev_state["state"] == PlayerState.PLAYING
             and new_state["state"] == PlayerState.IDLE
             and queue.current_item is not None
-            and queue.next_item is None
+        )
+        end_of_queue_reached = (
+            player_stopped and queue.current_item is not None and queue.next_item is None
         )
         prev_item_id = prev_state["current_item_id"]
         if (
             prev_item_id is not None
-            and (prev_item_id != new_state["current_item_id"] or end_of_queue_reached)
+            and (prev_item_id != new_state["current_item_id"] or player_stopped)
             and (prev_item := self.get_item(queue_id, prev_item_id))
             and (stream_details := prev_item.streamdetails)
         ):
@@ -1038,7 +1036,7 @@ class PlayerQueuesController(CoreController):
                 self.mass.create_task(
                     music_prov.on_streamed(stream_details, seconds_played, fully_played)
                 )
-            if prev_item.media_item and (fully_played or seconds_played > 2):
+            if prev_item.media_item and (fully_played or seconds_played > 10):
                 # add entry to playlog - this also handles resume of podcasts/audiobooks
                 self.mass.create_task(
                     self.mass.music.mark_item_played(
@@ -1216,6 +1214,7 @@ class PlayerQueuesController(CoreController):
         # store the index of the item that is currently (being) loaded in the buffer
         # which helps us a bit to determine how far the player has buffered ahead
         queue.index_in_buffer = self.index_by_id(queue_id, item_id)
+        queue.next_track_enqueued = None
         self.signal_update(queue_id)
 
     # Main queue manipulation methods

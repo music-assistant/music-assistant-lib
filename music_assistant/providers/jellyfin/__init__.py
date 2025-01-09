@@ -413,9 +413,8 @@ class JellyfinProvider(MusicProvider):
             # paging not supported, we always return the whole list at once
             return []
         # TODO: Does Jellyfin support paging here?
-        jellyfin_playlist = await self._client.get_playlist(prov_playlist_id)
         playlist_items = (
-            await self._client.tracks.parent(jellyfin_playlist[ITEM_KEY_ID])
+            await self._client.tracks.parent(prov_playlist_id)
             .enable_userdata()
             .fields(*TRACK_FIELDS)
             .request()

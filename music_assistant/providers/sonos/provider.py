@@ -30,7 +30,7 @@ from music_assistant.constants import (
     VERBOSE_LOG_LEVEL,
     create_sample_rates_config_entry,
 )
-from music_assistant.helpers.tags import parse_tags
+from music_assistant.helpers.tags import async_parse_tags
 from music_assistant.models.player_provider import PlayerProvider
 
 from .const import CONF_AIRPLAY_MODE
@@ -320,7 +320,7 @@ class SonosPlayerProvider(PlayerProvider):
         # Wait until the announcement is finished playing
         # This is helpful for people who want to play announcements in a sequence
         # yeah we can also setup a subscription on the sonos player for this, but this is easier
-        media_info = await parse_tags(announcement.uri)
+        media_info = await async_parse_tags(announcement.uri)
         duration = media_info.duration or 10
         await asyncio.sleep(duration)
 

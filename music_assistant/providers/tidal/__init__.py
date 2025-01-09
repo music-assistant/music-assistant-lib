@@ -47,7 +47,7 @@ from tidalapi import Track as TidalTrack
 from tidalapi import exceptions as tidal_exceptions
 
 from music_assistant.helpers.auth import AuthenticationHelper
-from music_assistant.helpers.tags import AudioTags, parse_tags
+from music_assistant.helpers.tags import AudioTags, async_parse_tags
 from music_assistant.helpers.throttle_retry import ThrottlerManager, throttle_with_retries
 from music_assistant.models.music_provider import MusicProvider
 
@@ -939,7 +939,7 @@ class TidalProvider(MusicProvider):
             media_info = AudioTags.parse(cached_info)
         else:
             # parse info with ffprobe (and store in cache)
-            media_info = await parse_tags(url)
+            media_info = await async_parse_tags(url)
             await self.mass.cache.set(
                 item_id,
                 media_info.raw,
