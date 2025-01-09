@@ -11,6 +11,7 @@ from music_assistant_models.enums import (
     ContentType,
     ImageType,
     LinkType,
+    MediaType,
     ProviderFeature,
     StreamType,
 )
@@ -21,7 +22,6 @@ from music_assistant_models.media_items import (
     MediaItemImage,
     MediaItemLink,
     MediaItemType,
-    MediaType,
     ProviderMapping,
     Radio,
     SearchResults,

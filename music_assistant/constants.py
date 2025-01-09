@@ -3,11 +3,8 @@
 import pathlib
 from typing import Final
 
-from music_assistant_models.config_entries import (
-    ConfigEntry,
-    ConfigEntryType,
-    ConfigValueOption,
-)
+from music_assistant_models.config_entries import ConfigEntry, ConfigValueOption
+from music_assistant_models.enums import ConfigEntryType
 
 API_SCHEMA_VERSION: Final[int] = 26
 MIN_SCHEMA_VERSION: Final[int] = 24
