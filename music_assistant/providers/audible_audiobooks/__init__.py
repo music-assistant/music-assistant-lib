@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import webbrowser
 from collections.abc import AsyncGenerator
+from logging import getLevelName
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
@@ -112,9 +113,9 @@ async def get_config_entries(
         webbrowser.open_new_tab(login_url)
 
     if action == CONF_ACTION_VERIFY:
-        code_verifier = values.get(CONF_CODE_VERIFIER)
-        serial = values.get(CONF_SERIAL)
-        post_login_url = values.get(CONF_POST_LOGIN_URL)
+        code_verifier = str(values.get(CONF_CODE_VERIFIER))
+        serial = str(values.get(CONF_SERIAL))
+        post_login_url = str(values.get(CONF_POST_LOGIN_URL))
         storage_path = mass.storage_path
         auth = audible_custom_login(code_verifier, post_login_url, serial, locale)
         auth_file_path = os.path.join(storage_path, f"audible_auth_{uuid4().hex}.json")
@@ -210,15 +211,13 @@ async def get_config_entries(
 class Audibleprovider(MusicProvider):
     """Implementation of a Audible Audiobook Provider."""
 
-    helper: AudibleHelper
-
     def __init__(self, mass: MusicAssistant, manifest: ProviderManifest, config: ProviderConfig):
         """Initialize the Audible Audiobook Provider."""
         super().__init__(mass, manifest, config)
         self.locale = self.config.get_value(CONF_LOCALE) or "us"
         self.auth_file = self.config.get_value(CONF_AUTH_FILE)
         self._client: audible.AsyncClient | None = None
-        audible.log_helper.set_level(config.get_value("log_level"))
+        audible.log_helper.set_level(getLevelName(self.logger.level))
 
     async def handle_async_init(self) -> None:
         """Handle asynchronous initialization of the provider."""
@@ -246,7 +245,7 @@ class Audibleprovider(MusicProvider):
     @property
     def supported_features(self) -> set[ProviderFeature]:
         """Return the features supported by this Provider."""
-        return (ProviderFeature.BROWSE, ProviderFeature.LIBRARY_AUDIOBOOKS)
+        return {ProviderFeature.BROWSE, ProviderFeature.LIBRARY_AUDIOBOOKS}
 
     @property
     def is_streaming_provider(self) -> bool:
@@ -270,7 +269,10 @@ class Audibleprovider(MusicProvider):
         return await self.helper.get_stream(asin=item_id)
 
     async def on_streamed(
-        self, streamdetails: StreamDetails, seconds_streamed: int, fully_played: bool
+        self,
+        streamdetails: StreamDetails,
+        seconds_streamed: int,
+        fully_played: bool = False,
     ) -> None:
         """Handle callback when an item completed streaming."""
         await self.helper.set_last_position(streamdetails.item_id, seconds_streamed)

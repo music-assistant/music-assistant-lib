@@ -4,6 +4,7 @@ import hashlib
 import html
 import json
 import re
+from collections.abc import AsyncGenerator
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
@@ -30,18 +31,13 @@ from music_assistant_models.streamdetails import StreamDetails
 from music_assistant.mass import MusicAssistant
 
 CACHE_DOMAIN = "audible"
-CACHE_CATEGORY_API = "api"
-CACHE_CATEGORY_AUDIOBOOK = "audiobook"
-CACHE_CATEGORY_CHAPTERS = "chapters"
+CACHE_CATEGORY_API = 0
+CACHE_CATEGORY_AUDIOBOOK = 1
+CACHE_CATEGORY_CHAPTERS = 2
 
 
 class AudibleHelper:
     """Helper for parsing and using audible api."""
-
-    mass: MusicAssistant
-    client: AsyncClient
-    provider_domain: str
-    provider_instance: str
 
     def __init__(
         self,
@@ -56,7 +52,7 @@ class AudibleHelper:
         self.provider_domain = provider_domain
         self.provider_instance = provider_instance
 
-    async def get_library(self):
+    async def get_library(self) -> AsyncGenerator[Audiobook, None]:
         """Fetch the user's library with pagination."""
         response_groups = [
             "contributors",
@@ -102,7 +98,7 @@ class AudibleHelper:
 
             page += 1
 
-    async def get_audiobook(self, asin: str, use_cache=True) -> Audiobook:
+    async def get_audiobook(self, asin: str, use_cache: bool = True) -> Audiobook:
         """Fetch the audiobook by asin."""
         if use_cache:
             cached_book = await self.mass.cache.get(
@@ -171,7 +167,7 @@ class AudibleHelper:
             data={"acr": acr},
         )
 
-    async def _fetch_chapters(self, asin: str):
+    async def _fetch_chapters(self, asin: str) -> Any:
         chapters_data: list[Any] = await self.mass.cache.get(
             base_key=CACHE_DOMAIN, category=CACHE_CATEGORY_CHAPTERS, key=asin, default=[]
         )
@@ -190,25 +186,25 @@ class AudibleHelper:
             )
         return chapters_data
 
-    async def get_last_postion(self, asin):
+    async def get_last_postion(self, asin: str) -> int:
         """Fetch last position of asin."""
         response = await self._call_api("annotations/lastpositions", asins=asin)
-        return (
+        return int(
             response.get("asin_last_position_heard_annots")[0]
             .get("last_position_heard")
-            .get("position_ms")
+            .get("position_ms", 0)
         )
 
-    async def set_last_position(self, asin: str, pos: int):
+    async def set_last_position(self, asin: str, pos: int) -> Any:
         """Report last position."""
 
-    async def _call_api(self: str, path: str, **kwargs):
+    async def _call_api(self, path: str, **kwargs: Any) -> Any:
         params_str = json.dumps(kwargs, sort_keys=True)
         params_hash = hashlib.md5(params_str.encode()).hexdigest()
         cache_key_with_params = f"{path}:{params_hash}"
 
         response = await self.mass.cache.get(
-            key=cache_key_with_params, base_key=CACHE_DOMAIN, category="api"
+            key=cache_key_with_params, base_key=CACHE_DOMAIN, category=CACHE_CATEGORY_API
         )
         if not response:
             response = await self.client.get(path, **kwargs)
@@ -217,7 +213,7 @@ class AudibleHelper:
             )
         return response
 
-    async def _parse_audiobook(self, audiobook_data) -> Audiobook:
+    async def _parse_audiobook(self, audiobook_data: Any) -> Audiobook:
         asin = audiobook_data.get("asin")
         title = audiobook_data.get("title")
         authors = []
@@ -251,11 +247,10 @@ class AudibleHelper:
         reviews = audiobook_data.get("editorial_reviews", [])
         if reviews:
             book.metadata.review = _html_to_txt(reviews[0])
-        # book.metadata.preview = ""
-        book.metadata.genres = [
+        book.metadata.genres = {
             genre.replace("_", " ") for genre in audiobook_data.get("platinum_keywords")
-        ]
-        book.metadata.images = [
+        }
+        book.metadata.images = UniqueList[
             MediaItemImage(
                 type=ImageType.THUMB,
                 path=audiobook_data.get("product_images").get("500"),
@@ -283,12 +278,12 @@ class AudibleHelper:
         book.resume_position_ms = await self.get_last_postion(asin=asin)
         return book
 
-    def deregister(self):
+    def deregister(self) -> None:
         """Deregister this provider from Audible."""
         self.client.auth.deregister_device()
 
 
-def _html_to_txt(html_text):
+def _html_to_txt(html_text: str) -> str:
     txt = html.unescape(html_text)
     tags = re.findall("<[^>]+>", txt)
     for tag in tags:
@@ -299,8 +294,18 @@ def _html_to_txt(html_text):
 # Audible Authorization
 
 
-def audible_get_auth_info(locale):
-    """Generate the login URL and return code_verifier and serial."""
+def audible_get_auth_info(locale: str) -> tuple[str, str, str]:
+    """
+    Generate the login URL and auth info for Audible OAuth flow.
+
+    Args:
+        locale: The locale string (e.g., 'us', 'uk', 'de') to determine region settings
+    Returns:
+        A tuple containing:
+            - code_verifier (str): The OAuth code verifier string
+            - oauth_url (str): The complete OAuth URL for login
+            - serial (str): The generated device serial number
+    """
     locale_obj = audible.localization.Locale(locale)
     code_verifier = audible.login.create_code_verifier()
     # Build OAuth URL
@@ -314,21 +319,40 @@ def audible_get_auth_info(locale):
     return code_verifier.decode(), oauth_url, serial
 
 
-def audible_custom_login(code_verifier, response_url, serial, locale):
-    """Complete the authentication using the code_verifier, response_url, and serial."""
+def audible_custom_login(
+    code_verifier: str, response_url: str, serial: str, locale: str
+) -> audible.Authenticator:
+    """
+    Complete the authentication using the code_verifier, response_url, and serial.
+
+    Args:
+        code_verifier: The code verifier string used in OAuth flow
+        response_url: The response URL containing the authorization code
+        serial: The device serial number
+        locale: The locale string
+    Returns:
+        Audible Authenticator object
+    Raises:
+        LoginFailed: If authorization code is not found in the URL
+    """
     auth = audible.Authenticator()
     auth.locale = audible.localization.Locale(locale)
     response_url_parsed = urlparse(response_url)
     parsed_qs = parse_qs(response_url_parsed.query)
-    authorization_code = parsed_qs.get("openid.oa2.authorization_code")
-    if not authorization_code:
+
+    authorization_codes = parsed_qs.get("openid.oa2.authorization_code")
+    if not authorization_codes:
         raise LoginFailed("Authorization code not found in the provided URL.")
-    authorization_code = authorization_code[0]
+
+    # Get the first authorization code from the list
+    authorization_code = authorization_codes[0]
+
     registration_data = audible.register.register(
-        authorization_code=authorization_code,
+        authorization_code=authorization_code,  # Now passing a single string
         code_verifier=code_verifier.encode(),
         domain=auth.locale.domain,
         serial=serial,
     )
+
     auth._update_attrs(**registration_data)
     return auth
