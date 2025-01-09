@@ -30,8 +30,6 @@ def get_model_info(info: AsyncServiceInfo) -> tuple[str, str]:
         return (manufacturer, model)
     # try parse from am property
     if am_property := info.decoded_properties.get("am"):
-        if isinstance(am_property, bytes):
-            am_property = am_property.decode("utf-8")
         model = am_property
 
     if not model:
