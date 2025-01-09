@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 import webbrowser
-from collections.abc import AsyncGenerator, Sequence
+from collections.abc import AsyncGenerator
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
@@ -26,11 +26,7 @@ from music_assistant.providers.audible_audiobooks.audible_helper import (
 )
 
 if TYPE_CHECKING:
-    from music_assistant_models.media_items import (
-        Audiobook,
-        ItemMapping,
-        MediaItemType,
-    )
+    from music_assistant_models.media_items import Audiobook
     from music_assistant_models.provider import ProviderManifest
     from music_assistant_models.streamdetails import StreamDetails
 
@@ -74,21 +70,45 @@ async def get_config_entries(
         values = {}
 
     locale = values.get("locale") or "us"
+    auth_file = values.get(CONF_AUTH_FILE)
+
+    # Check if auth file exists and is valid
+    auth_required = True
+    if auth_file and os.path.exists(auth_file):
+        try:
+            auth = audible.Authenticator.from_file(auth_file)
+            auth_required = False
+        except Exception:
+            auth_required = True
+
+    # Show authentication instructions only if no valid auth file exists
     label_text = (
-        "You need to authenticate with Audible. Click the authenticate button below "
-        "to start the authentication process which will open in a new (popup) window, "
-        "so make sure to disable any popup blockers.\n\n"
-        "NOTE: \n"
-        "After successful login you will get a 'page not found' message - this is expected. "
-        "Copy the address to the textbox below and press verify. "
-        "This will register this provider as a virtual device with Audible."
+        (
+            "You need to authenticate with Audible. Click the authenticate button below "
+            "to start the authentication process which will open in a new (popup) window, "
+            "so make sure to disable any popup blockers.\n\n"
+            "NOTE: \n"
+            "After successful login you will get a 'page not found' message - this is expected. "
+            "Copy the address to the textbox below and press verify. "
+            "This will register this provider as a virtual device with Audible."
+        )
+        if auth_required
+        else (
+            "Successfully authenticated with Audible."
+            "\nNote: Changing marketplace needs new authorization"
+        )
     )
 
     if action == CONF_ACTION_AUTH:
+        if auth_file and os.path.exists(auth_file):
+            os.remove(auth_file)
+            values[CONF_AUTH_FILE] = None
+            auth_file = None
         code_verifier, login_url, serial = audible_get_auth_info(locale)
         values[CONF_CODE_VERIFIER] = code_verifier
         values[CONF_SERIAL] = serial
         values[CONF_LOGIN_URL] = login_url
+        values[CONF_AUTH_FILE] = login_url
         webbrowser.open_new_tab(login_url)
 
     if action == CONF_ACTION_VERIFY:
@@ -101,7 +121,7 @@ async def get_config_entries(
         auth.to_file(auth_file_path)
         values[CONF_AUTH_FILE] = auth_file_path
 
-    config_entries = [
+    return (
         ConfigEntry(
             key="label_text",
             type=ConfigEntryType.LABEL,
@@ -132,7 +152,7 @@ async def get_config_entries(
         ConfigEntry(
             key=CONF_ACTION_AUTH,
             type=ConfigEntryType.ACTION,
-            label="Authenticate with Audible",
+            label="(Re)Authenticate with Audible",
             description="This button will redirect you to Audible to authenticate.",
             action=CONF_ACTION_AUTH,
         ),
@@ -142,6 +162,7 @@ async def get_config_entries(
             label="Post Login Url",
             required=False,
             value=values.get(CONF_POST_LOGIN_URL),
+            hidden=not auth_required,
         ),
         ConfigEntry(
             key=CONF_ACTION_VERIFY,
@@ -149,6 +170,7 @@ async def get_config_entries(
             label="Verify Audible URL",
             description="This button will check the url and register this provider.",
             action=CONF_ACTION_VERIFY,
+            hidden=not auth_required,
         ),
         ConfigEntry(
             key=CONF_CODE_VERIFIER,
@@ -182,8 +204,7 @@ async def get_config_entries(
             required=True,
             value=values.get(CONF_AUTH_FILE),
         ),
-    ]
-    return tuple(config_entries)
+    )
 
 
 class Audibleprovider(MusicProvider):
@@ -263,22 +284,3 @@ class Audibleprovider(MusicProvider):
         """
         if is_removed:
             self.helper.deregister()
-
-    async def resolve_image(self, path: str) -> str | bytes:
-        """
-        Resolve an image from an image path.
-
-        This either returns (a generator to get) raw bytes of the image or
-        a string with an http(s) URL or local path that is accessible from the server.
-        """
-        return path
-
-    async def browse(self, path: str) -> Sequence[MediaItemType | ItemMapping]:
-        """Browse this provider's items.
-
-        :param path: The path to browse, (e.g. provider_id://artists).
-        """
-        audiobooks = []
-        async for audiobook in self.get_library_audiobooks():
-            audiobooks.append(audiobook)
-        return audiobooks
