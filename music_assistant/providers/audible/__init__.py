@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import os
 import webbrowser
 from collections.abc import AsyncGenerator
@@ -20,7 +21,7 @@ from music_assistant_models.enums import ConfigEntryType, MediaType, ProviderFea
 from music_assistant_models.errors import LoginFailed
 
 from music_assistant.models.music_provider import MusicProvider
-from music_assistant.providers.audible_audiobooks.audible_helper import (
+from music_assistant.providers.audible.audible_helper import (
     AudibleHelper,
     audible_custom_login,
     audible_get_auth_info,
@@ -75,14 +76,12 @@ async def get_config_entries(
 
     # Check if auth file exists and is valid
     auth_required = True
-    if auth_file and os.path.exists(auth_file):
+    if auth_file and await asyncio.to_thread(os.path.exists, auth_file):
         try:
-            auth = audible.Authenticator.from_file(auth_file)
+            auth = await asyncio.to_thread(audible.Authenticator.from_file, auth_file)
             auth_required = False
         except Exception:
             auth_required = True
-
-    # Show authentication instructions only if no valid auth file exists
     label_text = (
         (
             "You need to authenticate with Audible. Click the authenticate button below "
@@ -101,15 +100,15 @@ async def get_config_entries(
     )
 
     if action == CONF_ACTION_AUTH:
-        if auth_file and os.path.exists(auth_file):
-            os.remove(auth_file)
+        if auth_file and await asyncio.to_thread(os.path.exists, auth_file):
+            await asyncio.to_thread(os.remove, auth_file)
             values[CONF_AUTH_FILE] = None
             auth_file = None
-        code_verifier, login_url, serial = audible_get_auth_info(locale)
+
+        code_verifier, login_url, serial = await audible_get_auth_info(locale)
         values[CONF_CODE_VERIFIER] = code_verifier
         values[CONF_SERIAL] = serial
         values[CONF_LOGIN_URL] = login_url
-        values[CONF_AUTH_FILE] = login_url
         webbrowser.open_new_tab(login_url)
 
     if action == CONF_ACTION_VERIFY:
@@ -117,10 +116,12 @@ async def get_config_entries(
         serial = str(values.get(CONF_SERIAL))
         post_login_url = str(values.get(CONF_POST_LOGIN_URL))
         storage_path = mass.storage_path
-        auth = audible_custom_login(code_verifier, post_login_url, serial, locale)
+
+        auth = await audible_custom_login(code_verifier, post_login_url, serial, locale)
         auth_file_path = os.path.join(storage_path, f"audible_auth_{uuid4().hex}.json")
-        auth.to_file(auth_file_path)
+        await asyncio.to_thread(auth.to_file, auth_file_path)
         values[CONF_AUTH_FILE] = auth_file_path
+        auth_required = False
 
     return (
         ConfigEntry(
@@ -132,7 +133,7 @@ async def get_config_entries(
             key=CONF_LOCALE,
             type=ConfigEntryType.STRING,
             label="Marketplace",
-            hidden=False,
+            hidden=not auth_required,
             required=True,
             value=locale,
             options=(
@@ -211,7 +212,9 @@ async def get_config_entries(
 class Audibleprovider(MusicProvider):
     """Implementation of a Audible Audiobook Provider."""
 
-    def __init__(self, mass: MusicAssistant, manifest: ProviderManifest, config: ProviderConfig) -> None:
+    def __init__(
+        self, mass: MusicAssistant, manifest: ProviderManifest, config: ProviderConfig
+    ) -> None:
         """Initialize the Audible Audiobook Provider."""
         super().__init__(mass, manifest, config)
         self.locale = self.config.get_value(CONF_LOCALE) or "us"
@@ -226,18 +229,23 @@ class Audibleprovider(MusicProvider):
     async def _login(self) -> None:
         """Authenticate with Audible using the saved authentication file."""
         try:
-            auth = audible.Authenticator.from_file(self.auth_file)
+            auth = await asyncio.to_thread(audible.Authenticator.from_file, self.auth_file)
+
             if auth.access_token_expired:
-                auth.refresh_access_token()
-                auth.to_file(self.auth_file)
+                await asyncio.to_thread(auth.refresh_access_token)
+                await asyncio.to_thread(auth.to_file, self.auth_file)
+
             self._client = audible.AsyncClient(auth)
+
             self.helper = AudibleHelper(
                 mass=self.mass,
                 client=self._client,
                 provider_instance=self.instance_id,
                 provider_domain=self.domain,
             )
+
             self.logger.info("Successfully authenticated with Audible.")
+
         except Exception as e:
             self.logger.error(f"Failed to authenticate with Audible: {e}")
             raise LoginFailed("Failed to authenticate with Audible.")
@@ -254,7 +262,6 @@ class Audibleprovider(MusicProvider):
 
     async def get_library_audiobooks(self) -> AsyncGenerator[Audiobook, None]:
         """Get all audiobooks from the library."""
-        # Convert to async generator by using async yield
         async for audiobook in self.helper.get_library():
             yield audiobook
 
@@ -285,4 +292,4 @@ class Audibleprovider(MusicProvider):
         is_removed will be set to True when the provider is removed from the configuration.
         """
         if is_removed:
-            self.helper.deregister()
+            await self.helper.deregister()

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import html
 import json
@@ -254,20 +255,22 @@ class AudibleHelper:
         book.metadata.genres = {
             genre.replace("_", " ") for genre in audiobook_data.get("platinum_keywords", "")
         }
-        book.metadata.images = UniqueList[
-            MediaItemImage(
-                type=ImageType.THUMB,
-                path=audiobook_data.get("product_images", {}).get("500"),
-                provider=self.provider_instance,
-                remotely_accessible=True,
-            ),
-            MediaItemImage(
-                type=ImageType.CLEARART,
-                path=audiobook_data.get("product_images", {}).get("500"),
-                provider=self.provider_instance,
-                remotely_accessible=True,
-            ),
-        ]
+        book.metadata.images = UniqueList(
+            [
+                MediaItemImage(
+                    type=ImageType.THUMB,
+                    path=audiobook_data.get("product_images", {}).get("500"),
+                    provider=self.provider_instance,
+                    remotely_accessible=True,
+                ),
+                MediaItemImage(
+                    type=ImageType.CLEARART,
+                    path=audiobook_data.get("product_images", {}).get("500"),
+                    provider=self.provider_instance,
+                    remotely_accessible=True,
+                ),
+            ]
+        )
 
         chapters = []
         for index, chapter_data in enumerate(chapters_data):
@@ -282,9 +285,9 @@ class AudibleHelper:
         book.resume_position_ms = await self.get_last_postion(asin=asin)
         return book
 
-    def deregister(self) -> None:
+    async def deregister(self) -> None:
         """Deregister this provider from Audible."""
-        self.client.auth.deregister_device()
+        await asyncio.to_thread(self.client.auth.deregister_device)
 
 
 def _html_to_txt(html_text: str) -> str:
@@ -296,38 +299,42 @@ def _html_to_txt(html_text: str) -> str:
 
 
 # Audible Authorization
-
-
-def audible_get_auth_info(locale: str) -> tuple[str, str, str]:
+async def audible_get_auth_info(locale: str) -> tuple[str, str, str]:
     """
-    Generate the login URL and auth info for Audible OAuth flow.
+    Generate the login URL and auth info for Audible OAuth flow asynchronously.
 
     Args:
         locale: The locale string (e.g., 'us', 'uk', 'de') to determine region settings
     Returns:
         A tuple containing:
-            - code_verifier (str): The OAuth code verifier string
-            - oauth_url (str): The complete OAuth URL for login
-            - serial (str): The generated device serial number
+        - code_verifier (str): The OAuth code verifier string
+        - oauth_url (str): The complete OAuth URL for login
+        - serial (str): The generated device serial number
     """
+    # Create locale object (not I/O operation)
     locale_obj = audible.localization.Locale(locale)
-    code_verifier = audible.login.create_code_verifier()
-    # Build OAuth URL
-    oauth_url, serial = audible.login.build_oauth_url(
+
+    # Create code verifier (potential crypto operations)
+    code_verifier = await asyncio.to_thread(audible.login.create_code_verifier)
+
+    # Build OAuth URL (potential network operations)
+    oauth_url, serial = await asyncio.to_thread(
+        audible.login.build_oauth_url,
         country_code=locale_obj.country_code,
         domain=locale_obj.domain,
         market_place_id=locale_obj.market_place_id,
         code_verifier=code_verifier,
         with_username=False,
     )
+
     return code_verifier.decode(), oauth_url, serial
 
 
-def audible_custom_login(
+async def audible_custom_login(
     code_verifier: str, response_url: str, serial: str, locale: str
 ) -> audible.Authenticator:
     """
-    Complete the authentication using the code_verifier, response_url, and serial.
+    Complete the authentication using the code_verifier, response_url, and serial asynchronously.
 
     Args:
         code_verifier: The code verifier string used in OAuth flow
@@ -341,6 +348,8 @@ def audible_custom_login(
     """
     auth = audible.Authenticator()
     auth.locale = audible.localization.Locale(locale)
+
+    # URL parsing (not I/O operation)
     response_url_parsed = urlparse(response_url)
     parsed_qs = parse_qs(response_url_parsed.query)
 
@@ -351,8 +360,10 @@ def audible_custom_login(
     # Get the first authorization code from the list
     authorization_code = authorization_codes[0]
 
-    registration_data = audible.register.register(
-        authorization_code=authorization_code,  # Now passing a single string
+    # Register device (network operation)
+    registration_data = await asyncio.to_thread(
+        audible.register.register,
+        authorization_code=authorization_code,
         code_verifier=code_verifier.encode(),
         domain=auth.locale.domain,
         serial=serial,
