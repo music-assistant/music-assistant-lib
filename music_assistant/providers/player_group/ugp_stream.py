@@ -32,10 +32,12 @@ class UGPStream:
         self,
         audio_source: AsyncGenerator[bytes, None],
         audio_format: AudioFormat,
+        base_pcm_format: AudioFormat,
     ) -> None:
         """Initialize UGP Stream."""
         self.audio_source = audio_source
         self.input_format = audio_format
+        self.base_pcm_format = base_pcm_format
         self.subscribers: list[Callable[[bytes], Awaitable]] = []
         self._task: asyncio.Task | None = None
         self._done: asyncio.Event = asyncio.Event()
@@ -57,7 +59,7 @@ class UGPStream:
         """
         Subscribe to the raw/unaltered audio stream.
 
-        The returned stream has the format `self.input_format`.
+        The returned stream has the format `self.base_pcm_format`.
         """
         # start the runner as soon as the (first) client connects
         if not self._task:
@@ -82,7 +84,7 @@ class UGPStream:
         # start the runner as soon as the (first) client connects
         async for chunk in get_ffmpeg_stream(
             audio_input=self.subscribe_raw(),
-            input_format=self.input_format,
+            input_format=self.base_pcm_format,
             output_format=output_format,
             filter_params=filter_params,
         ):
@@ -94,7 +96,7 @@ class UGPStream:
         async for chunk in get_ffmpeg_stream(
             audio_input=self.audio_source,
             input_format=self.input_format,
-            output_format=self.input_format,
+            output_format=self.base_pcm_format,
             # we don't allow the player to buffer too much ahead so we use readrate limiting
             extra_input_args=["-readrate", "1.1", "-readrate_initial_burst", "10"],
         ):

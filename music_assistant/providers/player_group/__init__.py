@@ -454,7 +454,9 @@ class PlayerGroupProvider(PlayerProvider):
             )
 
         # start the stream task
-        self.ugp_streams[player_id] = UGPStream(audio_source=audio_source, audio_format=UGP_FORMAT)
+        self.ugp_streams[player_id] = UGPStream(
+            audio_source=audio_source, audio_format=UGP_FORMAT, base_pcm_format=UGP_FORMAT
+        )
         base_url = f"{self.mass.streams.base_url}/ugp/{player_id}.mp3"
 
         # set the state optimistically
