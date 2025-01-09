@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 from aiojellyfin import MediaLibrary as JellyMediaLibrary
 from aiojellyfin import NotFound, authenticate_by_name
 from aiojellyfin import Track as JellyTrack
-from aiojellyfin.sessionn import SessionConfiguration
+from aiojellyfin.session import SessionConfiguration
 from music_assistant_models.config_entries import ConfigEntry, ConfigValueType, ProviderConfig
 from music_assistant_models.enums import (
     ConfigEntryType,
