@@ -92,10 +92,10 @@ max-statements = 50
 
 [tool.mypy]
 platform = "linux"
-python_version = "3.11"
+python_version = "3.12"
 
 # show error messages from unrelated files
-follow_imports = "normal"
+follow_imports = "silent"
 
 # suppress errors about unsatisfied imports
 ignore_missing_imports = true
@@ -117,6 +117,34 @@ warn_redundant_casts = true
 warn_return_any = true
 warn_unused_configs = true
 warn_unused_ignores = true
+show_error_codes = true
+local_partial_types = true
+strict_equality = true
+enable_error_code = [
+    "ignore-without-code",
+    "redundant-self",
+    "truthy-iterable",
+]
+disable_error_code = [
+    "annotation-unchecked",
+    "import-not-found",
+    "import-untyped"
+]
+extra_checks = false
+warn_unreachable = true
+packages = [
+    "tests",
+    "music_assistant.providers.builtin",
+    "music_assistant.providers.filesystem_local",
+    "music_assistant.providers.filesystem_smb",
+    "music_assistant.providers.fully_kiosk",
+    "music_assistant.providers.jellyfin",
+    "music_assistant.providers.plex",
+    "music_assistant.providers.radiobrowser",
+    "music_assistant.providers.test",
+    "music_assistant.providers.theaudiodb",
+    "music_assistant.providers.tidal"
+]
 
 [tool.ruff.format]
 # Force Linux/MacOS line endings

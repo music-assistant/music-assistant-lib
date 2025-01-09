@@ -7,7 +7,7 @@ import pytest
 from aiojellyfin.testing import FixtureBuilder
 from music_assistant_models.config_entries import ProviderConfig
 
-from music_assistant import MusicAssistant
+from music_assistant.mass import MusicAssistant
 from tests.common import get_fixtures_dir, wait_for_sync_completion
 
 

@@ -82,7 +82,7 @@ if TYPE_CHECKING:
     from tidalapi.media import Lyrics as TidalLyrics
     from tidalapi.media import Stream as TidalStream
 
-    from music_assistant import MusicAssistant
+    from music_assistant.mass import MusicAssistant
     from music_assistant.models import ProviderInstanceType
 
 TOKEN_TYPE = "Bearer"

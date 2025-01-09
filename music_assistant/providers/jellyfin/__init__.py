@@ -10,8 +10,10 @@ from collections.abc import AsyncGenerator
 from typing import TYPE_CHECKING
 
 from aiojellyfin import MediaLibrary as JellyMediaLibrary
-from aiojellyfin import NotFound, SessionConfiguration, authenticate_by_name
+from aiojellyfin import NotFound
 from aiojellyfin import Track as JellyTrack
+from aiojellyfin import authenticate_by_name
+from aiojellyfin.sessionn import SessionConfiguration
 from music_assistant_models.config_entries import ConfigEntry, ConfigValueType, ProviderConfig
 from music_assistant_models.enums import (
     ConfigEntryType,
@@ -32,8 +34,8 @@ from music_assistant_models.media_items import (
 )
 from music_assistant_models.streamdetails import StreamDetails
 
-from music_assistant import MusicAssistant
 from music_assistant.constants import UNKNOWN_ARTIST_ID_MBID
+from music_assistant.mass import MusicAssistant
 from music_assistant.models import ProviderInstanceType
 from music_assistant.models.music_provider import MusicProvider
 from music_assistant.providers.jellyfin.parsers import (

@@ -2,6 +2,7 @@
 
 import pathlib
 
+from music_assistant.constants import UNKNOWN_ARTIST
 from music_assistant.helpers import tags
 
 RESOURCES_DIR = pathlib.Path(__file__).parent.parent.resolve().joinpath("fixtures")
@@ -67,7 +68,7 @@ async def test_parse_metadata_from_invalid_filename() -> None:
     assert _tags.title == "test"
     assert _tags.duration == 1.032
     assert _tags.album_artists == ()
-    assert _tags.artists == (tags.UNKNOWN_ARTIST,)
+    assert _tags.artists == (UNKNOWN_ARTIST,)
     assert _tags.genres == ()
     assert _tags.musicbrainz_albumartistids == ()
     assert _tags.musicbrainz_artistids == ()
