@@ -1,6 +1,6 @@
 {
   "type": "music",
-  "domain": "audible_audiobooks",
+  "domain": "audible",
   "name": "Audible",
   "description": "Audible provider",
   "codeowners": ["@ztripez"],
