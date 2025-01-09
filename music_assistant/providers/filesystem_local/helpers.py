@@ -5,7 +5,6 @@ from __future__ import annotations
 import os
 import re
 from dataclasses import dataclass
-from typing import AnyStr
 
 from music_assistant.helpers.compare import compare_strings
 
