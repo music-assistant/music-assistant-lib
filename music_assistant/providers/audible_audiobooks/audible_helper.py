@@ -213,9 +213,9 @@ class AudibleHelper:
             )
         return response
 
-    async def _parse_audiobook(self, audiobook_data: Any) -> Audiobook:
-        asin = audiobook_data.get("asin")
-        title = audiobook_data.get("title")
+    async def _parse_audiobook(self, audiobook_data: dict[str, Any]) -> Audiobook:
+        asin = audiobook_data.get("asin", "")
+        title = audiobook_data.get("title", "")
         authors = []
         narrators = []
         for narrator in audiobook_data.get("narrators", []):
@@ -241,25 +241,27 @@ class AudibleHelper:
             narrators=UniqueList(narrators),
         )
         book.metadata.copyright = audiobook_data.get("copyright")
-        book.metadata.description = _html_to_txt(audiobook_data.get("extended_product_description"))
+        book.metadata.description = _html_to_txt(
+            audiobook_data.get("extended_product_description", "")
+        )
         book.metadata.languages = [audiobook_data.get("language")]
         book.metadata.release_date = audiobook_data.get("release_date")
         reviews = audiobook_data.get("editorial_reviews", [])
         if reviews:
             book.metadata.review = _html_to_txt(reviews[0])
         book.metadata.genres = {
-            genre.replace("_", " ") for genre in audiobook_data.get("platinum_keywords")
+            genre.replace("_", " ") for genre in audiobook_data.get("platinum_keywords", "")
         }
         book.metadata.images = UniqueList[
             MediaItemImage(
                 type=ImageType.THUMB,
-                path=audiobook_data.get("product_images").get("500"),
+                path=audiobook_data.get("product_images", {}).get("500"),
                 provider=self.provider_instance,
                 remotely_accessible=True,
             ),
             MediaItemImage(
                 type=ImageType.CLEARART,
-                path=audiobook_data.get("product_images").get("500"),
+                path=audiobook_data.get("product_images", {}).get("500"),
                 provider=self.provider_instance,
                 remotely_accessible=True,
             ),
@@ -267,8 +269,8 @@ class AudibleHelper:
 
         chapters = []
         for index, chapter_data in enumerate(chapters_data):
-            start = int(chapter_data.get("start_offset_sec"))
-            length = int(chapter_data.get("length_ms")) / 1000
+            start = int(chapter_data.get("start_offset_sec", 0))
+            length = int(chapter_data.get("length_ms", 0)) / 1000
             chapters.append(
                 MediaItemChapter(
                     position=index, name=chapter_data.get("title"), start=start, end=start + length
