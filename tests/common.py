@@ -9,7 +9,7 @@ import aiofiles.os
 from music_assistant_models.enums import EventType
 from music_assistant_models.event import MassEvent
 
-from music_assistant import MusicAssistant
+from music_assistant.mass import MusicAssistant
 
 
 def _get_fixture_folder(provider: str | None = None) -> pathlib.Path:

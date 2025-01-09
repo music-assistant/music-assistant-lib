@@ -2,6 +2,7 @@
 
 import pathlib
 
+from music_assistant.constants import UNKNOWN_ARTIST
 from music_assistant.helpers import tags
 
 RESOURCES_DIR = pathlib.Path(__file__).parent.parent.resolve().joinpath("fixtures")
@@ -12,7 +13,7 @@ FILE_1 = str(RESOURCES_DIR.joinpath("MyArtist - MyTitle.mp3"))
 async def test_parse_metadata_from_id3tags() -> None:
     """Test parsing of parsing metadata from ID3 tags."""
     filename = str(RESOURCES_DIR.joinpath("MyArtist - MyTitle.mp3"))
-    _tags = await tags.parse_tags(filename)
+    _tags = await tags.async_parse_tags(filename)
     assert _tags.album == "MyAlbum"
     assert _tags.title == "MyTitle"
     assert _tags.duration == 1.032
@@ -46,7 +47,7 @@ async def test_parse_metadata_from_id3tags() -> None:
 async def test_parse_metadata_from_filename() -> None:
     """Test parsing of parsing metadata from filename."""
     filename = str(RESOURCES_DIR.joinpath("MyArtist - MyTitle without Tags.mp3"))
-    _tags = await tags.parse_tags(filename)
+    _tags = await tags.async_parse_tags(filename)
     assert _tags.album is None
     assert _tags.title == "MyTitle without Tags"
     assert _tags.duration == 1.032
@@ -62,12 +63,12 @@ async def test_parse_metadata_from_filename() -> None:
 async def test_parse_metadata_from_invalid_filename() -> None:
     """Test parsing of parsing metadata from (invalid) filename."""
     filename = str(RESOURCES_DIR.joinpath("test.mp3"))
-    _tags = await tags.parse_tags(filename)
+    _tags = await tags.async_parse_tags(filename)
     assert _tags.album is None
     assert _tags.title == "test"
     assert _tags.duration == 1.032
     assert _tags.album_artists == ()
-    assert _tags.artists == (tags.UNKNOWN_ARTIST,)
+    assert _tags.artists == (UNKNOWN_ARTIST,)
     assert _tags.genres == ()
     assert _tags.musicbrainz_albumartistids == ()
     assert _tags.musicbrainz_artistids == ()

@@ -12,7 +12,7 @@ from plexapi.library import MusicSection as PlexMusicSection
 from plexapi.server import PlexServer
 
 if TYPE_CHECKING:
-    from music_assistant import MusicAssistant
+    from music_assistant.mass import MusicAssistant
 
 
 async def get_libraries(

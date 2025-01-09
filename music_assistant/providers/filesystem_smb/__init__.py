@@ -24,7 +24,7 @@ if TYPE_CHECKING:
     from music_assistant_models.config_entries import ProviderConfig
     from music_assistant_models.provider import ProviderManifest
 
-    from music_assistant import MusicAssistant
+    from music_assistant.mass import MusicAssistant
     from music_assistant.models import ProviderInstanceType
 
 CONF_HOST = "host"
@@ -173,6 +173,11 @@ class SMBFileSystemProvider(LocalFileSystemProvider):
             if subfolder.endswith("/"):
                 subfolder = subfolder[:-1]
 
+        env_vars = {
+            **os.environ,
+            "USER": username,
+        }
+
         if platform.system() == "Darwin":
             # NOTE: MacOS does not support special characters in the username/password
             password_str = f":{password}" if password else ""
@@ -192,10 +197,6 @@ class SMBFileSystemProvider(LocalFileSystemProvider):
 
             # pass the username+password using (scoped) env variables
             # to prevent leaking in the process list and special chars supported
-            env_vars = {
-                **os.environ,
-                "USER": username,
-            }
             if password:
                 env_vars["PASSWD"] = str(password)
 

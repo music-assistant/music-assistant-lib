@@ -6,6 +6,7 @@ import asyncio
 import json
 import logging
 import os
+import subprocess
 from collections.abc import Iterable
 from dataclasses import dataclass
 from json import JSONDecodeError
@@ -380,9 +381,14 @@ class AudioTags:
         return self.tags.get(key, default)
 
 
-async def parse_tags(input_file: str, file_size: int | None = None) -> AudioTags:
+async def async_parse_tags(input_file: str, file_size: int | None = None) -> AudioTags:
+    """Parse tags from a media file (or URL). Async friendly."""
+    return await asyncio.to_thread(parse_tags, input_file, file_size)
+
+
+def parse_tags(input_file: str, file_size: int | None = None) -> AudioTags:
     """
-    Parse tags from a media file (or URL).
+    Parse tags from a media file (or URL). NOT Async friendly.
 
     Input_file may be a (local) filename or URL accessible by ffmpeg.
     """
@@ -402,9 +408,8 @@ async def parse_tags(input_file: str, file_size: int | None = None) -> AudioTags
         "-i",
         input_file,
     )
-    async with AsyncProcess(args, stdin=False, stdout=True) as ffmpeg:
-        res = await ffmpeg.read(-1)
     try:
+        res = subprocess.check_output(args)  # noqa: S603
         data = json.loads(res)
         if error := data.get("error"):
             raise InvalidDataError(error["string"])
@@ -424,12 +429,13 @@ async def parse_tags(input_file: str, file_size: int | None = None) -> AudioTags
             not input_file.startswith("http")
             and input_file.endswith(".mp3")
             and "musicbrainzrecordingid" not in tags.tags
-            and await asyncio.to_thread(os.path.isfile, input_file)
+            and os.path.isfile(input_file)
         ):
             # eyed3 is able to extract the musicbrainzrecordingid from the unique file id
             # this is actually a bug in ffmpeg/ffprobe which does not expose this tag
             # so we use this as alternative approach for mp3 files
-            audiofile = await asyncio.to_thread(eyed3.load, input_file)
+            # TODO: Convert all the tag reading to Mutagen!
+            audiofile = eyed3.load(input_file)
             if audiofile is not None and audiofile.tag is not None:
                 for uf_id in audiofile.tag.unique_file_ids:
                     if uf_id.owner_id == b"http://musicbrainz.org" and uf_id.uniq_id:

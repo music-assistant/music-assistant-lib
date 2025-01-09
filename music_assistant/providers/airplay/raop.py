@@ -54,7 +54,7 @@ class RaopStreamSession:
         self.input_format = input_format
         self._sync_clients = sync_clients
         self._audio_source = audio_source
-        self._audio_source_task: asyncio.Task | None = None
+        self._audio_source_task: asyncio.Task[None] | None = None
         self._stopped: bool = False
         self._lock = asyncio.Lock()
 
@@ -75,14 +75,18 @@ class RaopStreamSession:
                         return
                     async with self._lock:
                         await asyncio.gather(
-                            *[x.raop_stream.write_chunk(chunk) for x in self._sync_clients],
+                            *[
+                                x.raop_stream.write_chunk(chunk)
+                                for x in self._sync_clients
+                                if x.raop_stream
+                            ],
                             return_exceptions=True,
                         )
                 # entire stream consumed: send EOF
                 generator_exhausted = True
                 async with self._lock:
                     await asyncio.gather(
-                        *[x.raop_stream.write_eof() for x in self._sync_clients],
+                        *[x.raop_stream.write_eof() for x in self._sync_clients if x.raop_stream],
                         return_exceptions=True,
                     )
             finally:
@@ -90,12 +94,17 @@ class RaopStreamSession:
                     await close_async_generator(self._audio_source)
 
         # get current ntp and start RaopStream per player
+        assert self.prov.cliraop_bin
         _, stdout = await check_output(self.prov.cliraop_bin, "-ntp")
         start_ntp = int(stdout.strip())
         wait_start = 1500 + (250 * len(self._sync_clients))
         async with self._lock:
             await asyncio.gather(
-                *[x.raop_stream.start(start_ntp, wait_start) for x in self._sync_clients],
+                *[
+                    x.raop_stream.start(start_ntp, wait_start)
+                    for x in self._sync_clients
+                    if x.raop_stream
+                ],
                 return_exceptions=True,
             )
         self._audio_source_task = asyncio.create_task(audio_streamer())
@@ -116,6 +125,7 @@ class RaopStreamSession:
         """Remove a sync client from the session."""
         if airplay_player not in self._sync_clients:
             return
+        assert airplay_player.raop_stream
         assert airplay_player.raop_stream.session == self
         async with self._lock:
             self._sync_clients.remove(airplay_player)
@@ -154,7 +164,7 @@ class RaopStream:
         # with the named pipe used to send audio
         self.active_remote_id: str = str(randint(1000, 8000))
         self.prevent_playback: bool = False
-        self._log_reader_task: asyncio.Task | None = None
+        self._log_reader_task: asyncio.Task[None] | asyncio.Future[None] | None = None
         self._cliraop_proc: AsyncProcess | None = None
         self._ffmpeg_proc: AsyncProcess | None = None
         self._started = asyncio.Event()
@@ -170,6 +180,8 @@ class RaopStream:
         extra_args = []
         player_id = self.airplay_player.player_id
         mass_player = self.mass.players.get(player_id)
+        if not mass_player:
+            return
         bind_ip = await self.mass.config.get_provider_config_value(
             self.prov.instance_id, CONF_BIND_INTERFACE
         )
@@ -240,9 +252,11 @@ class RaopStream:
         self._started.set()
         self._log_reader_task = self.mass.create_task(self._log_watcher())
 
-    async def stop(self):
+    async def stop(self) -> None:
         """Stop playback and cleanup."""
         if self._stopped:
+            return
+        if not self._cliraop_proc:
             return
         if self._cliraop_proc.proc and not self._cliraop_proc.closed:
             await self.send_cli_command("ACTION=STOP")
@@ -259,6 +273,7 @@ class RaopStream:
         if self._stopped:
             return
         await self._started.wait()
+        assert self._ffmpeg_proc
         await self._ffmpeg_proc.write(chunk)
 
     async def write_eof(self) -> None:
@@ -266,6 +281,7 @@ class RaopStream:
         if self._stopped:
             return
         await self._started.wait()
+        assert self._ffmpeg_proc
         await self._ffmpeg_proc.write_eof()
 
     async def send_cli_command(self, command: str) -> None:
@@ -277,7 +293,7 @@ class RaopStream:
         if not command.endswith("\n"):
             command += "\n"
 
-        def send_data():
+        def send_data() -> None:
             with suppress(BrokenPipeError), open(named_pipe, "w") as f:
                 f.write(command)
 
@@ -290,11 +306,15 @@ class RaopStream:
         """Monitor stderr for the running CLIRaop process."""
         airplay_player = self.airplay_player
         mass_player = self.mass.players.get(airplay_player.player_id)
+        if not mass_player:
+            return
         queue = self.mass.player_queues.get_active_queue(mass_player.active_source)
         logger = airplay_player.logger
         lost_packets = 0
         prev_metadata_checksum: str = ""
         prev_progress_report: float = 0
+        if not self._cliraop_proc:
+            return
         async for line in self._cliraop_proc.iter_stderr():
             if "elapsed milliseconds:" in line:
                 # this is received more or less every second while playing

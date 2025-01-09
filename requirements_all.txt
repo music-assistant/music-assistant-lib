@@ -4,7 +4,7 @@ Brotli>=1.0.9
 aiodns>=3.0.0
 aiofiles==24.1.0
 aiohttp==3.11.6
-aiojellyfin==0.10.1
+aiojellyfin==0.11.2
 aiorun==2024.8.1
 aioslimproto==3.1.0
 aiosonos==0.1.7
@@ -22,7 +22,7 @@ faust-cchardet>=2.1.18
 hass-client==1.2.0
 ibroadcastaio==0.3.1
 ifaddr==0.2.0
-mashumaro==3.15
+mashumaro==3.14
 memory-tempfile==2.2.3
 music-assistant-frontend==2.10.4
 music-assistant-models==1.1.9

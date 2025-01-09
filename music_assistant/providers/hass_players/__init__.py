@@ -13,17 +13,8 @@ from enum import IntFlag
 from typing import TYPE_CHECKING, Any
 
 from hass_client.exceptions import FailedCommand
-from music_assistant_models.config_entries import (
-    ConfigEntry,
-    ConfigValueOption,
-    ConfigValueType,
-)
-from music_assistant_models.enums import (
-    ConfigEntryType,
-    PlayerFeature,
-    PlayerState,
-    PlayerType,
-)
+from music_assistant_models.config_entries import ConfigEntry, ConfigValueOption, ConfigValueType
+from music_assistant_models.enums import ConfigEntryType, PlayerFeature, PlayerState, PlayerType
 from music_assistant_models.errors import SetupFailedError
 from music_assistant_models.player import DeviceInfo, Player, PlayerMedia
 
@@ -40,7 +31,7 @@ from music_assistant.constants import (
     create_sample_rates_config_entry,
 )
 from music_assistant.helpers.datetime import from_iso_string
-from music_assistant.helpers.tags import parse_tags
+from music_assistant.helpers.tags import async_parse_tags
 from music_assistant.models.player_provider import PlayerProvider
 from music_assistant.providers.hass import DOMAIN as HASS_DOMAIN
 
@@ -342,7 +333,7 @@ class HomeAssistantPlayers(PlayerProvider):
         )
         # Wait until the announcement is finished playing
         # This is helpful for people who want to play announcements in a sequence
-        media_info = await parse_tags(announcement.uri)
+        media_info = await async_parse_tags(announcement.uri)
         duration = media_info.duration or 5
         await asyncio.sleep(duration)
         self.logger.debug(

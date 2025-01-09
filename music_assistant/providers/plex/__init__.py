@@ -55,7 +55,7 @@ from plexapi.server import PlexServer
 
 from music_assistant.constants import UNKNOWN_ARTIST
 from music_assistant.helpers.auth import AuthenticationHelper
-from music_assistant.helpers.tags import parse_tags
+from music_assistant.helpers.tags import async_parse_tags
 from music_assistant.helpers.util import parse_title_and_version
 from music_assistant.models.music_provider import MusicProvider
 from music_assistant.providers.plex.helpers import discover_local_servers, get_libraries
@@ -69,7 +69,7 @@ if TYPE_CHECKING:
     from plexapi.media import Media as PlexMedia
     from plexapi.media import MediaPart as PlexMediaPart
 
-    from music_assistant import MusicAssistant
+    from music_assistant.mass import MusicAssistant
     from music_assistant.models import ProviderInstanceType
 
 CONF_ACTION_AUTH_MYPLEX = "auth_myplex"
@@ -928,7 +928,7 @@ class PlexProvider(MusicProvider):
 
         else:
             url = plex_track.getStreamURL()
-            media_info = await parse_tags(url)
+            media_info = await async_parse_tags(url)
             stream_details.path = url
             stream_details.audio_format.channels = media_info.channels
             stream_details.audio_format.content_type = ContentType.try_parse(media_info.format)
