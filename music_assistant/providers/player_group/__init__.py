@@ -660,7 +660,11 @@ class PlayerGroupProvider(PlayerProvider):
         self, group_player_id: str, group_type: str, name: str, members: Iterable[str]
     ) -> Player:
         """Register a syncgroup player."""
-        player_features = {PlayerFeature.POWER, PlayerFeature.VOLUME_SET}
+        player_features = {
+            PlayerFeature.POWER,
+            PlayerFeature.VOLUME_SET,
+            PlayerFeature.MULTI_DEVICE_DSP,
+        }
 
         if not (self.mass.players.get(x) for x in members):
             raise PlayerUnavailableError("One or more members are not available!")
