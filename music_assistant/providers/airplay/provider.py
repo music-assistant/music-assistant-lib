@@ -160,7 +160,7 @@ class AirplayProvider(PlayerProvider):
         self._dacp_info = AsyncServiceInfo(
             zeroconf_type,
             name=server_id,
-            addresses=[await get_ip_pton(self.mass.streams.publish_ip)],
+            addresses=[await get_ip_pton(str(self.mass.streams.publish_ip))],
             port=dacp_port,
             properties={
                 "txtvers": "1",
@@ -295,6 +295,7 @@ class AirplayProvider(PlayerProvider):
         # select audio source
         if media.media_type == MediaType.ANNOUNCEMENT:
             # special case: stream announcement
+            assert media.custom_data
             input_format = AIRPLAY_PCM_FORMAT
             audio_source = self.mass.streams.get_announcement_stream(
                 media.custom_data["url"],
@@ -310,11 +311,13 @@ class AirplayProvider(PlayerProvider):
         elif media.queue_id and media.queue_item_id:
             # regular queue (flow) stream request
             input_format = AIRPLAY_FLOW_PCM_FORMAT
+            queue = self.mass.player_queues.get(media.queue_id)
+            assert queue
+            start_queue_item = self.mass.player_queues.get_item(media.queue_id, media.queue_item_id)
+            assert start_queue_item
             audio_source = self.mass.streams.get_flow_stream(
-                queue=self.mass.player_queues.get(media.queue_id),
-                start_queue_item=self.mass.player_queues.get_item(
-                    media.queue_id, media.queue_item_id
-                ),
+                queue=queue,
+                start_queue_item=start_queue_item,
                 pcm_format=input_format,
             )
         else:
@@ -621,6 +624,7 @@ class AirplayProvider(PlayerProvider):
                 # to prevent an endless pingpong of volume changes
                 raop_volume = float(path.split("dmcp.device-volume=", 1)[-1])
                 volume = convert_airplay_volume(raop_volume)
+                assert mass_player.volume_level
                 if (
                     abs(mass_player.volume_level - volume) > 5
                     or (time.time() - airplay_player.last_command_sent) < 2
@@ -640,6 +644,7 @@ class AirplayProvider(PlayerProvider):
                 # device switched to another source (or is powered off)
                 if raop_stream := airplay_player.raop_stream:
                     # ignore this if we just started playing to prevent false positives
+                    assert mass_player.elapsed_time
                     if mass_player.elapsed_time > 10 and mass_player.state == PlayerState.PLAYING:
                         raop_stream.prevent_playback = True
                         self.mass.create_task(self.monitor_prevent_playback(player_id))

@@ -177,13 +177,16 @@ class RaopStream:
 
     async def start(self, start_ntp: int, wait_start: int = 1000) -> None:
         """Initialize CLIRaop process for a player."""
-        extra_args = []
+        assert self.prov.cliraop_bin
+        extra_args: list[str] = []
         player_id = self.airplay_player.player_id
         mass_player = self.mass.players.get(player_id)
         if not mass_player:
             return
-        bind_ip = await self.mass.config.get_provider_config_value(
-            self.prov.instance_id, CONF_BIND_INTERFACE
+        bind_ip = str(
+            await self.mass.config.get_provider_config_value(
+                self.prov.instance_id, CONF_BIND_INTERFACE
+            )
         )
         extra_args += ["-if", bind_ip]
         if self.mass.config.get_raw_player_config_value(player_id, CONF_ENCRYPTION, False):
@@ -194,10 +197,11 @@ class RaopStream:
             if prop_value := self.airplay_player.discovery_info.decoded_properties.get(prop):
                 extra_args += [f"-{prop}", prop_value]
         sync_adjust = self.mass.config.get_raw_player_config_value(player_id, CONF_SYNC_ADJUST, 0)
+        assert isinstance(sync_adjust, int)
         if device_password := self.mass.config.get_raw_player_config_value(
             player_id, CONF_PASSWORD, None
         ):
-            extra_args += ["-password", device_password]
+            extra_args += ["-password", str(device_password)]
         if self.prov.logger.isEnabledFor(logging.DEBUG):
             extra_args += ["-debug", "5"]
         elif self.prov.logger.isEnabledFor(VERBOSE_LOG_LEVEL):
@@ -306,7 +310,7 @@ class RaopStream:
         """Monitor stderr for the running CLIRaop process."""
         airplay_player = self.airplay_player
         mass_player = self.mass.players.get(airplay_player.player_id)
-        if not mass_player:
+        if not mass_player or not mass_player.active_source:
             return
         queue = self.mass.player_queues.get_active_queue(mass_player.active_source)
         logger = airplay_player.logger
