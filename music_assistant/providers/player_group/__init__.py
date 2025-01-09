@@ -56,6 +56,7 @@ from music_assistant.constants import (
     create_sample_rates_config_entry,
 )
 from music_assistant.controllers.streams import DEFAULT_STREAM_HEADERS
+from music_assistant.helpers.audio import get_player_filter_params
 from music_assistant.helpers.ffmpeg import get_ffmpeg_stream
 from music_assistant.helpers.util import TaskManager
 from music_assistant.models.player_provider import PlayerProvider
@@ -825,6 +826,10 @@ class PlayerGroupProvider(PlayerProvider):
         ugp_player_id = request.path.rsplit(".")[0].rsplit("/")[-1]
         child_player_id = request.query.get("player_id")  # optional!
 
+        # Right now we default to MP3 output format, since it's the most compatible
+        # TODO: use the player's preferred output format
+        output_format = AudioFormat(content_type=ContentType.MP3)
+
         if not (ugp_player := self.mass.players.get(ugp_player_id)):
             raise web.HTTPNotFound(reason=f"Unknown UGP player: {ugp_player_id}")
 
@@ -860,7 +865,18 @@ class PlayerGroupProvider(PlayerProvider):
             ugp_player.display_name,
             child_player_id or request.remote,
         )
-        async for chunk in stream.subscribe():
+
+        # Generate filter params for the player specific DSP settings
+        filter_params = None
+        if child_player_id:
+            filter_params = get_player_filter_params(
+                self.mass, child_player_id, stream.input_format
+            )
+
+        async for chunk in stream.get_stream(
+            output_format,
+            filter_params=filter_params,
+        ):
             try:
                 await resp.write(chunk)
             except (ConnectionError, ConnectionResetError):
