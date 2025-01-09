@@ -16,20 +16,19 @@ class FileSystemItem:
     """Representation of an item (file or directory) on the filesystem.
 
     - filename: Name (not path) of the file (or directory).
-    - path: Relative path to the item on this filesystem provider.
+    - relative_path: Relative path to the item on this filesystem provider.
     - absolute_path: Absolute path to this item.
-    - is_file: Boolean if item is file (not directory or symlink).
+    - parent_path: Absolute path to the parent directory.
     - is_dir: Boolean if item is directory (not file).
-    - checksum: Checksum for this path (usually last modified time).
+    - checksum: Checksum for this path (usually last modified time) None for dir.
     - file_size : File size in number of bytes or None if unknown (or not a file).
     """
 
     filename: str
-    path: str
+    relative_path: str
     absolute_path: str
-    is_file: bool
     is_dir: bool
-    checksum: str
+    checksum: str | None = None
     file_size: int | None = None
 
     @property
@@ -45,6 +44,43 @@ class FileSystemItem:
     def name(self) -> str:
         """Return file name (without extension)."""
         return self.filename.rsplit(".", 1)[0]
+
+    @property
+    def parent_path(self) -> str:
+        """Return parent path of this item."""
+        return os.path.dirname(self.absolute_path)
+
+    @property
+    def parent_name(self) -> str:
+        """Return parent name of this item."""
+        return os.path.basename(self.parent_path)
+
+    @property
+    def relative_parent_path(self) -> str:
+        """Return relative parent path of this item."""
+        return os.path.dirname(self.relative_path)
+
+    @classmethod
+    def from_dir_entry(cls, entry: os.DirEntry, base_path: str) -> FileSystemItem:
+        """Create FileSystemItem from os.DirEntry. NOT Async friendly."""
+        if entry.is_dir(follow_symlinks=False):
+            return cls(
+                filename=entry.name,
+                relative_path=get_relative_path(base_path, entry.path),
+                absolute_path=entry.path,
+                is_dir=True,
+                checksum=None,
+                file_size=None,
+            )
+        stat = entry.stat(follow_symlinks=False)
+        return cls(
+            filename=entry.name,
+            relative_path=get_relative_path(base_path, entry.path),
+            absolute_path=entry.path,
+            is_dir=False,
+            checksum=str(int(stat.st_mtime)),
+            file_size=stat.st_size,
+        )
 
 
 def get_artist_dir(
@@ -181,25 +217,13 @@ def sorted_scandir(base_path: str, sub_path: str, sort: bool = False) -> list[Fi
         """Sort key for natural sorting."""
         return tuple(int(s) if s.isdigit() else s for s in re.split(r"(\d+)", name))
 
-    def create_item(entry: os.DirEntry) -> FileSystemItem:
-        """Create FileSystemItem from os.DirEntry."""
-        absolute_path = get_absolute_path(base_path, entry.path)
-        stat = entry.stat(follow_symlinks=False)
-        return FileSystemItem(
-            filename=entry.name,
-            path=get_relative_path(base_path, entry.path),
-            absolute_path=absolute_path,
-            is_file=entry.is_file(follow_symlinks=False),
-            is_dir=entry.is_dir(follow_symlinks=False),
-            checksum=str(int(stat.st_mtime)),
-            file_size=stat.st_size,
-        )
-
     items = [
-        create_item(x)
+        FileSystemItem.from_dir_entry(x, base_path)
         for x in os.scandir(sub_path)
         # filter out invalid dirs and hidden files
-        if x.name not in IGNORE_DIRS and not x.name.startswith(".")
+        if (x.is_dir(follow_symlinks=False) or x.is_file(follow_symlinks=False))
+        and x.name not in IGNORE_DIRS
+        and not x.name.startswith(".")
     ]
     if sort:
         return sorted(
