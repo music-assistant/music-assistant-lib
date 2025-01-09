@@ -1,5 +1,7 @@
 """Helper for parsing and using audible api."""
 
+from __future__ import annotations
+
 import hashlib
 import html
 import json
