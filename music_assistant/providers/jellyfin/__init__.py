@@ -409,23 +409,21 @@ class JellyfinProvider(MusicProvider):
     async def get_playlist_tracks(self, prov_playlist_id: str, page: int = 0) -> list[Track]:
         """Get playlist tracks."""
         result: list[Track] = []
-        if page > 0:
-            # paging not supported, we always return the whole list at once
-            return []
-        # TODO: Does Jellyfin support paging here?
         playlist_items = (
-            await self._client.tracks.parent(prov_playlist_id)
+            await self._client.tracks.in_playlist(prov_playlist_id)
             .enable_userdata()
             .fields(*TRACK_FIELDS)
+            .limit(100)
+            .start_index(page * 100)
             .request()
         )
         for index, jellyfin_track in enumerate(playlist_items["Items"], 1):
+            pos = (page * 100) + index
             try:
                 if track := parse_track(
                     self.logger, self.instance_id, self._client, jellyfin_track
                 ):
-                    if not track.position:
-                        track.position = index
+                    track.position = pos
                     result.append(track)
             except (KeyError, ValueError) as err:
                 self.logger.error(
