@@ -137,7 +137,7 @@ class AudibleHelper:
             f"content/{asin}/licenserequest",
             body={
                 "quality": "High",
-                "response_groups": """content_reference,certificate""",
+                "response_groups": "content_reference,certificate",
                 "consumption_type": "Streaming",
                 "supported_media_features": {
                     "codecs": ["mp4a.40.2", "mp4a.40.42"],
