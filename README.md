@@ -11,6 +11,8 @@ Music Assistant is a free, opensource Media library manager that connects to you
 
 Documentation https://music-assistant.io
 
+Beta Documentation https://beta.music-assistant.io
+
 For issues, please go to [the issue tracker](https://github.com/music-assistant/support/issues).
 
 For feature requests, please see [feature requests](https://github.com/music-assistant/support/discussions/categories/feature-requests-and-ideas).

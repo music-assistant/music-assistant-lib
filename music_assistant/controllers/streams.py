@@ -16,11 +16,7 @@ from typing import TYPE_CHECKING
 
 from aiofiles.os import wrap
 from aiohttp import web
-from music_assistant_models.config_entries import (
-    ConfigEntry,
-    ConfigValueOption,
-    ConfigValueType,
-)
+from music_assistant_models.config_entries import ConfigEntry, ConfigValueOption, ConfigValueType
 from music_assistant_models.enums import (
     ConfigEntryType,
     ContentType,
@@ -66,12 +62,7 @@ from music_assistant.helpers.audio import (
 )
 from music_assistant.helpers.ffmpeg import LOGGER as FFMPEG_LOGGER
 from music_assistant.helpers.ffmpeg import get_ffmpeg_stream
-from music_assistant.helpers.util import (
-    get_ip,
-    get_ips,
-    select_free_port,
-    try_parse_bool,
-)
+from music_assistant.helpers.util import get_ip, get_ips, select_free_port, try_parse_bool
 from music_assistant.helpers.webserver import Webserver
 from music_assistant.models.core_controller import CoreController
 from music_assistant.models.plugin import PluginProvider
@@ -368,7 +359,6 @@ class StreamsController(CoreController):
             queue_item.uri,
             queue.display_name,
         )
-        self.mass.player_queues.track_loaded_in_buffer(queue_id, queue_item_id)
 
         # pick pcm format based on the streamdetails and player capabilities
         if self.mass.config.get_raw_player_config_value(queue_id, CONF_VOLUME_NORMALIZATION, True):
@@ -385,6 +375,11 @@ class StreamsController(CoreController):
             channels=2,
         )
         chunk_num = 0
+
+        # inform the queue that the track is now loaded in the buffer
+        # so for example the next track can be enqueued
+        self.mass.player_queues.track_loaded_in_buffer(queue_id, queue_item_id)
+
         async for chunk in get_ffmpeg_stream(
             audio_input=self.get_media_stream(
                 streamdetails=queue_item.streamdetails,

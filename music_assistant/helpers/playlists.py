@@ -169,7 +169,7 @@ async def fetch_playlist(
     ) or "#EXT-X-STREAM-INF:" in playlist_data:
         raise IsHLSPlaylist
 
-    if url.endswith((".m3u", ".m3u8")):
+    if urlparse(url).path.endswith((".m3u", ".m3u8")):
         playlist = parse_m3u(playlist_data)
     else:
         playlist = parse_pls(playlist_data)

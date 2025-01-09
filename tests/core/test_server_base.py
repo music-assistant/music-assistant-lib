@@ -5,7 +5,7 @@ import asyncio
 from music_assistant_models.enums import EventType
 from music_assistant_models.event import MassEvent
 
-from music_assistant import MusicAssistant
+from music_assistant.mass import MusicAssistant
 
 
 async def test_start_and_stop_server(mass: MusicAssistant) -> None:

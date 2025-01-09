@@ -69,7 +69,7 @@ if TYPE_CHECKING:
     from plexapi.media import Media as PlexMedia
     from plexapi.media import MediaPart as PlexMediaPart
 
-    from music_assistant import MusicAssistant
+    from music_assistant.mass import MusicAssistant
     from music_assistant.models import ProviderInstanceType
 
 CONF_ACTION_AUTH_MYPLEX = "auth_myplex"

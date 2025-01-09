@@ -771,7 +771,6 @@ class PlayerQueuesController(CoreController):
         queue.flow_mode_stream_log = []
         queue.flow_mode = await self.mass.config.get_player_config_value(queue_id, CONF_FLOW_MODE)
         queue.current_item = queue_item
-        queue.next_track_enqueued = None
 
         # handle resume point of audiobook(chapter) or podcast(episode)
         if not seek_position and (
@@ -966,14 +965,6 @@ class PlayerQueuesController(CoreController):
             ),
         )
 
-        # enqueue/preload next track if needed
-        next_item_id = queue.next_item.queue_item_id if queue.next_item else None
-        prev_next_item_id = prev_state["next_item_id"] if prev_state else None
-        if queue.state == PlayerState.PLAYING and (
-            next_item_id != prev_next_item_id or queue.next_track_enqueued is None
-        ):
-            self._preload_next_item(queue)
-
         # basic throttle: do not send state changed events if queue did not actually change
         new_state = CompareState(
             queue_id=queue_id,
@@ -1009,15 +1000,13 @@ class PlayerQueuesController(CoreController):
             self._prev_states.pop(queue_id, None)
 
         # detect change in current index to report that a item has been played
+        prev_item_id = prev_state["current_item_id"]
         player_stopped = (
-            prev_state["state"] == PlayerState.PLAYING
-            and new_state["state"] == PlayerState.IDLE
-            and queue.current_item is not None
+            prev_state["state"] == PlayerState.PLAYING and new_state["state"] == PlayerState.IDLE
         )
         end_of_queue_reached = (
             player_stopped and queue.current_item is not None and queue.next_item is None
         )
-        prev_item_id = prev_state["current_item_id"]
         if (
             prev_item_id is not None
             and (prev_item_id != new_state["current_item_id"] or player_stopped)
@@ -1214,8 +1203,13 @@ class PlayerQueuesController(CoreController):
         # store the index of the item that is currently (being) loaded in the buffer
         # which helps us a bit to determine how far the player has buffered ahead
         queue.index_in_buffer = self.index_by_id(queue_id, item_id)
-        queue.next_track_enqueued = None
+        self.logger.debug("PlayerQueue %s loaded item %s in buffer", queue.display_name, item_id)
         self.signal_update(queue_id)
+        if queue.flow_mode:
+            return
+        # enqueue next track on the player if we're not in flow mode
+        task_id = f"enqueue_next_item_{queue_id}"
+        self.mass.call_later(5, self._enqueue_next_item, queue_id, item_id, task_id=task_id)
 
     # Main queue manipulation methods
 
@@ -1256,7 +1250,6 @@ class PlayerQueuesController(CoreController):
         self._queue_items[queue_id] = queue_items
         self._queues[queue_id].items = len(self._queue_items[queue_id])
         self.signal_update(queue_id, True)
-        self._queues[queue_id].next_track_enqueued = None
 
     # Helper methods
 
@@ -1543,42 +1536,18 @@ class PlayerQueuesController(CoreController):
             insert_at_index=len(self._queue_items[queue_id]) + 1,
         )
 
-    def _preload_next_item(self, queue: PlayerQueue) -> None:
-        """Preload the next item in the queue (if needed)."""
-        current_item = queue.current_item
-        if current_item is None or queue.next_item is None:
-            return
-        if queue.next_track_enqueued == queue.next_item.queue_item_id:
-            return
-        # ensure we're at least 2 seconds in the current track
-        if queue.corrected_elapsed_time < 2:
-            return
-        # preload happens when we're (at least) halfway the current track
-        if current_item.streamdetails and current_item.streamdetails.duration:
-            track_time = queue.current_item.streamdetails.duration
-        else:
-            track_time = current_item.duration or 10
-        if not (queue.corrected_elapsed_time - track_time) < (track_time / 2):
-            return
-
-        async def _enqueue_next():
-            next_item = await self.load_next_item(queue.queue_id, current_item.queue_item_id)
-            # abort if we already enqueued the (selected) next track
-            if queue.next_track_enqueued == next_item.queue_item_id:
-                return
-            if not queue.flow_mode:
-                await self.mass.players.enqueue_next_media(
-                    player_id=queue.queue_id,
-                    media=self.player_media_from_queue_item(next_item, False),
-                )
-            queue.next_track_enqueued = next_item.queue_item_id
-            self.logger.debug(
-                "Preloaded next track %s on queue %s",
-                next_item.name,
-                queue.display_name,
-            )
-
-        self.mass.create_task(_enqueue_next())
+    async def _enqueue_next_item(self, queue_id: str, current_item_id: str) -> None:
+        """Enqueue the next item on the player."""
+        next_item = await self.load_next_item(queue_id, current_item_id)
+        await self.mass.players.enqueue_next_media(
+            player_id=queue_id,
+            media=self.player_media_from_queue_item(next_item, False),
+        )
+        self.logger.debug(
+            "Enqueued next track %s on queue %s",
+            next_item.name,
+            self._queues[queue_id].display_name,
+        )
 
     async def _resolve_media_items(
         self, media_item: MediaItemType, start_item: str | None = None

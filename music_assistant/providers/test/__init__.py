@@ -31,18 +31,14 @@ from music_assistant_models.media_items import (
 )
 from music_assistant_models.streamdetails import StreamDetails
 
-from music_assistant.constants import (
-    MASS_LOGO,
-    SILENCE_FILE_LONG,
-    VARIOUS_ARTISTS_FANART,
-)
+from music_assistant.constants import MASS_LOGO, SILENCE_FILE_LONG, VARIOUS_ARTISTS_FANART
 from music_assistant.models.music_provider import MusicProvider
 
 if TYPE_CHECKING:
     from music_assistant_models.config_entries import ConfigValueType, ProviderConfig
     from music_assistant_models.provider import ProviderManifest
 
-    from music_assistant import MusicAssistant
+    from music_assistant.mass import MusicAssistant
     from music_assistant.models import ProviderInstanceType
 
 

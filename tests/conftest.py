@@ -6,7 +6,7 @@ from collections.abc import AsyncGenerator
 
 import pytest
 
-from music_assistant import MusicAssistant
+from music_assistant.mass import MusicAssistant
 
 
 @pytest.fixture(name="caplog")

@@ -92,10 +92,10 @@ max-statements = 50
 
 [tool.mypy]
 platform = "linux"
-python_version = "3.11"
+python_version = "3.12"
 
-# show error messages from unrelated files
-follow_imports = "normal"
+# set this to normal when we have fixed all exclusions
+follow_imports = "silent"
 
 # suppress errors about unsatisfied imports
 ignore_missing_imports = true
@@ -117,6 +117,58 @@ warn_redundant_casts = true
 warn_return_any = true
 warn_unused_configs = true
 warn_unused_ignores = true
+show_error_codes = true
+local_partial_types = true
+strict_equality = true
+enable_error_code = [
+    "ignore-without-code",
+    "redundant-self",
+    "truthy-iterable",
+]
+disable_error_code = [
+    "annotation-unchecked",
+    "import-not-found",
+    "import-untyped"
+]
+extra_checks = false
+warn_unreachable = true
+packages = [
+    "tests",
+    "music_assistant",
+]
+exclude = [
+    '^music_assistant/controllers/.*$',
+    '^music_assistant/helpers/.*$',
+    '^music_assistant/models/.*$',
+    '^music_assistant/mass\.py$',
+    '^music_assistant/__main__\.py$',
+    '^music_assistant/providers/_template_music_provider/.*$',
+    '^music_assistant/providers/_template_player_provider/.*$',
+    '^music_assistant/providers/airplay/.*$',
+    '^music_assistant/providers/apple_music/.*$',
+    '^music_assistant/providers/bluesound/.*$',
+    '^music_assistant/providers/chromecast/.*$',
+    '^music_assistant/providers/deezer/.*$',
+    '^music_assistant/providers/dlna/.*$',
+    '^music_assistant/providers/fanarttv/.*$',
+    '^music_assistant/providers/hass/.*$',
+    '^music_assistant/providers/hass_players/.*$',
+    '^music_assistant/providers/ibroadcast/.*$',
+    '^music_assistant/providers/musicbrainz/.*$',
+    '^music_assistant/providers/opensubsonic/.*$',
+    '^music_assistant/providers/player_group/.*$',
+    '^music_assistant/providers/podcastfeed/.*$',
+    '^music_assistant/providers/qobuz/.*$',
+    '^music_assistant/providers/siriusxm/.*$',
+    '^music_assistant/providers/slimproto/.*$',
+    '^music_assistant/providers/sonos/.*$',
+    '^music_assistant/providers/sonos_s1/.*$',
+    '^music_assistant/providers/soundcloud/.*$',
+    '^music_assistant/providers/snapcast/.*$',
+    '^music_assistant/providers/spotify/.*$',
+    '^music_assistant/providers/tunein/.*$',
+    '^music_assistant/providers/ytmusic/.*$',
+]
 
 [tool.ruff.format]
 # Force Linux/MacOS line endings

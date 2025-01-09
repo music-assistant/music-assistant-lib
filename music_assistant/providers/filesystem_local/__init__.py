@@ -74,7 +74,7 @@ if TYPE_CHECKING:
     from music_assistant_models.config_entries import ProviderConfig
     from music_assistant_models.provider import ProviderManifest
 
-    from music_assistant import MusicAssistant
+    from music_assistant.mass import MusicAssistant
     from music_assistant.models import ProviderInstanceType
 
 CONF_MISSING_ALBUM_ARTIST_ACTION = "missing_album_artist_action"

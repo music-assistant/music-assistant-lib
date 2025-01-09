@@ -7,7 +7,8 @@ from collections.abc import AsyncGenerator
 import aiofiles
 import aiohttp
 import pytest
-from aiojellyfin import Artist, Connection, SessionConfiguration
+from aiojellyfin import Artist, Connection
+from aiojellyfin.session import SessionConfiguration
 from mashumaro.codecs.json import JSONDecoder
 from syrupy.assertion import SnapshotAssertion
 

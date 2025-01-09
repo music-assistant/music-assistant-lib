@@ -10,8 +10,9 @@ from collections.abc import AsyncGenerator
 from typing import TYPE_CHECKING
 
 from aiojellyfin import MediaLibrary as JellyMediaLibrary
-from aiojellyfin import NotFound, SessionConfiguration, authenticate_by_name
+from aiojellyfin import NotFound, authenticate_by_name
 from aiojellyfin import Track as JellyTrack
+from aiojellyfin.session import SessionConfiguration
 from music_assistant_models.config_entries import ConfigEntry, ConfigValueType, ProviderConfig
 from music_assistant_models.enums import (
     ConfigEntryType,
@@ -32,8 +33,8 @@ from music_assistant_models.media_items import (
 )
 from music_assistant_models.streamdetails import StreamDetails
 
-from music_assistant import MusicAssistant
 from music_assistant.constants import UNKNOWN_ARTIST_ID_MBID
+from music_assistant.mass import MusicAssistant
 from music_assistant.models import ProviderInstanceType
 from music_assistant.models.music_provider import MusicProvider
 from music_assistant.providers.jellyfin.parsers import (
@@ -409,23 +410,21 @@ class JellyfinProvider(MusicProvider):
     async def get_playlist_tracks(self, prov_playlist_id: str, page: int = 0) -> list[Track]:
         """Get playlist tracks."""
         result: list[Track] = []
-        if page > 0:
-            # paging not supported, we always return the whole list at once
-            return []
-        # TODO: Does Jellyfin support paging here?
         playlist_items = (
-            await self._client.tracks.parent(prov_playlist_id)
+            await self._client.tracks.in_playlist(prov_playlist_id)
             .enable_userdata()
             .fields(*TRACK_FIELDS)
+            .limit(100)
+            .start_index(page * 100)
             .request()
         )
         for index, jellyfin_track in enumerate(playlist_items["Items"], 1):
+            pos = (page * 100) + index
             try:
                 if track := parse_track(
                     self.logger, self.instance_id, self._client, jellyfin_track
                 ):
-                    if not track.position:
-                        track.position = index
+                    track.position = pos
                     result.append(track)
             except (KeyError, ValueError) as err:
                 self.logger.error(

@@ -61,7 +61,7 @@ class FileSystemItem:
         return os.path.dirname(self.relative_path)
 
     @classmethod
-    def from_dir_entry(cls, entry: os.DirEntry, base_path: str) -> FileSystemItem:
+    def from_dir_entry(cls, entry: os.DirEntry[str], base_path: str) -> FileSystemItem:
         """Create FileSystemItem from os.DirEntry. NOT Async friendly."""
         if entry.is_dir(follow_symlinks=False):
             return cls(
