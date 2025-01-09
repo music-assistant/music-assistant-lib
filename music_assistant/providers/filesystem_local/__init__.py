@@ -178,7 +178,7 @@ class LocalFileSystemProvider(MusicProvider):
 
     base_path: str
     write_access: bool = False
-    scan_limiter = asyncio.Semaphore(25)
+    sync_running: bool = False
 
     @property
     def supported_features(self) -> set[ProviderFeature]:
@@ -280,6 +280,9 @@ class LocalFileSystemProvider(MusicProvider):
         """Run library sync for this provider."""
         assert self.mass.music.database
         start_time = time.time()
+        if self.sync_running:
+            self.logger.warning("Library sync already running for %s", self.name)
+            return
         self.logger.info(
             "Started Library sync for %s",
             self.name,
@@ -315,18 +318,22 @@ class LocalFileSystemProvider(MusicProvider):
 
         def run_sync() -> None:
             """Run the actual sync (in an executor job)."""
-            for item in listdir(self.base_path):
-                if item.ext not in SUPPORTED_EXTENSIONS:
-                    # unsupported file extension
-                    continue
+            self.sync_running = True
+            try:
+                for item in listdir(self.base_path):
+                    if item.ext not in SUPPORTED_EXTENSIONS:
+                        # unsupported file extension
+                        continue
 
-                cur_filenames.add(item.relative_path)
+                    cur_filenames.add(item.relative_path)
 
-                # continue if the item did not change (checksum still the same)
-                prev_checksum = file_checksums.get(item.relative_path)
-                if item.checksum == prev_checksum:
-                    continue
-                self._process_item(item, prev_checksum)
+                    # continue if the item did not change (checksum still the same)
+                    prev_checksum = file_checksums.get(item.relative_path)
+                    if item.checksum == prev_checksum:
+                        continue
+                    self._process_item(item, prev_checksum)
+            finally:
+                self.sync_running = False
 
         await asyncio.to_thread(run_sync)
 
