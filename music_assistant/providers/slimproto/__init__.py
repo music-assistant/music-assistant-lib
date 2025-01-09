@@ -380,7 +380,8 @@ class SlimprotoProvider(PlayerProvider):
             # special case: UGP stream
             ugp_provider: PlayerGroupProvider = self.mass.get_provider("player_group")
             ugp_stream = ugp_provider.ugp_streams[media.queue_id]
-            audio_source = ugp_stream.subscribe()
+            # Filter is later applied in MultiClientStream
+            audio_source = ugp_stream.get_stream(master_audio_format, filter_params=None)
         elif media.queue_id and media.queue_item_id:
             # regular queue stream request
             audio_source = self.mass.streams.get_flow_stream(
