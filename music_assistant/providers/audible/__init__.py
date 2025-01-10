@@ -72,7 +72,7 @@ async def get_config_entries(
         values = {}
 
     locale = values.get("locale") or "us"
-    auth_file = values.get(CONF_AUTH_FILE)
+    auth_file = cast(str, values.get(CONF_AUTH_FILE))
 
     # Check if auth file exists and is valid
     auth_required = True
