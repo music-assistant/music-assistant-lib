@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import os
-import platform
 import socket
 import time
 from random import randrange
@@ -38,7 +36,6 @@ from music_assistant.constants import (
 )
 from music_assistant.helpers.datetime import utc
 from music_assistant.helpers.ffmpeg import get_ffmpeg_stream
-from music_assistant.helpers.process import check_output
 from music_assistant.helpers.util import TaskManager, get_ip_pton, lock, select_free_port
 from music_assistant.models.player_provider import PlayerProvider
 from music_assistant.providers.airplay.raop import RaopStreamSession
@@ -56,6 +53,7 @@ from .const import (
 )
 from .helpers import (
     convert_airplay_volume,
+    get_cliraop_binary,
     get_model_info,
     get_primary_ip_address,
     is_broken_raop_model,
@@ -148,7 +146,7 @@ class AirplayProvider(PlayerProvider):
     async def handle_async_init(self) -> None:
         """Handle async initialization of the provider."""
         self._players = {}
-        self.cliraop_bin = await self._getcliraop_binary()
+        self.cliraop_bin: str | None = await get_cliraop_binary()
         dacp_port = await select_free_port(39831, 49831)
         self.dacp_id = dacp_id = f"{randrange(2 ** 64):X}"
         self.logger.debug("Starting DACP ActiveRemote %s on port %s", dacp_id, dacp_port)
@@ -428,37 +426,6 @@ class AirplayProvider(PlayerProvider):
         # make sure that the player manager gets an update
         self.mass.players.update(mass_player.player_id, skip_forward=True)
         self.mass.players.update(group_leader.player_id, skip_forward=True)
-
-    async def _getcliraop_binary(self) -> str:
-        """Find the correct raop/airplay binary belonging to the platform."""
-        # ruff: noqa: SIM102
-        if self.cliraop_bin is not None:
-            return self.cliraop_bin
-
-        async def check_binary(cliraop_path: str) -> str | None:
-            try:
-                returncode, output = await check_output(
-                    cliraop_path,
-                    "-check",
-                )
-                if returncode == 0 and output.strip().decode() == "cliraop check":
-                    self.cliraop_bin = cliraop_path
-                    return cliraop_path
-            except OSError:
-                pass
-            return None
-
-        base_path = os.path.join(os.path.dirname(__file__), "bin")
-        system = platform.system().lower().replace("darwin", "macos")
-        architecture = platform.machine().lower()
-
-        if bridge_binary := await check_binary(
-            os.path.join(base_path, f"cliraop-{system}-{architecture}")
-        ):
-            return bridge_binary
-
-        msg = f"Unable to locate RAOP Play binary for {system}/{architecture}"
-        raise RuntimeError(msg)
 
     def _get_sync_clients(self, player_id: str) -> list[AirPlayPlayer]:
         """Get all sync clients for a player."""
