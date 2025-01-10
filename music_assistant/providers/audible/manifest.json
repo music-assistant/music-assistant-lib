@@ -5,5 +5,5 @@
   "description": "Audible provider",
   "codeowners": ["@ztripez"],
   "requirements": ["audible==0.10.0"],
-  "documentation": "Link to the documentation on the music-assistant.io helppage (may be added later)."
+  "documentation": "https://www.music-assistant.io/music-providers/audible"
 }
