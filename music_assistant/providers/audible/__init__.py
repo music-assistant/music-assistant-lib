@@ -275,7 +275,7 @@ class Audibleprovider(MusicProvider):
         return audiobook
 
     async def get_stream_details(
-        self, item_id: str, media_type: MediaType = MediaType.AUDIOBOOK
+        self, item_id: str, media_type: MediaType = MediaType.TRACK
     ) -> StreamDetails:
         """Get streamdetails for a audiobook based of asin."""
         return await self.helper.get_stream(asin=item_id)
