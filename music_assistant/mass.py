@@ -6,7 +6,7 @@ import asyncio
 import logging
 import os
 from collections.abc import Awaitable, Callable, Coroutine
-from typing import TYPE_CHECKING, Any, Self
+from typing import TYPE_CHECKING, Any, Self, TypeVar
 from uuid import uuid4
 
 import aiofiles
@@ -73,6 +73,8 @@ LOGGER = logging.getLogger(MASS_LOGGER_NAME)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 PROVIDERS_PATH = os.path.join(BASE_DIR, "providers")
+
+_R = TypeVar("_R")
 
 
 class MusicAssistant:
@@ -315,9 +317,9 @@ class MusicAssistant:
 
         return remove_listener
 
-    def create_task[_R](
+    def create_task(
         self,
-        target: Coroutine | Awaitable | Callable,
+        target: Coroutine[Any, Any, _R] | Awaitable[_R] | Callable[..., _R],
         *args: Any,
         task_id: str | None = None,
         abort_existing: bool = False,
