@@ -84,22 +84,22 @@ async def get_config_entries(
             auth_required = False
         except Exception:
             auth_required = True
-    label_text = (
-        (
-            "You need to authenticate with Audible. Click the authenticate button below "
-            "to start the authentication process which will open in a new (popup) window, "
+    label_text = ""
+    if auth_required:
+        label_text = (
+            "You need to authenticate with Audible. Click the authenticate button below"
+            "to start the authentication process which will open in a new (popup) window,"
             "so make sure to disable any popup blockers.\n\n"
             "NOTE: \n"
-            "After successful login you will get a 'page not found' message - this is expected. "
-            "Copy the address to the textbox below and press verify. "
+            "After successful login you will get a 'page not found' message - this is expected."
+            "Copy the address to the textbox below and press verify."
             "This will register this provider as a virtual device with Audible."
         )
-        if auth_required
-        else (
+    else:
+        label_text = (
             "Successfully authenticated with Audible."
             "\nNote: Changing marketplace needs new authorization"
         )
-    )
 
     if action == CONF_ACTION_AUTH:
         if auth_file and await check_file_exists(auth_file):
@@ -275,7 +275,7 @@ class Audibleprovider(MusicProvider):
         return audiobook
 
     async def get_stream_details(
-        self, item_id: str, media_type: MediaType = MediaType.TRACK
+        self, item_id: str, media_type: MediaType = MediaType.AUDIOBOOK
     ) -> StreamDetails:
         """Get streamdetails for a audiobook based of asin."""
         return await self.helper.get_stream(asin=item_id)
