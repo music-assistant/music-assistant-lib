@@ -874,6 +874,7 @@ class OpenSonicProvider(MusicProvider):
         return StreamDetails(
             item_id=item.id,
             provider=self.instance_id,
+            allow_seek=True,
             can_seek=self._seek_support,
             media_type=media_type,
             audio_format=AudioFormat(content_type=ContentType.try_parse(mime_type)),
@@ -902,6 +903,10 @@ class OpenSonicProvider(MusicProvider):
     ) -> AsyncGenerator[bytes, None]:
         """Provide a generator for the stream data."""
         audio_buffer = asyncio.Queue(1)
+        # ignore seek position if the server does not support it
+        # in that case we let the core handle seeking
+        if not self._seek_support:
+            seek_position = 0
 
         self.logger.debug("Streaming %s", streamdetails.item_id)
 

@@ -17,10 +17,10 @@ from typing import Any, Final
 from aiorun import run
 from colorlog import ColoredFormatter
 
-from music_assistant import MusicAssistant
 from music_assistant.constants import MASS_LOGGER_NAME, VERBOSE_LOG_LEVEL
 from music_assistant.helpers.json import json_loads
 from music_assistant.helpers.logging import activate_log_queue_handler
+from music_assistant.mass import MusicAssistant
 
 FORMAT_DATE: Final = "%Y-%m-%d"
 FORMAT_TIME: Final = "%H:%M:%S"
@@ -31,11 +31,13 @@ ALPINE_RELEASE_FILE = "/etc/alpine-release"
 LOGGER = logging.getLogger(MASS_LOGGER_NAME)
 
 
-def get_arguments():
+def get_arguments() -> argparse.Namespace:
     """Arguments handling."""
     parser = argparse.ArgumentParser(description="MusicAssistant")
 
     default_data_dir = os.getenv("APPDATA") if os.name == "nt" else os.path.expanduser("~")
+    if not default_data_dir:
+        parser.error("Unable to find default data dir")
     default_data_dir = os.path.join(default_data_dir, ".musicassistant")
 
     parser.add_argument(
@@ -60,7 +62,7 @@ def get_arguments():
     return parser.parse_args()
 
 
-def setup_logger(data_path: str, level: str = "DEBUG"):
+def setup_logger(data_path: str, level: str = "DEBUG") -> logging.Logger:
     """Initialize logger."""
     # define log formatter
     log_fmt = "%(asctime)s.%(msecs)03d %(levelname)s (%(threadName)s) [%(name)s] %(message)s"
@@ -118,7 +120,7 @@ def setup_logger(data_path: str, level: str = "DEBUG"):
 
     sys.excepthook = lambda *args: logging.getLogger(None).exception(
         "Uncaught exception",
-        exc_info=args,  # type: ignore[arg-type]
+        exc_info=args,
     )
     threading.excepthook = lambda args: logging.getLogger(None).exception(
         "Uncaught thread exception",
@@ -141,7 +143,7 @@ def _enable_posix_spawn() -> None:
     # and will use fork() instead of posix_spawn() which significantly
     # less efficient. This is a workaround to force posix_spawn()
     # on Alpine Linux which is supported by musl.
-    subprocess._USE_POSIX_SPAWN = os.path.exists(ALPINE_RELEASE_FILE)
+    subprocess._USE_POSIX_SPAWN = os.path.exists(ALPINE_RELEASE_FILE)  # type: ignore[misc]
 
 
 def _global_loop_exception_handler(_: Any, context: dict[str, Any]) -> None:
@@ -198,7 +200,7 @@ def main() -> None:
     # enable alpine subprocess workaround
     _enable_posix_spawn()
 
-    def on_shutdown(loop) -> None:
+    def on_shutdown(loop: asyncio.AbstractEventLoop) -> None:
         logger.info("shutdown requested!")
         loop.run_until_complete(mass.stop())
 

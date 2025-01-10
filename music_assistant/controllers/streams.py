@@ -910,9 +910,6 @@ class StreamsController(CoreController):
         pcm_format: AudioFormat,
     ) -> AsyncGenerator[tuple[bool, bytes], None]:
         """Get the audio stream for the given streamdetails as raw pcm chunks."""
-        is_radio = streamdetails.media_type == MediaType.RADIO or not streamdetails.duration
-        if is_radio:
-            streamdetails.seek_position = 0
         # collect all arguments for ffmpeg
         filter_params = []
         extra_input_args = []
@@ -978,8 +975,11 @@ class StreamsController(CoreController):
         # handle seek support
         if (
             streamdetails.seek_position
-            and streamdetails.media_type != MediaType.RADIO
-            and streamdetails.stream_type != StreamType.CUSTOM
+            and streamdetails.duration
+            and streamdetails.allow_seek
+            # allow seeking for custom streams,
+            # but only for custom streams that can't seek theirselves
+            and (streamdetails.stream_type != StreamType.CUSTOM or not streamdetails.can_seek)
         ):
             extra_input_args += ["-ss", str(int(streamdetails.seek_position))]
 
