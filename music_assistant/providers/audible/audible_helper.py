@@ -6,8 +6,10 @@ import asyncio
 import hashlib
 import html
 import json
+import os
 import re
 from collections.abc import AsyncGenerator
+from os import PathLike
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
@@ -101,7 +103,7 @@ class AudibleHelper:
 
             page += 1
 
-    async def get_audiobook(self, asin: str, use_cache: bool = True) -> Audiobook:
+    async def get_audiobook(self, asin: str, use_cache: bool = True) -> Audiobook | None:
         """Fetch the audiobook by asin."""
         if use_cache:
             cached_book = await self.mass.cache.get(
@@ -245,9 +247,9 @@ class AudibleHelper:
         )
         book.metadata.copyright = audiobook_data.get("copyright")
         book.metadata.description = _html_to_txt(
-            audiobook_data.get("extended_product_description", "")
+            str(audiobook_data.get("extended_product_description", ""))
         )
-        book.metadata.languages = [audiobook_data.get("language")]
+        book.metadata.languages = UniqueList([audiobook_data.get("language", "")])
         book.metadata.release_date = audiobook_data.get("release_date")
         reviews = audiobook_data.get("editorial_reviews", [])
         if reviews:
@@ -368,6 +370,15 @@ async def audible_custom_login(
         domain=auth.locale.domain,
         serial=serial,
     )
-
     auth._update_attrs(**registration_data)
     return auth
+
+
+async def check_file_exists(path: str | PathLike[str]) -> bool:
+    """Async file exists check."""
+    return await asyncio.to_thread(os.path.exists, path)
+
+
+async def remove_file(path: str | PathLike[str]) -> None:
+    """Async file delete."""
+    await asyncio.to_thread(os.remove, path)

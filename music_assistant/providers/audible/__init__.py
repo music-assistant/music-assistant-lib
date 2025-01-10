@@ -7,7 +7,7 @@ import os
 import webbrowser
 from collections.abc import AsyncGenerator
 from logging import getLevelName
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 from uuid import uuid4
 
 import audible
@@ -25,6 +25,8 @@ from music_assistant.providers.audible.audible_helper import (
     AudibleHelper,
     audible_custom_login,
     audible_get_auth_info,
+    check_file_exists,
+    remove_file,
 )
 
 if TYPE_CHECKING:
@@ -71,12 +73,12 @@ async def get_config_entries(
     if values is None:
         values = {}
 
-    locale = values.get("locale") or "us"
+    locale = cast(str, values.get("locale", "") or "us")
     auth_file = cast(str, values.get(CONF_AUTH_FILE))
 
     # Check if auth file exists and is valid
     auth_required = True
-    if auth_file and await asyncio.to_thread(os.path.exists, auth_file):
+    if auth_file and await check_file_exists(auth_file):
         try:
             auth = await asyncio.to_thread(audible.Authenticator.from_file, auth_file)
             auth_required = False
@@ -100,10 +102,10 @@ async def get_config_entries(
     )
 
     if action == CONF_ACTION_AUTH:
-        if auth_file and await asyncio.to_thread(os.path.exists, auth_file):
-            await asyncio.to_thread(os.remove, auth_file)
+        if auth_file and await check_file_exists(auth_file):
+            await remove_file(auth_file)
             values[CONF_AUTH_FILE] = None
-            auth_file = None
+            auth_file = ""
 
         code_verifier, login_url, serial = await audible_get_auth_info(locale)
         values[CONF_CODE_VERIFIER] = code_verifier
@@ -217,8 +219,8 @@ class Audibleprovider(MusicProvider):
     ) -> None:
         """Initialize the Audible Audiobook Provider."""
         super().__init__(mass, manifest, config)
-        self.locale = self.config.get_value(CONF_LOCALE) or "us"
-        self.auth_file = self.config.get_value(CONF_AUTH_FILE)
+        self.locale = cast(str, self.config.get_value(CONF_LOCALE) or "us")
+        self.auth_file = cast(str, self.config.get_value(CONF_AUTH_FILE))
         self._client: audible.AsyncClient | None = None
         audible.log_helper.set_level(getLevelName(self.logger.level))
 
@@ -267,7 +269,10 @@ class Audibleprovider(MusicProvider):
 
     async def get_audiobook(self, prov_audiobook_id: str) -> Audiobook:
         """Get full audiobook details by id."""
-        return await self.helper.get_audiobook(asin=prov_audiobook_id, use_cache=False)
+        audiobook = await self.helper.get_audiobook(asin=prov_audiobook_id, use_cache=False)
+        if audiobook is None:
+            raise ValueError(f"Audiobook with id {prov_audiobook_id} not found")
+        return audiobook
 
     async def get_stream_details(
         self, item_id: str, media_type: MediaType = MediaType.TRACK
