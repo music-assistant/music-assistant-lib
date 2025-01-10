@@ -139,7 +139,7 @@ class SonosPlayer:
         """Return zone name."""
         if self.mass_player:
             return self.mass_player.display_name
-        return self.soco.speaker_info["zone_name"]
+        return str(self.soco.speaker_info["zone_name"])
 
     @property
     def subscription_address(self) -> str:
@@ -322,7 +322,7 @@ class SonosPlayer:
     async def poll_speaker(self) -> None:
         """Poll the speaker for updates."""
 
-        def _poll():
+        def _poll() -> None:
             """Poll the speaker for updates (NOT async friendly)."""
             self.update_groups()
             self.poll_media()
@@ -346,7 +346,9 @@ class SonosPlayer:
         self._set_basic_track_info(update_position=update_position)
         self.update_player()
 
-    async def _subscribe_target(self, target: SubscriptionBase, sub_callback: Callable) -> None:
+    async def _subscribe_target(
+        self, target: SubscriptionBase, sub_callback: Callable[[SonosEvent], None]
+    ) -> None:
         """Create a Sonos subscription for given target."""
         subscription = await target.subscribe(
             auto_renew=True, requested_timeout=SUBSCRIPTION_TIMEOUT
@@ -502,7 +504,9 @@ class SonosPlayer:
         self.logger.debug("%s was missing, adding to %s group", missing_zone, self.zone_name)
         self.update_groups()
 
-    def create_update_groups_coro(self, event: SonosEvent | None = None) -> Coroutine:
+    def create_update_groups_coro(
+        self, event: SonosEvent | None = None
+    ) -> Coroutine[Any, Any, None]:
         """Handle callback for topology change event."""
 
         def _get_soco_group() -> list[str]:
@@ -563,7 +567,7 @@ class SonosPlayer:
             self.mass.loop.call_soon_threadsafe(self.mass.players.update, self.player_id)
 
             for joined_uid in group[1:]:
-                joined_speaker: SonosPlayer = self.sonos_prov.sonosplayers.get(joined_uid)
+                joined_speaker = self.sonos_prov.sonosplayers.get(joined_uid)
                 if joined_speaker:
                     joined_speaker.sync_coordinator = self
                     joined_speaker.group_members = group_members
@@ -763,7 +767,7 @@ class SonosPlayer:
     @soco_error()
     def _join(self, members: list[SonosPlayer]) -> list[SonosPlayer]:
         if self.sync_coordinator:
-            self.unjoin()
+            self._unjoin()
             group = [self]
         else:
             group = self.group_members.copy()
@@ -795,7 +799,7 @@ class SonosPlayer:
         return track_info
 
 
-def _convert_state(sonos_state: str) -> PlayerState:
+def _convert_state(sonos_state: str | None) -> PlayerState:
     """Convert Sonos state to PlayerState."""
     if sonos_state == "PLAYING":
         return PlayerState.PLAYING
@@ -806,8 +810,10 @@ def _convert_state(sonos_state: str) -> PlayerState:
     return PlayerState.IDLE
 
 
-def _timespan_secs(timespan):
+def _timespan_secs(timespan: str | None) -> int | None:
     """Parse a time-span into number of seconds."""
-    if timespan in ("", "NOT_IMPLEMENTED", None):
+    if timespan in ("", "NOT_IMPLEMENTED"):
         return None
-    return sum(60 ** x[0] * int(x[1]) for x in enumerate(reversed(timespan.split(":"))))
+    if timespan is None:
+        return None
+    return int(sum(60 ** x[0] * int(x[1]) for x in enumerate(reversed(timespan.split(":")))))

@@ -556,6 +556,8 @@ class SpotifyProvider(MusicProvider):
                 content_type=ContentType.OGG,
             ),
             stream_type=StreamType.CUSTOM,
+            allow_seek=True,
+            can_seek=True,
         )
 
     async def get_audio_stream(
