@@ -34,7 +34,7 @@ class PluginProvider(Provider):
         raise NotImplementedError
 
     async def get_stream_details(
-        self, item_id: str, media_type: MediaType = MediaType.OTHER
+        self, item_id: str, media_type: MediaType = MediaType.TRACK
     ) -> StreamDetails:
         """Return the streamdetails to stream a naudiosource provided by this plugin."""
         # Will only be called if ProviderFeature.AUDIO_SOURCE is declared
