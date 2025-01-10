@@ -11,7 +11,7 @@ from soco import SoCo
 from soco.exceptions import SoCoException, SoCoUPnPException
 
 if TYPE_CHECKING:
-    from . import SonosPlayer
+    from .player import SonosPlayer
 
 
 UID_PREFIX = "RINCON_"
@@ -81,11 +81,11 @@ def _find_target_identifier(instance: Any, fallback_soco: SoCo | None) -> str | 
     """Extract the best available target identifier from the provided instance object."""
     if zone_name := getattr(instance, "zone_name", None):
         # SonosPlayer instance
-        return zone_name
+        return str(zone_name)
     if soco := getattr(instance, "soco", fallback_soco):
         # Holds a SoCo instance attribute
         # Only use attributes with no I/O
-        return soco._player_name or soco.ip_address
+        return str(soco._player_name or soco.ip_address)
     return None
 
 
@@ -105,4 +105,4 @@ def sync_get_visible_zones(soco: SoCo) -> set[SoCo]:
     """Ensure I/O attributes are cached and return visible zones."""
     _ = soco.household_id
     _ = soco.uid
-    return soco.visible_zones
+    return soco.visible_zones or set()

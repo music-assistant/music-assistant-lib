@@ -13,7 +13,7 @@ import asyncio
 import logging
 from collections import OrderedDict
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from music_assistant_models.config_entries import ConfigEntry, ConfigValueType
 from music_assistant_models.enums import (
@@ -50,7 +50,7 @@ if TYPE_CHECKING:
     from music_assistant_models.provider import ProviderManifest
     from soco.core import SoCo
 
-    from music_assistant import MusicAssistant
+    from music_assistant.mass import MusicAssistant
     from music_assistant.models import ProviderInstanceType
 
 
@@ -133,9 +133,13 @@ class UnjoinData:
 class SonosPlayerProvider(PlayerProvider):
     """Sonos Player provider."""
 
-    sonosplayers: dict[str, SonosPlayer] | None = None
     _discovery_running: bool = False
     _discovery_reschedule_timer: asyncio.TimerHandle | None = None
+
+    def __init__(self, mass: MusicAssistant, manifest: ProviderManifest, config: ProviderConfig):
+        """Handle initialization of the provider."""
+        super().__init__(mass, manifest, config)
+        self.sonosplayers: OrderedDict[str, SonosPlayer] = OrderedDict()
 
     @property
     def supported_features(self) -> set[ProviderFeature]:
@@ -144,7 +148,6 @@ class SonosPlayerProvider(PlayerProvider):
 
     async def handle_async_init(self) -> None:
         """Handle async initialization of the provider."""
-        self.sonosplayers: OrderedDict[str, SonosPlayer] = OrderedDict()
         self.topology_condition = asyncio.Condition()
         self.boot_counts: dict[str, int] = {}
         self.mdns_names: dict[str, str] = {}
@@ -166,7 +169,7 @@ class SonosPlayerProvider(PlayerProvider):
         await asyncio.gather(*(player.offline() for player in self.sonosplayers.values()))
         if events_asyncio.event_listener:
             await events_asyncio.event_listener.async_stop()
-        self.sonosplayers = None
+        self.sonosplayers = OrderedDict()
 
     async def get_player_config_entries(
         self,
@@ -287,6 +290,7 @@ class SonosPlayerProvider(PlayerProvider):
         """Handle PLAY MEDIA on given player."""
         sonos_player = self.sonosplayers[player_id]
         mass_player = self.mass.players.get(player_id)
+        assert mass_player
         if sonos_player.sync_coordinator:
             # this should be already handled by the player manager, but just in case...
             msg = (
@@ -308,7 +312,7 @@ class SonosPlayerProvider(PlayerProvider):
             media.uri = media.uri.replace(".flac", ".mp3")
         didl_metadata = create_didl_metadata(media)
         # set crossfade according to player setting
-        crossfade = await self.mass.config.get_player_config_value(player_id, CONF_CROSSFADE)
+        crossfade = bool(await self.mass.config.get_player_config_value(player_id, CONF_CROSSFADE))
         if sonos_player.crossfade != crossfade:
 
             def set_crossfade() -> None:
@@ -375,11 +379,13 @@ class SonosPlayerProvider(PlayerProvider):
             self._discovery_running = True
             try:
                 self.logger.debug("Sonos discovery started...")
-                discovered_devices: set[SoCo] = discover(
-                    timeout=30, household_id=household_id, allow_network_scan=allow_network_scan
+                discovered_devices: set[SoCo] = (
+                    discover(
+                        timeout=30, household_id=household_id, allow_network_scan=allow_network_scan
+                    )
+                    or set()
                 )
-                if discovered_devices is None:
-                    discovered_devices = set()
+
                 # process new players
                 for soco in discovered_devices:
                     try:
@@ -463,7 +469,7 @@ class SonosPlayerProvider(PlayerProvider):
 async def discover_household_ids(mass: MusicAssistant, prefer_s1: bool = True) -> list[str]:
     """Discover the HouseHold ID of S1 speaker(s) the network."""
     if cache := await mass.cache.get("sonos_household_ids"):
-        return cache
+        return cast(list[str], cache)
     household_ids: list[str] = []
 
     def get_all_sonos_ips() -> set[SoCo]:
