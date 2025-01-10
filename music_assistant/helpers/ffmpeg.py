@@ -132,7 +132,7 @@ class FFMpeg(AsyncProcess):
         async def stdin_watchdog() -> None:
             # this is a simple watchdog to ensure we don't get stuck forever waiting for audio data
             try:
-                await asyncio.wait_for(audio_received.wait(), timeout=300)
+                await asyncio.wait_for(audio_received.wait(), timeout=30)
             except TimeoutError:
                 self.logger.error("No audio data received from source after timeout")
                 self._stdin_task.cancel()

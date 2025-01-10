@@ -1125,9 +1125,9 @@ class PlayerQueuesController(CoreController):
                 break
             except MediaNotFoundError:
                 # No stream details found, skip this QueueItem
-                self.logger.debug("Skipping unplayable item: %s", next_item)
-                if queue_item.media_item:
-                    queue_item.media_item.available = False
+                self.logger.info(
+                    "Skipping unplayable item %s (%s)", queue_item.name, queue_item.uri
+                )
                 idx += 1
         if next_item is None:
             raise QueueEmpty("No more (playable) tracks left in the queue.")

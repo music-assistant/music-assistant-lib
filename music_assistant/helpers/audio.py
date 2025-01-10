@@ -17,6 +17,7 @@ from aiohttp import ClientTimeout
 from music_assistant_models.enums import (
     ContentType,
     MediaType,
+    PlayerFeature,
     StreamType,
     VolumeNormalizationMode,
 )
@@ -835,6 +836,13 @@ def get_player_filter_params(
     filter_params = []
 
     dsp = mass.config.get_player_dsp_config(player_id)
+
+    if player := mass.players.get(player_id):
+        is_grouped = bool(player.synced_to) or bool(player.group_childs)
+        if is_grouped and PlayerFeature.MULTI_DEVICE_DSP not in player.supported_features:
+            # We can not correctly apply DSP to a grouped player without multi-device DSP support,
+            # so we disable it.
+            dsp.enabled = False
 
     if dsp.enabled:
         # Apply input gain

@@ -36,7 +36,7 @@ if TYPE_CHECKING:
     from music_assistant.models.music_provider import MusicProvider
 
 
-class ArtistsController(MediaControllerBase[Artist]):
+class ArtistsController(MediaControllerBase[Artist, Artist | ItemMapping]):
     """Controller managing MediaItems of type Artist."""
 
     db_table = DB_TABLE_ARTISTS

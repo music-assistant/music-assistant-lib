@@ -901,7 +901,7 @@ class PlexProvider(MusicProvider):
 
         media: PlexMedia = plex_track.media[0]
 
-        media_type = (
+        content_type = (
             ContentType.try_parse(media.container) if media.container else ContentType.UNKNOWN
         )
         media_part: PlexMediaPart = media.parts[0]
@@ -911,7 +911,7 @@ class PlexProvider(MusicProvider):
             item_id=plex_track.key,
             provider=self.instance_id,
             audio_format=AudioFormat(
-                content_type=media_type,
+                content_type=content_type,
                 channels=media.audioChannels,
             ),
             stream_type=StreamType.HTTP,
@@ -919,7 +919,7 @@ class PlexProvider(MusicProvider):
             data=plex_track,
         )
 
-        if media_type != ContentType.M4A:
+        if content_type != ContentType.M4A:
             stream_details.path = self._plex_server.url(media_part.key, True)
             if audio_stream.samplingRate:
                 stream_details.audio_format.sample_rate = audio_stream.samplingRate
