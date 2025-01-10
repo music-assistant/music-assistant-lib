@@ -315,14 +315,14 @@ class MusicAssistant:
 
         return remove_listener
 
-    def create_task(
+    def create_task[_R](
         self,
         target: Coroutine | Awaitable | Callable,
         *args: Any,
         task_id: str | None = None,
         abort_existing: bool = False,
         **kwargs: Any,
-    ) -> asyncio.Task | asyncio.Future:
+    ) -> asyncio.Task[_R] | asyncio.Future[_R]:
         """Create Task on (main) event loop from Coroutine(function).
 
         Tasks created by this helper will be properly cancelled on stop.
