@@ -1370,6 +1370,7 @@ class PlayerController(CoreController):
             title=player_source.name,
             custom_data={"source": source},
         )
+        media.uri = url
         await self.play_media(player.player_id, media)
 
     async def _poll_players(self) -> None:

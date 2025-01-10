@@ -40,7 +40,8 @@ def gather_requirements_from_manifests() -> list[str]:
 
             with open(file_path) as _file:
                 provider_manifest = json.loads(_file.read())
-                dependencies += provider_manifest["requirements"]
+                if "requirements" in provider_manifest:
+                    dependencies += provider_manifest["requirements"]
     return dependencies
 
 
