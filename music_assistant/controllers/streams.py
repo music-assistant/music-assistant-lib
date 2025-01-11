@@ -912,7 +912,7 @@ class StreamsController(CoreController):
         """Get the audio stream for the given streamdetails as raw pcm chunks."""
         # collect all arguments for ffmpeg
         filter_params = []
-        extra_input_args = []
+        extra_input_args = streamdetails.extra_input_args or []
         # handle volume normalization
         enable_volume_normalization = (
             streamdetails.target_loudness is not None
