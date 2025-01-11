@@ -20,7 +20,7 @@ from .sonic_provider import (
 if TYPE_CHECKING:
     from music_assistant_models.provider import ProviderManifest
 
-    from music_assistant import MusicAssistant
+    from music_assistant.mass import MusicAssistant
     from music_assistant.models import ProviderInstanceType
 
 
