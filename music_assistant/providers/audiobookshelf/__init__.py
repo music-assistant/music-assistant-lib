@@ -58,6 +58,7 @@ if TYPE_CHECKING:
 CONF_URL = "url"
 CONF_USERNAME = "username"
 CONF_PASSWORD = "password"
+CONF_VERIFY_SSL = "verify_ssl"
 
 
 async def setup(
@@ -103,6 +104,15 @@ async def get_config_entries(
             required=False,
             description="The password to authenticate to the remote server.",
         ),
+        ConfigEntry(
+            key=CONF_VERIFY_SSL,
+            type=ConfigEntryType.BOOLEAN,
+            label="Verify SSL",
+            required=False,
+            description="Whether or not to verify the certificate of SSL/TLS connections.",
+            category="advanced",
+            default_value=True,
+        ),
     )
 
 
@@ -125,6 +135,7 @@ class Audiobookshelf(MusicProvider):
             base_url=str(self.config.get_value(CONF_URL)),
             username=str(self.config.get_value(CONF_USERNAME)),
             password=str(self.config.get_value(CONF_PASSWORD)),
+            check_ssl=bool(self.config.get_value(CONF_VERIFY_SSL)),
         )
         await self._client.sync()
 

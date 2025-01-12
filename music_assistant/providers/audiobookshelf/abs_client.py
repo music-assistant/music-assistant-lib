@@ -60,9 +60,13 @@ class ABSClient:
         self.media_progress_id_to_media_progress: dict[
             str, list[ABSMediaProgress]
         ] = {}  # id: [ABSMediaProgress, ...]
+        self.check_ssl: bool
 
-    async def init(self, base_url: str, username: str, password: str) -> None:
+    async def init(
+        self, base_url: str, username: str, password: str, check_ssl: bool = True
+    ) -> None:
         """Initialize."""
+        self.check_ssl = check_ssl
         self.session = ClientSession(base_url)
         self.user = await self.login(username=username, password=password)
         self.token: str = self.user.token
@@ -79,7 +83,7 @@ class ABSClient:
         login and logout endpoint do not have "api" in url
         """
         _endpoint = f"/api/{endpoint}" if add_api_endpoint else f"/{endpoint}"
-        response = await self.session.post(_endpoint, json=data)
+        response = await self.session.post(_endpoint, json=data, ssl=self.check_ssl)
         status = response.status
         if status != ABSStatus.STATUS_OK.value:
             raise RuntimeError(f"API post call to {endpoint=} failed.")
@@ -90,7 +94,7 @@ class ABSClient:
     ) -> dict[str, Any]:
         """GET request to abs api."""
         _endpoint = f"/api/{endpoint}"
-        response = await self.session.get(_endpoint, params=params)
+        response = await self.session.get(_endpoint, params=params, ssl=self.check_ssl)
         status = response.status
         if status != ABSStatus.STATUS_OK.value:
             raise RuntimeError(f"API get call to {endpoint=} failed.")
@@ -102,7 +106,7 @@ class ABSClient:
     async def _patch(self, endpoint: str, data: dict[str, Any] | None = None) -> None:
         """PATCH request to abs api."""
         _endpoint = f"/api/{endpoint}"
-        response = await self.session.patch(_endpoint, json=data)
+        response = await self.session.patch(_endpoint, json=data, ssl=self.check_ssl)
         status = response.status
         if status != ABSStatus.STATUS_OK.value:
             raise RuntimeError(f"API patch call to {endpoint=} failed.")
