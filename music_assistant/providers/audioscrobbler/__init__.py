@@ -118,13 +118,14 @@ class ScrobblerProvider(PluginProvider):
                     track.track_number,
                     track.mbid,
                 )
+                self.logger.debug(f"track {track.uri} marked as 'now playing'")
+                self._currently_playing = track.uri
             except Exception as err:
                 self.logger.exception(err)
+            finally:
+                self._processing_queue_update = False
 
-        await self.mass.loop.run_in_executor(None, update_now_playing)
-        self.logger.debug(f"track {track.uri} marked as 'now playing'")
-        self._currently_playing = track.uri
-        self._processing_queue_update = False
+        self.mass.loop.run_in_executor(None, update_now_playing)
 
     async def _on_mass_media_item_played(self, event: MassEvent) -> None:
         """Media item has finished playing, we'll scrobble the track."""
@@ -159,7 +160,7 @@ class ScrobblerProvider(PluginProvider):
                 self.logger.exception(err)
 
         self.logger.debug("running scrobble() in executor")
-        await self.mass.loop.run_in_executor(None, scrobble)
+        self.mass.loop.run_in_executor(None, scrobble)
 
 
 # configuration keys
