@@ -1,4 +1,7 @@
-"""Audiobookshelf provider for Music Assistant."""
+"""Audiobookshelf provider for Music Assistant.
+
+Audiobookshelf is abbreviated ABS here.
+"""
 
 from __future__ import annotations
 
@@ -55,7 +58,6 @@ if TYPE_CHECKING:
 CONF_URL = "url"
 CONF_USERNAME = "username"
 CONF_PASSWORD = "password"
-CONF_VERIFY_SSL = "verify_ssl"
 
 
 async def setup(
@@ -92,8 +94,7 @@ async def get_config_entries(
             type=ConfigEntryType.STRING,
             label="Username",
             required=True,
-            description="The username to authenticate to the remote server."
-            "the remote host, For example 'media'.",
+            description="The username to authenticate to the remote server.",
         ),
         ConfigEntry(
             key=CONF_PASSWORD,
@@ -110,7 +111,7 @@ class Audiobookshelf(MusicProvider):
 
     @property
     def supported_features(self) -> set[ProviderFeature]:
-        """Return the features supported by this Provider."""
+        """Features supported by this Provider."""
         return {
             ProviderFeature.LIBRARY_PODCASTS,
             ProviderFeature.LIBRARY_AUDIOBOOKS,
@@ -118,10 +119,7 @@ class Audiobookshelf(MusicProvider):
         }
 
     async def handle_async_init(self) -> None:
-        """handle_async_init.
-
-        Initialize client, i.e. obtains token.
-        """
+        """Pass config values to client and initialize."""
         self._client = ABSClient()
         await self._client.init(
             base_url=str(self.config.get_value(CONF_URL)),
@@ -153,6 +151,7 @@ class Audiobookshelf(MusicProvider):
     async def _parse_podcast(self, abs_podcast: ABSPodcast):
         """Translate ABSPodcast to MassPodcast."""
         title = abs_podcast.media.metadata.title
+        # Per API doc title may be None.
         if title is None:
             title = "UNKNOWN"
         mass_podcast = Podcast(
@@ -184,11 +183,16 @@ class Audiobookshelf(MusicProvider):
         prov_podcast_id,
         episode_cnt: int | None = None,
     ) -> PodcastEpisode:
-        """Translate ABSPodcastEpisode to MassPodcastEpisode."""
+        """Translate ABSPodcastEpisode to MassPodcastEpisode.
+
+        For an episode the id is set to f"{podcast_id} {episode_id}".
+        ABS ids have no spaces, so we can split at a space to retrieve both
+        in other functions.
+        """
         url = f"{self.config.get_value(CONF_URL)}{episode.audio_track.content_url}"
         episode_id = f"{prov_podcast_id} {episode.id_}"
 
-        pod_episode = PodcastEpisode(
+        mass_episode = PodcastEpisode(
             item_id=episode_id,
             provider=self.domain,
             name=episode.title,
@@ -212,52 +216,56 @@ class Audiobookshelf(MusicProvider):
             },
         )
         if episode_cnt is not None:
-            pod_episode.position = episode_cnt
-        url_base = f"{self.config.get_value(CONF_URL)}"
-        url_api = f"/api/items/{prov_podcast_id}/cover?token={self._client.token}"
-        url_cover = f"{url_base}{url_api}"
-        pod_episode.metadata.images = UniqueList(
-            [MediaItemImage(type=ImageType.THUMB, path=url_cover, provider=self.lookup_key)]
-        )
+            mass_episode.position = episode_cnt
         progress, finished = await self._client.get_podcast_progress_ms(
             prov_podcast_id, episode.id_
         )
         if progress is not None:
-            pod_episode.resume_position_ms = progress
-            pod_episode.fully_played = finished
+            mass_episode.resume_position_ms = progress
+            mass_episode.fully_played = finished
 
-        return pod_episode
+        # cover image
+        url_base = f"{self.config.get_value(CONF_URL)}"
+        url_api = f"/api/items/{prov_podcast_id}/cover?token={self._client.token}"
+        url_cover = f"{url_base}{url_api}"
+        mass_episode.metadata.images = UniqueList(
+            [MediaItemImage(type=ImageType.THUMB, path=url_cover, provider=self.lookup_key)]
+        )
+
+        return mass_episode
 
     async def get_library_podcasts(self) -> AsyncGenerator[Podcast, None]:
         """Retrieve library/subscribed podcasts from the provider."""
-        async for podcast in self._client.get_all_podcasts():
-            pod = await self._parse_podcast(podcast)
-            yield pod
+        async for abs_podcast in self._client.get_all_podcasts():
+            mass_podcast = await self._parse_podcast(abs_podcast)
+            yield mass_podcast
 
     async def get_podcast(self, prov_podcast_id: str) -> Podcast:
         """Get single podcast."""
-        podcast = await self._client.get_podcast(prov_podcast_id)
-        return await self._parse_podcast(podcast)
+        abs_podcast = await self._client.get_podcast(prov_podcast_id)
+        return await self._parse_podcast(abs_podcast)
 
     async def get_podcast_episodes(self, prov_podcast_id: str) -> list[PodcastEpisode]:
         """Get all podcast episodes of podcast."""
-        podcast = await self._client.get_podcast(prov_podcast_id)
-        my_list = []
+        abs_podcast = await self._client.get_podcast(prov_podcast_id)
+        episode_list = []
         episode_cnt = 1
-        for episode in podcast.media.episodes:
-            pod_episode = await self._parse_podcast_episode(episode, prov_podcast_id, episode_cnt)
-            my_list.append(pod_episode)
+        for abs_episode in abs_podcast.media.episodes:
+            mass_episode = await self._parse_podcast_episode(
+                abs_episode, prov_podcast_id, episode_cnt
+            )
+            episode_list.append(mass_episode)
             episode_cnt += 1
-        return my_list
+        return episode_list
 
     async def get_podcast_episode(self, prov_episode_id: str) -> PodcastEpisode:
         """Get single podcast episode."""
         prov_podcast_id, e_id = prov_episode_id.split(" ")
-        podcast = await self._client.get_podcast(prov_podcast_id)
+        abs_podcast = await self._client.get_podcast(prov_podcast_id)
         episode_cnt = 1
-        for episode in podcast.media.episodes:
-            if episode.id_ == e_id:
-                return await self._parse_podcast_episode(episode, prov_podcast_id, episode_cnt)
+        for abs_episode in abs_podcast.media.episodes:
+            if abs_episode.id_ == e_id:
+                return await self._parse_podcast_episode(abs_episode, prov_podcast_id, episode_cnt)
 
             episode_cnt += 1
         raise MediaNotFoundError("Episode not found")
@@ -284,13 +292,8 @@ class Audiobookshelf(MusicProvider):
             mass_audiobook.metadata.languages = UniqueList([abs_audiobook.media.metadata.language])
         mass_audiobook.metadata.release_date = abs_audiobook.media.metadata.published_date
         mass_audiobook.metadata.genres = set(abs_audiobook.media.metadata.genres)
-        base_url = f"{self.config.get_value(CONF_URL)}"
-        cover_url = f"/api/items/{abs_audiobook.id_}/cover?token={self._client.token}"
-        url = f"{base_url}{cover_url}"
-        mass_audiobook.metadata.images = UniqueList(
-            [MediaItemImage(type=ImageType.THUMB, path=url, provider=self.lookup_key)]
-        )
 
+        # chapters
         chapters = []
         for idx, chapter in enumerate(abs_audiobook.media.chapters):
             chapters.append(
@@ -308,18 +311,27 @@ class Audiobookshelf(MusicProvider):
         if progress is not None:
             mass_audiobook.resume_position_ms = progress
             mass_audiobook.fully_played = finished
+
+        # cover
+        base_url = f"{self.config.get_value(CONF_URL)}"
+        api_url = f"/api/items/{abs_audiobook.id_}/cover?token={self._client.token}"
+        cover_url = f"{base_url}{api_url}"
+        mass_audiobook.metadata.images = UniqueList(
+            [MediaItemImage(type=ImageType.THUMB, path=cover_url, provider=self.lookup_key)]
+        )
+
         return mass_audiobook
 
     async def get_library_audiobooks(self) -> AsyncGenerator[Audiobook, None]:
         """Get Audiobook libraries."""
-        async for book in self._client.get_all_audiobooks():
-            audiobook = await self._parse_audiobook(book)
-            yield audiobook
+        async for abs_audiobook in self._client.get_all_audiobooks():
+            mass_audiobook = await self._parse_audiobook(abs_audiobook)
+            yield mass_audiobook
 
     async def get_audiobook(self, prov_audiobook_id: str) -> Audiobook:
         """Get a single audiobook."""
-        book = await self._client.get_audiobook(prov_audiobook_id)
-        return await self._parse_audiobook(book)
+        abs_audiobook = await self._client.get_audiobook(prov_audiobook_id)
+        return await self._parse_audiobook(abs_audiobook)
 
     async def get_stream_details(
         self, item_id: str, media_type: MediaType = MediaType.TRACK
@@ -331,10 +343,10 @@ class Audiobookshelf(MusicProvider):
             return await self._get_stream_details_audiobook(item_id)
         raise MediaNotFoundError("Stream unknown")
 
-    async def _get_stream_details_audiobook(self, item_id: str):
-        """Only single file audiobook."""
-        audiobook = await self._client.get_audiobook(item_id)
-        tracks = audiobook.media.tracks
+    async def _get_stream_details_audiobook(self, audiobook_id: str):
+        """Only single audio file in audiobook."""
+        abs_audiobook = await self._client.get_audiobook(audiobook_id)
+        tracks = abs_audiobook.media.tracks
         if len(tracks) == 0:
             raise MediaNotFoundError("Stream not found")
         if len(tracks) > 1:
@@ -342,36 +354,38 @@ class Audiobookshelf(MusicProvider):
         token = self._client.token
         base_url = str(self.config.get_value(CONF_URL))
         media_url = tracks[0].content_url
-        full_url = f"{base_url}{media_url}?token={token}"
+        stream_url = f"{base_url}{media_url}?token={token}"
+        # audiobookshelf returns information of stream, so we should be able
+        # to lift unknown at some point.
         return StreamDetails(
             provider=self.instance_id,
-            item_id=item_id,
+            item_id=audiobook_id,
             audio_format=AudioFormat(
                 content_type=ContentType.UNKNOWN,
             ),
             media_type=MediaType.AUDIOBOOK,
             stream_type=StreamType.HTTP,
-            path=full_url,
+            path=stream_url,
         )
 
-    async def _get_stream_details_podcast_episode(self, item_id: str):
+    async def _get_stream_details_podcast_episode(self, podcast_id: str):
         """Stream of a Podcast."""
-        pod_id, ep_id = item_id.split(" ")
-        episode = None
+        abs_podcast_id, abs_episode_id = podcast_id.split(" ")
+        abs_episode = None
 
-        podcast = await self._client.get_podcast(pod_id)
-        for episode in podcast.media.episodes:
-            if episode.id_ == ep_id:
+        abs_podcast = await self._client.get_podcast(abs_podcast_id)
+        for abs_episode in abs_podcast.media.episodes:
+            if abs_episode.id_ == abs_episode_id:
                 break
-        if episode is None:
+        if abs_episode is None:
             raise MediaNotFoundError("Stream not found")
         token = self._client.token
         base_url = str(self.config.get_value(CONF_URL))
-        media_url = episode.audio_track.content_url
+        media_url = abs_episode.audio_track.content_url
         full_url = f"{base_url}{media_url}?token={token}"
         return StreamDetails(
             provider=self.instance_id,
-            item_id=item_id,
+            item_id=podcast_id,
             audio_format=AudioFormat(
                 content_type=ContentType.UNKNOWN,
             ),
@@ -395,10 +409,10 @@ class Audiobookshelf(MusicProvider):
             logging.warning("Unable to update progress")
             return
         if len(ids) > 1:
-            p_id, e_id = streamdetails.item_id.split(" ")
+            abs_podcast_id, abs_episode_id = streamdetails.item_id.split(" ")
             await self._client.update_podcast_progress(
-                p_id,
-                e_id,
+                abs_podcast_id,
+                abs_episode_id,
                 seconds_streamed,
                 streamdetails.duration,
                 fully_played,
@@ -417,20 +431,20 @@ class Audiobookshelf(MusicProvider):
         of both podcasts and audiobooks.
         """
         items: list[MediaItemType | ItemMapping] = []
-        for lib in library_list:
+        for library in library_list:
             items.append(
                 BrowseFolder(
-                    item_id=lib.id_,
-                    name=lib.name,
+                    item_id=library.id_,
+                    name=library.name,
                     provider=self.instance_id,
-                    path=f"{self.instance_id}://{item_path}/{lib.id_}",
+                    path=f"{self.instance_id}://{item_path}/{library.id_}",
                 )
             )
         return items
 
     async def _browse_lib(
         self,
-        lib_id: str,
+        library_id: str,
         library_list: list[ABSLibrary],
         get_item_function: Callable,
         media_type: MediaType,
@@ -440,13 +454,13 @@ class Audiobookshelf(MusicProvider):
         Helper functions. Shows the items which are part of an ABS library.
         """
         items: list[MediaItemType | ItemMapping] = []
-        lib = None
-        for lib in library_list:
-            if lib_id == lib.id_:
+        library = None
+        for library in library_list:
+            if library_id == library.id_:
                 break
-        if lib is None:
+        if library is None:
             raise MediaNotFoundError("Lib missing.")
-        async for item in get_item_function(lib):
+        async for item in get_item_function(library):
             title = item.media.metadata.title
             if title is None:
                 title = "UNKNOWN"
@@ -479,16 +493,16 @@ class Audiobookshelf(MusicProvider):
             return await self._browse_root(library_list, item_path)
 
         # HANDLE WITHIN LIBRARY
-        lib_type, lib_id = item_path.split("/")
-        if lib_type == "audiobooks":
+        library_type, library_id = item_path.split("/")
+        if library_type == "audiobooks":
             library_list = self._client.audiobook_libraries
             get_item_function = self._client.get_all_audiobooks_by_library
             media_type = MediaType.AUDIOBOOK
-        elif lib_type == "podcasts":
+        elif library_type == "podcasts":
             library_list = self._client.podcast_libraries
             get_item_function = self._client.get_all_podcasts_by_library
             media_type = MediaType.PODCAST
         else:
             raise MediaNotFoundError("Specified Lib Type unknown")
 
-        return await self._browse_lib(lib_id, library_list, get_item_function, media_type)
+        return await self._browse_lib(library_id, library_list, get_item_function, media_type)
