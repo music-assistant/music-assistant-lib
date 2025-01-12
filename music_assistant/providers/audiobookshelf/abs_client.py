@@ -6,7 +6,7 @@ from typing import Any
 
 from aiohttp import ClientSession
 
-from music_assistant.providers.audiobookshelf.schema import (
+from music_assistant.providers.audiobookshelf.abs_schema import (
     ABSAudioBook,
     ABSAudioBookChapter,
     ABSAudioBookmark,
