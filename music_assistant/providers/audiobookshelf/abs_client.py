@@ -1,4 +1,7 @@
-"""Simple Client for Audiobookshelf."""
+"""Simple Client for Audiobookshelf.
+
+We only implement the functions necessary for mass.
+"""
 
 from collections.abc import AsyncGenerator
 from enum import Enum
@@ -71,6 +74,10 @@ class ABSClient:
         data: dict[str, Any] | None = None,
         add_api_endpoint: bool = True,
     ) -> dict[str, Any]:
+        """POST request to abs api.
+
+        login and logout endpoint do not have "api" in url
+        """
         _endpoint = f"/api/{endpoint}" if add_api_endpoint else f"/{endpoint}"
         response = await self.session.post(_endpoint, json=data)
         status = response.status
@@ -81,6 +88,7 @@ class ABSClient:
     async def _get(
         self, endpoint: str, params: dict[str, str | int] | None = None
     ) -> dict[str, Any]:
+        """GET request to abs api."""
         _endpoint = f"/api/{endpoint}"
         response = await self.session.get(_endpoint, params=params)
         status = response.status
@@ -89,9 +97,10 @@ class ABSClient:
         if response.content_type == "application/json":
             return await response.json()
         else:
-            raise RuntimeError("Response must be json")
+            raise RuntimeError("Response must be json.")
 
     async def _patch(self, endpoint: str, data: dict[str, Any] | None = None) -> None:
+        """PATCH request to abs api."""
         _endpoint = f"/api/{endpoint}"
         response = await self.session.patch(_endpoint, json=data)
         status = response.status
@@ -99,21 +108,26 @@ class ABSClient:
             raise RuntimeError(f"API patch call to {endpoint=} failed.")
 
     async def login(self, username: str, password: str) -> ABSUser:
-        """Token from ABS."""
+        """Obtain user holding token from ABS with username/ password authentication."""
         data = await self._post(
             "login",
             add_api_endpoint=False,
             data={"username": username, "password": password},
         )
 
-        return await self.parse_user(data["user"])
+        return await self._parse_user(data["user"])
+
+    async def logout(self) -> None:
+        """Logout and close aiohttp session."""
+        await self._post("logout", add_api_endpoint=False)
+        await self.session.close()
 
     async def get_user(self, id_: str) -> ABSUser:
         """Get an ABS user."""
         data = await self._get(f"users/{id_}")
-        return await self.parse_user(data)
+        return await self._parse_user(data)
 
-    async def parse_user(self, user_dict: dict[str, Any]) -> ABSUser:
+    async def _parse_user(self, user_dict: dict[str, Any]) -> ABSUser:
         """Convert User Dict to ABSUser."""
         abs_user = await self._map_attributes(ABSUser, user_dict)
 
@@ -129,10 +143,6 @@ class ABSClient:
 
         return abs_user
 
-    async def logout(self) -> None:
-        """Close aiohttp session."""
-        await self.session.close()
-
     async def sync(self) -> None:
         """Update available book and podcast libraries."""
         data = await self._get("libraries")
@@ -140,13 +150,13 @@ class ABSClient:
         ids = [x.id_ for x in self.audiobook_libraries]
         ids.extend([x.id_ for x in self.podcast_libraries])
         for library in libraries:
-            mtype = library["mediaType"]
+            media_type = library["mediaType"]
             if library["id"] not in ids:
-                lib = ABSLibrary(name=library["name"], id_=library["id"])
-                if mtype == "book":
-                    self.audiobook_libraries.append(lib)
-                elif mtype == "podcast":
-                    self.podcast_libraries.append(lib)
+                abs_library = ABSLibrary(name=library["name"], id_=library["id"])
+                if media_type == "book":
+                    self.audiobook_libraries.append(abs_library)
+                elif media_type == "podcast":
+                    self.podcast_libraries.append(abs_library)
         self.user = await self.get_user(self.user.id_)
 
         self.media_progress_id_to_media_progress = {}
@@ -254,7 +264,8 @@ class ABSClient:
             - progress in abs is percentage
             - multiple parameters in one call don't work in all combinations
             - currentTime is current position in s
-            - currentTime works only if duration is sent as well, but then don't send progress.
+            - currentTime works only if duration is sent as well, but then don't
+              send progress at the same time.
         """
         await self._patch(
             endpoint,
