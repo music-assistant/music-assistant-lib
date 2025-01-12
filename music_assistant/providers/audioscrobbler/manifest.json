@@ -7,5 +7,5 @@
   "documentation": "",
   "multi_instance": false,
   "builtin": false,
-  "requirements": ["pylast"]
+  "requirements": ["pylast==5.3.0"]
 }

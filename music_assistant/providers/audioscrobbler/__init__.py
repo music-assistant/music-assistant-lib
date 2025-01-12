@@ -2,6 +2,7 @@
 
 import logging
 import time
+from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 import pylast
@@ -12,9 +13,10 @@ from music_assistant_models.config_entries import (
     ProviderConfig,
 )
 from music_assistant_models.constants import SECURE_STRING_SUBSTITUTE
-from music_assistant_models.enums import ConfigEntryType, EventType, MediaType, PlayerState
+from music_assistant_models.enums import ConfigEntryType, EventType, PlayerState
 from music_assistant_models.errors import LoginFailed, SetupFailedError
 from music_assistant_models.event import MassEvent
+from music_assistant_models.media_items import Album, is_track
 from music_assistant_models.provider import ProviderManifest
 
 if TYPE_CHECKING:
@@ -32,21 +34,21 @@ async def setup(
     mass: MusicAssistant, manifest: ProviderManifest, config: ProviderConfig
 ) -> ProviderInstanceType:
     """Initialize provider(instance) with given configuration."""
-    return ScrobblerProvider(mass, manifest, config)
+    provider = ScrobblerProvider(mass, manifest, config)
+    pylast.logger.setLevel(provider.logger.level)
+    if provider.logger.level == logging.DEBUG:
+        # httpcore is quite spammy without providing useful information 99% of the time
+        logging.getLogger("httpcore").setLevel(logging.INFO)
+
+    return provider
 
 
 class ScrobblerProvider(PluginProvider):
     """Plugin provider to support scrobbling of tracks."""
 
     _network: pylast._Network = None
-
-    def __init__(
-        self, mass: MusicAssistant, manifest: ProviderManifest, config: ProviderConfig
-    ) -> None:
-        """Initialize AudioScrobbler."""
-        super().__init__(mass, manifest, config)
-        if self.logger.level == logging.DEBUG:
-            pylast.logger.setLevel(logging.DEBUG)
+    _currently_playing: str = None
+    _processing_queue_update = False
 
     def _get_network_config(self) -> dict[str, ConfigValueType]:
         return {
@@ -61,52 +63,103 @@ class ScrobblerProvider(PluginProvider):
         """Call after the provider has been loaded."""
         await super().loaded_in_mass()
 
-        if self.config.get_value(CONF_SESSION_KEY):
-            self._network = _get_network(self._get_network_config())
+        if not self.config.get_value(CONF_SESSION_KEY):
+            self.logger.info("No session key available")
+            return
 
-        # could be interesting for a "scrobble after X seconds" feature
-        # self.mass.subscribe(self._on_mass_queue_time_updated, EventType.QUEUE_TIME_UPDATED)
-        self.mass.subscribe(self._on_mass_queue_updated, EventType.QUEUE_UPDATED)
-        self.mass.subscribe(self._on_mass_media_item_played, EventType.MEDIA_ITEM_PLAYED)
+        self._network = _get_network(self._get_network_config())
+
+        def wrap(cb: Callable[[MassEvent], None]):
+            async def handler(event: MassEvent) -> None:
+                try:
+                    await cb(event)
+                except Exception as e:
+                    self.logger.exception(e)
+
+            return handler
+
+        # subscribe to internal events
+        self.mass.subscribe(wrap(self._on_mass_queue_updated), EventType.QUEUE_UPDATED)
+        self.mass.subscribe(wrap(self._on_mass_media_item_played), EventType.MEDIA_ITEM_PLAYED)
+        self.logger.debug("subscribed to events")
 
     async def _on_mass_queue_updated(self, event: MassEvent) -> None:
         """Player has updated, update nowPlaying."""
         if self._network is None:
+            self.logger.error("no network available during _on_mass_queue_updated")
+            return
+
+        if self._processing_queue_update:
             return
 
         queue: PlayerQueue = event.data
-        if queue.state == PlayerState.PLAYING and queue.current_item.media_type == MediaType.TRACK:
-            track: Track = queue.current_item.media_item
+        if queue.state != PlayerState.PLAYING or not is_track(queue.current_item.media_item):
+            self.logger.debug("queue update ignored, no track currently playing")
+            self._currently_playing = None
+            return
+
+        track: Track = queue.current_item.media_item
+        if track.uri == self._currently_playing:
+            self.logger.debug(
+                f"queue update ignored, track {track.uri} already marked as 'now playing'"
+            )
+            return
+
+        self._processing_queue_update = True
+
+        def update_now_playing() -> None:
             try:
                 self._network.update_now_playing(
-                    artist=track.artist_str,
-                    title=track.name,
-                    mbid=track.mbid,
-                    album=track.album.name if track.album else None,
+                    track.artist_str,
+                    track.name,
+                    track.album.name if track.album else None,
+                    track.album.artist_str if isinstance(track.album, Album) else None,
+                    track.duration,
+                    track.track_number,
+                    track.mbid,
                 )
             except Exception as err:
                 self.logger.exception(err)
 
+        await self.mass.loop.run_in_executor(None, update_now_playing)
+        self.logger.debug(f"track {track.uri} marked as 'now playing'")
+        self._currently_playing = track.uri
+        self._processing_queue_update = False
+
     async def _on_mass_media_item_played(self, event: MassEvent) -> None:
         """Media item has finished playing, we'll scrobble the track."""
         if self._network is None:
+            self.logger.error("no network available during _on_mass_media_item_played")
             return
 
-        item = await self.mass.music.get_item_by_uri(event.object_id)
-        if item.media_type is not MediaType.TRACK:
+        item = await self.mass.music.get_item_by_uri(event.data["media_item"])
+        if not is_track(item):
+            self.logger.debug(f"track {event.data['media_item']} skipped, as it is not a track")
             return
 
-        try:
-            track: Track = item
-            self._network.scrobble(
-                artist=track.artist_str,
-                title=track.name,
-                timestamp=time.time(),
-                mbid=track.mbid,
-                album=track.album.name if track.album else None,
-            )
-        except Exception as err:
-            self.logger.exception(err)
+        track: Track = item
+
+        if event.data["seconds_played"] / track.duration < 0.5:
+            self.logger.debug(f"track {track.uri} ignored, playtime was not long enough")
+            return
+
+        def scrobble() -> None:
+            try:
+                self._network.scrobble(
+                    track.artist_str,
+                    track.name,
+                    time.time(),
+                    track.album.name if track.album else None,
+                    track.album.artist_str if track.album else None,
+                    track.track_number,
+                    track.duration,
+                    mbid=track.mbid,
+                )
+            except Exception as err:
+                self.logger.exception(err)
+
+        self.logger.debug("running scrobble() in executor")
+        await self.mass.loop.run_in_executor(None, scrobble)
 
 
 # configuration keys
