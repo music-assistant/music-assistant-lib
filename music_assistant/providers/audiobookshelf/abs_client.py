@@ -44,6 +44,7 @@ class ABSStatus(Enum):
     """ABS Status Enum."""
 
     STATUS_OK = 200
+    STATUS_NOT_FOUND = 404
 
 
 class ABSClient:
@@ -57,9 +58,6 @@ class ABSClient:
         self.podcast_libraries: list[ABSLibrary] = []
         self.audiobook_libraries: list[ABSLibrary] = []
         self.user: ABSUser
-        self.media_progress_id_to_media_progress: dict[
-            str, list[ABSMediaProgress]
-        ] = {}  # id: [ABSMediaProgress, ...]
         self.check_ssl: bool
 
     async def init(
@@ -96,10 +94,12 @@ class ABSClient:
         _endpoint = f"/api/{endpoint}"
         response = await self.session.get(_endpoint, params=params, ssl=self.check_ssl)
         status = response.status
-        if status != ABSStatus.STATUS_OK.value:
+        if status not in [ABSStatus.STATUS_OK.value, ABSStatus.STATUS_NOT_FOUND.value]:
             raise RuntimeError(f"API get call to {endpoint=} failed.")
         if response.content_type == "application/json":
             return await response.json()
+        elif status == ABSStatus.STATUS_NOT_FOUND.value:
+            return {}
         else:
             raise RuntimeError("Response must be json.")
 
@@ -163,12 +163,6 @@ class ABSClient:
                     self.podcast_libraries.append(abs_library)
         self.user = await self.get_user(self.user.id_)
 
-        self.media_progress_id_to_media_progress = {}
-        for mp in self.user.media_progress:
-            mp_list = self.media_progress_id_to_media_progress.get(mp.library_item_id, [])
-            mp_list.append(mp)
-            self.media_progress_id_to_media_progress[mp.library_item_id] = mp_list
-
     async def get_all_podcasts(self) -> AsyncGenerator[ABSPodcast]:
         """Get all available podcasts."""
         for library in self.podcast_libraries:
@@ -225,33 +219,32 @@ class ABSClient:
 
         return abs_podcast
 
+    async def _get_progress_ms(
+        self,
+        endpoint: str,
+    ) -> tuple[int | None, bool]:
+        data = await self._get(endpoint=endpoint)
+        if not data:
+            # entry doesn't exist, so it wasn't played yet
+            return 0, False
+        abs_media_progress: ABSMediaProgress = await self._map_attributes(ABSMediaProgress, data)
+
+        return (
+            int(abs_media_progress.current_time * 1000),
+            abs_media_progress.is_finished,
+        )
+
     async def get_podcast_progress_ms(
         self, podcast_id: str, episode_id: str
     ) -> tuple[int | None, bool]:
         """Get podcast progress."""
-        mp_list = self.media_progress_id_to_media_progress.get(podcast_id, None)
-        progress = None
-        is_finished = False
-        if mp_list is not None:
-            for mp in mp_list:
-                if mp.episode_id == episode_id:
-                    progress = int(mp.current_time * 1000)
-                    is_finished = mp.is_finished
-        return progress, is_finished
+        endpoint = f"me/progress/{podcast_id}/{episode_id}"
+        return await self._get_progress_ms(endpoint)
 
     async def get_audiobook_progress_ms(self, audiobook_id: str) -> tuple[int | None, bool]:
         """Get audiobook progress."""
-        mp_list = self.media_progress_id_to_media_progress.get(audiobook_id, None)
-        progress = None
-        is_finished = False
-        if mp_list is None:
-            return progress, is_finished
-        if len(mp_list) > 1:
-            raise RuntimeError("A book must have only one progress")
-        mp = mp_list[0]
-        progress = int(mp.current_time * 1000)
-        is_finished = mp.is_finished
-        return progress, is_finished
+        endpoint = f"me/progress/{audiobook_id}"
+        return await self._get_progress_ms(endpoint)
 
     async def _update_progress(
         self,
