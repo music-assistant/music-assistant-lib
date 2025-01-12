@@ -1,0 +1,12 @@
+{
+  "type": "music",
+  "domain": "audiobookshelf",
+  "name": "Audiobookshelf",
+  "description": "Audiobookshelf (audiobookshelf.org) as audiobook and podcast provider",
+  "codeowners": [
+    "@fmunkes"
+  ],
+  "requirements": [],
+  "documentation": "Link to the documentation on the music-assistant.io helppage (may be added later).",
+  "mdns_discovery": []
+}
