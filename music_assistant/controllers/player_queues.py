@@ -1164,7 +1164,7 @@ class PlayerQueuesController(CoreController):
                 and queue_item.media_item.album.item_id == next_item.media_item.album.item_id
             )
         )
-        if queue_item.media_item:
+        if queue_item.media_item and queue_item.media_item.media_type == MediaType.TRACK:
             # prefer the full library media item so we have all metadata and provider(quality) info
             # always request the full library item as there might be other qualities available
             if library_item := await self.mass.music.get_library_item_by_prov_id(
@@ -1538,7 +1538,10 @@ class PlayerQueuesController(CoreController):
 
     async def _enqueue_next_item(self, queue_id: str, current_item_id: str) -> None:
         """Enqueue the next item on the player."""
-        next_item = await self.load_next_item(queue_id, current_item_id)
+        try:
+            next_item = await self.load_next_item(queue_id, current_item_id)
+        except QueueEmpty:
+            return
         await self.mass.players.enqueue_next_media(
             player_id=queue_id,
             media=self.player_media_from_queue_item(next_item, False),
