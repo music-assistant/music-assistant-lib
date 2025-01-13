@@ -52,13 +52,12 @@ from music_assistant.constants import (
 )
 from music_assistant.models.music_provider import MusicProvider
 
-from .parsers import parse_artist
+from .parsers import parse_album, parse_artist
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator, Callable
 
     from libopensonic.media import Album as SonicAlbum
-    from libopensonic.media import AlbumInfo as SonicAlbumInfo
     from libopensonic.media import Artist as SonicArtist
     from libopensonic.media import Playlist as SonicPlaylist
     from libopensonic.media import PodcastChannel as SonicPodcast
@@ -178,78 +177,6 @@ class OpenSonicProvider(MusicProvider):
             provider=self.instance_id,
             name=name,
         )
-
-    def _parse_album(self, sonic_album: SonicAlbum, sonic_info: SonicAlbumInfo = None) -> Album:
-        album_id = sonic_album.id
-        album = Album(
-            item_id=album_id,
-            provider=self.domain,
-            name=sonic_album.name,
-            favorite=bool(sonic_album.starred),
-            provider_mappings={
-                ProviderMapping(
-                    item_id=album_id,
-                    provider_domain=self.domain,
-                    provider_instance=self.instance_id,
-                )
-            },
-            year=sonic_album.year,
-        )
-
-        album.metadata.images = UniqueList()
-        if sonic_album.cover_id:
-            album.metadata.images.append(
-                MediaItemImage(
-                    type=ImageType.THUMB,
-                    path=sonic_album.cover_id,
-                    provider=self.instance_id,
-                    remotely_accessible=False,
-                ),
-            )
-
-        if sonic_album.artist_id:
-            album.artists.append(
-                self._get_item_mapping(
-                    MediaType.ARTIST,
-                    sonic_album.artist_id,
-                    sonic_album.artist if sonic_album.artist else UNKNOWN_ARTIST,
-                )
-            )
-        else:
-            self.logger.info(
-                "Unable to find an artist ID for album '%s' with ID '%s'.",
-                sonic_album.name,
-                sonic_album.id,
-            )
-            album.artists.append(
-                Artist(
-                    item_id=UNKNOWN_ARTIST_ID,
-                    name=UNKNOWN_ARTIST,
-                    provider=self.instance_id,
-                    provider_mappings={
-                        ProviderMapping(
-                            item_id=UNKNOWN_ARTIST_ID,
-                            provider_domain=self.domain,
-                            provider_instance=self.instance_id,
-                        )
-                    },
-                )
-            )
-
-        if sonic_info:
-            if sonic_info.small_url:
-                album.metadata.images.append(
-                    MediaItemImage(
-                        type=ImageType.THUMB,
-                        path=sonic_info.small_url,
-                        remotely_accessible=False,
-                        provider=self.instance_id,
-                    )
-                )
-            if sonic_info.notes:
-                album.metadata.description = sonic_info.notes
-
-        return album
 
     def _parse_track(
         self, sonic_song: SonicSong, album: Album | ItemMapping | None = None
@@ -485,7 +412,9 @@ class OpenSonicProvider(MusicProvider):
         )
         return SearchResults(
             artists=[parse_artist(self.instance_id, entry) for entry in answer["artists"]],
-            albums=[self._parse_album(entry) for entry in answer["albums"]],
+            albums=[
+                parse_album(self.logger, self.instance_id, entry) for entry in answer["albums"]
+            ],
             tracks=[self._parse_track(entry) for entry in answer["songs"]],
         )
 
@@ -513,7 +442,7 @@ class OpenSonicProvider(MusicProvider):
         )
         while albums:
             for album in albums:
-                yield self._parse_album(album)
+                yield parse_album(self.logger, self.instance_id, album)
             offset += size
             albums = await self._run_async(
                 self._conn.getAlbumList2,
@@ -582,7 +511,7 @@ class OpenSonicProvider(MusicProvider):
             msg = f"Album {prov_album_id} not found"
             raise MediaNotFoundError(msg) from e
 
-        return self._parse_album(sonic_album, sonic_info)
+        return parse_album(self.logger, self.instance_id, sonic_album, sonic_info)
 
     async def get_album_tracks(self, prov_album_id: str) -> list[Track]:
         """Return a list of tracks on the specified Album."""
@@ -658,7 +587,7 @@ class OpenSonicProvider(MusicProvider):
             raise MediaNotFoundError(msg) from e
         albums = []
         for entry in sonic_artist.albums:
-            albums.append(self._parse_album(entry))
+            albums.append(parse_album(self.logger, self.instance_id, entry))
         return albums
 
     async def get_playlist(self, prov_playlist_id: str) -> Playlist:
