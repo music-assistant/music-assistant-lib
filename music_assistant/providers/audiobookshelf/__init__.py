@@ -6,7 +6,7 @@ Audiobookshelf is abbreviated ABS here.
 from __future__ import annotations
 
 import logging
-from collections.abc import AsyncGenerator, Callable, Sequence
+from collections.abc import AsyncGenerator, Sequence
 from typing import TYPE_CHECKING
 
 from music_assistant_models.config_entries import (
@@ -460,36 +460,43 @@ class Audiobookshelf(MusicProvider):
         self,
         library_id: str,
         library_list: list[ABSLibrary],
-        get_item_function: Callable,
         media_type: MediaType,
     ) -> Sequence[MediaItemType | ItemMapping]:
         """Browse lib folder in browse view.
 
         Helper functions. Shows the items which are part of an ABS library.
         """
-        items: list[MediaItemType | ItemMapping] = []
         library = None
         for library in library_list:
             if library_id == library.id_:
                 break
         if library is None:
             raise MediaNotFoundError("Lib missing.")
-        async for item in get_item_function(library):
+
+        def get_item_mapping(item: ABSAudioBook | ABSPodcast) -> ItemMapping:
             title = item.media.metadata.title
             if title is None:
                 title = "UNKNOWN"
             token = self._client.token
             url = f"{self.config.get_value(CONF_URL)}/api/items/{item.id_}/cover?token={token}"
             image = MediaItemImage(type=ImageType.THUMB, path=url, provider=self.lookup_key)
-            items.append(
-                ItemMapping(
-                    media_type=media_type,
-                    item_id=item.id_,
-                    provider=self.instance_id,
-                    name=title,
-                    image=image,
-                )
+            return ItemMapping(
+                media_type=media_type,
+                item_id=item.id_,
+                provider=self.instance_id,
+                name=title,
+                image=image,
             )
+
+        items: list[MediaItemType | ItemMapping] = []
+        if media_type == MediaType.PODCAST:
+            async for item in self._client.get_all_podcasts_by_library(library):
+                items.append(get_item_mapping(item))
+        elif media_type == MediaType.AUDIOBOOK:
+            async for item in self._client.get_all_audiobooks_by_library(library):
+                items.append(get_item_mapping(item))
+        else:
+            raise RuntimeError(f"Media type must not be {media_type}")
         return items
 
     async def browse(self, path: str) -> Sequence[MediaItemType | ItemMapping]:
@@ -510,13 +517,11 @@ class Audiobookshelf(MusicProvider):
         library_type, library_id = item_path.split("/")
         if library_type == "audiobooks":
             library_list = self._client.audiobook_libraries
-            get_item_function = self._client.get_all_audiobooks_by_library
             media_type = MediaType.AUDIOBOOK
         elif library_type == "podcasts":
             library_list = self._client.podcast_libraries
-            get_item_function = self._client.get_all_podcasts_by_library
             media_type = MediaType.PODCAST
         else:
             raise MediaNotFoundError("Specified Lib Type unknown")
 
-        return await self._browse_lib(library_id, library_list, get_item_function, media_type)
+        return await self._browse_lib(library_id, library_list, media_type)
