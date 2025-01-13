@@ -8,7 +8,7 @@ from __future__ import annotations
 import re
 from contextlib import suppress
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 from mashumaro import DataClassDictMixin
 from mashumaro.exceptions import MissingField
@@ -27,13 +27,13 @@ if TYPE_CHECKING:
     from music_assistant_models.media_items import Album, Track
     from music_assistant_models.provider import ProviderManifest
 
-    from music_assistant import MusicAssistant
+    from music_assistant.mass import MusicAssistant
     from music_assistant.models import ProviderInstanceType
 
 
 LUCENE_SPECIAL = r'([+\-&|!(){}\[\]\^"~*?:\\\/])'
 
-SUPPORTED_FEATURES = set()
+_T = TypeVar("_T")
 
 
 async def setup(
@@ -60,18 +60,19 @@ async def get_config_entries(
     return ()  # we do not have any config entries (yet)
 
 
-def replace_hyphens(data: dict[str, Any]) -> dict[str, Any]:
+def replace_hyphens(data: _T) -> _T:
     """Change all hyphens to underscores."""
-    new_values = {}
-    for key, value in data.items():
-        new_key = key.replace("-", "_")
-        if isinstance(value, dict):
+    if isinstance(data, dict):
+        new_values = {}
+        for key, value in data.items():
+            new_key = key.replace("-", "_")
             new_values[new_key] = replace_hyphens(value)
-        elif isinstance(value, list):
-            new_values[new_key] = [replace_hyphens(x) if isinstance(x, dict) else x for x in value]
-        else:
-            new_values[new_key] = value
-    return new_values
+        return cast(_T, new_values)
+
+    if isinstance(data, list):
+        return cast(_T, [replace_hyphens(x) if isinstance(x, dict) else x for x in data])
+
+    return data
 
 
 @dataclass
@@ -202,7 +203,7 @@ class MusicbrainzProvider(MetadataProvider):
     @property
     def supported_features(self) -> set[ProviderFeature]:
         """Return the features supported by this Provider."""
-        return SUPPORTED_FEATURES
+        return set()
 
     async def search(
         self, artistname: str, albumname: str, trackname: str, trackversion: str | None = None
@@ -337,7 +338,7 @@ class MusicbrainzProvider(MetadataProvider):
 
         MusicBrainzArtist object that is returned does not contain the optional data.
         """
-        result = None
+        result: MusicBrainzRelease | MusicBrainzReleaseGroup | None = None
         if mb_id := ref_album.get_external_id(ExternalID.MB_RELEASEGROUP):
             with suppress(InvalidDataError):
                 result = await self.get_releasegroup_details(mb_id)
@@ -398,13 +399,13 @@ class MusicbrainzProvider(MetadataProvider):
 
     @use_cache(86400 * 30)
     @throttle_with_retries
-    async def get_data(self, endpoint: str, **kwargs: dict[str, Any]) -> Any:
+    async def get_data(self, endpoint: str, **kwargs: str) -> Any:
         """Get data from api."""
         url = f"http://musicbrainz.org/ws/2/{endpoint}"
         headers = {
             "User-Agent": f"Music Assistant/{self.mass.version} (https://music-assistant.io)"
         }
-        kwargs["fmt"] = "json"  # type: ignore[assignment]
+        kwargs["fmt"] = "json"
         async with (
             self.mass.http_session.get(url, headers=headers, params=kwargs) as response,
         ):

@@ -613,7 +613,7 @@ class StreamsController(CoreController):
         if not (source := await provider.get_source(source_id)):
             raise web.HTTPNotFound(reason=f"Unknown PluginSource: {source_id}")
         try:
-            streamdetails = await provider.get_stream_details(source_id, MediaType.PLUGIN_SOURCE)
+            streamdetails = await provider.get_stream_details(source_id, "plugin_source")
         except Exception:
             err_msg = f"No streamdetails for PluginSource: {source_id}"
             self.logger.error(err_msg)

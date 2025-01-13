@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Final
+from collections.abc import Coroutine
+from typing import TYPE_CHECKING, Any, Final
 
 from aiohttp import web
 
@@ -99,7 +100,12 @@ class Webserver:
         """Return the port of this webserver."""
         return self._bind_port
 
-    def register_dynamic_route(self, path: str, handler: Awaitable, method: str = "*") -> Callable:
+    def register_dynamic_route(
+        self,
+        path: str,
+        handler: Callable[[web.Request], Coroutine[Any, Any, web.Response]],
+        method: str = "*",
+    ) -> Callable:
         """Register a dynamic route on the webserver, returns handler to unregister."""
         if self._dynamic_routes is None:
             msg = "Dynamic routes are not enabled"

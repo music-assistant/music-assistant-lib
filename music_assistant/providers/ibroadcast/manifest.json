@@ -4,7 +4,7 @@
   "name": "iBroadcast",
   "description": "Support for the iBroadcast streaming provider in Music Assistant.",
   "codeowners": ["@robsonke"],
-  "requirements": ["ibroadcastaio==0.3.1"],
+  "requirements": ["ibroadcastaio==0.4.0"],
   "documentation": "https://music-assistant.io/music-providers/ibroadcast/",
   "multi_instance": true
 }

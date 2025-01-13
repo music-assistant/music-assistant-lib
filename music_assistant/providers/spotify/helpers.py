@@ -8,7 +8,7 @@ import platform
 from music_assistant.helpers.process import check_output
 
 
-async def get_librespot_binary():
+async def get_librespot_binary() -> str:
     """Find the correct librespot binary belonging to the platform."""
 
     # ruff: noqa: SIM102

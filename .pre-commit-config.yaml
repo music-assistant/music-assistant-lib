@@ -40,7 +40,7 @@ repos:
         language: system
         types: [json]
         entry: scripts/run-in-env.sh check-json
-        files: ^(music_assistant/.+/manifest\.json)$
+        files: ^(music_assistant/.+/manifest\.json)|(tests/providers/.+/fixtures/.+\.json)$
       - id: check-merge-conflict
         name: 💥 Check for merge conflicts
         language: system
