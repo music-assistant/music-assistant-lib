@@ -358,9 +358,11 @@ class MusicAssistant:
         else:
             raise RuntimeError("Target is missing")
 
+        if task_id is None:
+            task_id = uuid4().hex
+
         def task_done_callback(_task: asyncio.Task[Any]) -> None:
-            _task_id = task.task_id
-            self._tracked_tasks.pop(_task_id, None)
+            self._tracked_tasks.pop(task_id, None)
             # log unhandled exceptions
             if (
                 LOGGER.isEnabledFor(logging.DEBUG)
@@ -376,9 +378,6 @@ class MusicAssistant:
                     exc_info=err if LOGGER.isEnabledFor(logging.DEBUG) else None,
                 )
 
-        if task_id is None:
-            task_id = uuid4().hex
-        task.task_id = task_id
         self._tracked_tasks[task_id] = task
         task.add_done_callback(task_done_callback)
         return task
