@@ -61,14 +61,21 @@ class ABSClient:
         self.check_ssl: bool
 
     async def init(
-        self, base_url: str, username: str, password: str, check_ssl: bool = True
+        self,
+        session: ClientSession,
+        base_url: str,
+        username: str,
+        password: str,
+        check_ssl: bool = True,
     ) -> None:
         """Initialize."""
+        self.session = session
+        self.base_url = base_url
         self.check_ssl = check_ssl
-        self.session = ClientSession(base_url)
+        self.session_headers = {}
         self.user = await self.login(username=username, password=password)
         self.token: str = self.user.token
-        self.session.headers["Authorization"] = f"Bearer {self.token}"
+        self.session_headers = {"Authorization": f"Bearer {self.token}"}
 
     async def _post(
         self,
@@ -80,8 +87,12 @@ class ABSClient:
 
         login and logout endpoint do not have "api" in url
         """
-        _endpoint = f"/api/{endpoint}" if add_api_endpoint else f"/{endpoint}"
-        response = await self.session.post(_endpoint, json=data, ssl=self.check_ssl)
+        _endpoint = (
+            f"{self.base_url}/api/{endpoint}" if add_api_endpoint else f"{self.base_url}/{endpoint}"
+        )
+        response = await self.session.post(
+            _endpoint, json=data, ssl=self.check_ssl, headers=self.session_headers
+        )
         status = response.status
         if status != ABSStatus.STATUS_OK.value:
             raise RuntimeError(f"API post call to {endpoint=} failed.")
@@ -91,8 +102,10 @@ class ABSClient:
         self, endpoint: str, params: dict[str, str | int] | None = None
     ) -> dict[str, Any]:
         """GET request to abs api."""
-        _endpoint = f"/api/{endpoint}"
-        response = await self.session.get(_endpoint, params=params, ssl=self.check_ssl)
+        _endpoint = f"{self.base_url}/api/{endpoint}"
+        response = await self.session.get(
+            _endpoint, params=params, ssl=self.check_ssl, headers=self.session_headers
+        )
         status = response.status
         if status not in [ABSStatus.STATUS_OK.value, ABSStatus.STATUS_NOT_FOUND.value]:
             raise RuntimeError(f"API get call to {endpoint=} failed.")
@@ -105,8 +118,10 @@ class ABSClient:
 
     async def _patch(self, endpoint: str, data: dict[str, Any] | None = None) -> None:
         """PATCH request to abs api."""
-        _endpoint = f"/api/{endpoint}"
-        response = await self.session.patch(_endpoint, json=data, ssl=self.check_ssl)
+        _endpoint = f"{self.base_url}/api/{endpoint}"
+        response = await self.session.patch(
+            _endpoint, json=data, ssl=self.check_ssl, headers=self.session_headers
+        )
         status = response.status
         if status != ABSStatus.STATUS_OK.value:
             raise RuntimeError(f"API patch call to {endpoint=} failed.")

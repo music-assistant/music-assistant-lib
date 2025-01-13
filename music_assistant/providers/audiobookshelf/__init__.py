@@ -132,6 +132,7 @@ class Audiobookshelf(MusicProvider):
         """Pass config values to client and initialize."""
         self._client = ABSClient()
         await self._client.init(
+            session=self.mass.http_session,
             base_url=str(self.config.get_value(CONF_URL)),
             username=str(self.config.get_value(CONF_USERNAME)),
             password=str(self.config.get_value(CONF_PASSWORD)),
