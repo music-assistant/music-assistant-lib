@@ -25,7 +25,7 @@ ifaddr==0.2.0
 mashumaro==3.14
 memory-tempfile==2.2.3
 music-assistant-frontend==2.10.4
-music-assistant-models==1.1.15
+music-assistant-models==1.1.16
 orjson==3.10.12
 pillow==11.0.0
 pkce==1.0.3

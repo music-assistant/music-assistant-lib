@@ -114,13 +114,12 @@ class FanartTvMetadataProvider(MetadataProvider):
         self.logger.debug("Fetching metadata for Artist %s on Fanart.tv", artist.name)
         if data := await self._get_data(f"music/{artist.mbid}"):
             metadata = MediaItemMetadata()
-            metadata.images = UniqueList()
             for key, img_type in IMG_MAPPING.items():
                 items = data.get(key)
                 if not items:
                     continue
                 for item in items:
-                    metadata.images.append(
+                    metadata.add_image(
                         MediaItemImage(
                             type=img_type,
                             path=item["url"],
