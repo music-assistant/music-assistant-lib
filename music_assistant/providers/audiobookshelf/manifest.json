@@ -6,7 +6,5 @@
   "codeowners": [
     "@fmunkes"
   ],
-  "requirements": [],
-  "documentation": "https://music-assistant.io/music-providers/audiobookshelf",
-  "mdns_discovery": []
+  "documentation": "https://music-assistant.io/music-providers/audiobookshelf"
 }
