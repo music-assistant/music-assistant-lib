@@ -7,6 +7,6 @@
     "@fmunkes"
   ],
   "requirements": [],
-  "documentation": "Link to the documentation on the music-assistant.io helppage (may be added later).",
+  "documentation": "https://music-assistant.io/music-providers/audiobookshelf",
   "mdns_discovery": []
 }
