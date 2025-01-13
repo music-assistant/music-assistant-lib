@@ -160,7 +160,7 @@ class Audiobookshelf(MusicProvider):
         await self._client.sync()
         await super().sync_library(media_types=media_types)
 
-    async def _parse_podcast(self, abs_podcast: ABSPodcast) -> Podcast:
+    def _parse_podcast(self, abs_podcast: ABSPodcast) -> Podcast:
         """Translate ABSPodcast to MassPodcast."""
         title = abs_podcast.media.metadata.title
         # Per API doc title may be None.
@@ -251,13 +251,13 @@ class Audiobookshelf(MusicProvider):
     async def get_library_podcasts(self) -> AsyncGenerator[Podcast, None]:
         """Retrieve library/subscribed podcasts from the provider."""
         async for abs_podcast in self._client.get_all_podcasts():
-            mass_podcast = await self._parse_podcast(abs_podcast)
+            mass_podcast = self._parse_podcast(abs_podcast)
             yield mass_podcast
 
     async def get_podcast(self, prov_podcast_id: str) -> Podcast:
         """Get single podcast."""
         abs_podcast = await self._client.get_podcast(prov_podcast_id)
-        return await self._parse_podcast(abs_podcast)
+        return self._parse_podcast(abs_podcast)
 
     async def get_podcast_episodes(self, prov_podcast_id: str) -> list[PodcastEpisode]:
         """Get all podcast episodes of podcast."""
