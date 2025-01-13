@@ -665,7 +665,6 @@ class PlayerGroupProvider(PlayerProvider):
         player_features = {
             PlayerFeature.POWER,
             PlayerFeature.VOLUME_SET,
-            PlayerFeature.MULTI_DEVICE_DSP,
         }
 
         if not (self.mass.players.get(x) for x in members):
@@ -685,6 +684,7 @@ class PlayerGroupProvider(PlayerProvider):
                 for x in self.mass.players.providers
                 if x.instance_id != self.instance_id
             }
+            player_features.add(PlayerFeature.MULTI_DEVICE_DSP)
         elif player_provider := self.mass.get_provider(group_type):
             # grab additional details from one of the provider's players
             if TYPE_CHECKING:

@@ -11,8 +11,6 @@ from music_assistant.constants import UNKNOWN_ARTIST
 
 DOMAIN: Final = "jellyfin"
 
-CLIENT_VERSION: Final = "0.1"
-
 COLLECTION_TYPE_MOVIES: Final = "movies"
 COLLECTION_TYPE_MUSIC: Final = "music"
 COLLECTION_TYPE_TVSHOWS: Final = "tvshows"
