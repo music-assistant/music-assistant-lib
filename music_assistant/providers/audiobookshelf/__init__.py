@@ -160,7 +160,7 @@ class Audiobookshelf(MusicProvider):
         await self._client.sync()
         await super().sync_library(media_types=media_types)
 
-    async def _parse_podcast(self, abs_podcast: ABSPodcast):
+    async def _parse_podcast(self, abs_podcast: ABSPodcast) -> Podcast:
         """Translate ABSPodcast to MassPodcast."""
         title = abs_podcast.media.metadata.title
         # Per API doc title may be None.
@@ -192,7 +192,7 @@ class Audiobookshelf(MusicProvider):
     async def _parse_podcast_episode(
         self,
         episode: ABSPodcastEpisodeExpanded,
-        prov_podcast_id,
+        prov_podcast_id: str,
         episode_cnt: int | None = None,
     ) -> PodcastEpisode:
         """Translate ABSPodcastEpisode to MassPodcastEpisode.
@@ -204,11 +204,15 @@ class Audiobookshelf(MusicProvider):
         url = f"{self.config.get_value(CONF_URL)}{episode.audio_track.content_url}"
         episode_id = f"{prov_podcast_id} {episode.id_}"
 
+        position = 0
+        if episode_cnt is not None:
+            position = episode_cnt
         mass_episode = PodcastEpisode(
             item_id=episode_id,
             provider=self.domain,
             name=episode.title,
             duration=int(episode.duration),
+            position=position,
             podcast=ItemMapping(
                 item_id=prov_podcast_id,
                 provider=self.instance_id,
@@ -227,8 +231,6 @@ class Audiobookshelf(MusicProvider):
                 )
             },
         )
-        if episode_cnt is not None:
-            mass_episode.position = episode_cnt
         progress, finished = await self._client.get_podcast_progress_ms(
             prov_podcast_id, episode.id_
         )
@@ -355,7 +357,7 @@ class Audiobookshelf(MusicProvider):
             return await self._get_stream_details_audiobook(item_id)
         raise MediaNotFoundError("Stream unknown")
 
-    async def _get_stream_details_audiobook(self, audiobook_id: str):
+    async def _get_stream_details_audiobook(self, audiobook_id: str) -> StreamDetails:
         """Only single audio file in audiobook."""
         abs_audiobook = await self._client.get_audiobook(audiobook_id)
         tracks = abs_audiobook.media.tracks
@@ -380,7 +382,7 @@ class Audiobookshelf(MusicProvider):
             path=stream_url,
         )
 
-    async def _get_stream_details_podcast_episode(self, podcast_id: str):
+    async def _get_stream_details_podcast_episode(self, podcast_id: str) -> StreamDetails:
         """Stream of a Podcast."""
         abs_podcast_id, abs_episode_id = podcast_id.split(" ")
         abs_episode = None

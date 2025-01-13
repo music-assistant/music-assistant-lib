@@ -14,6 +14,7 @@ from music_assistant.providers.audiobookshelf.abs_schema import (
     ABSLibrariesItemsResponse,
     ABSLibrariesResponse,
     ABSLibrary,
+    ABSLibraryItem,
     ABSLoginResponse,
     ABSMediaProgress,
     ABSPodcast,
@@ -158,7 +159,7 @@ class ABSClient:
             async for podcast in self.get_all_podcasts_by_library(library):
                 yield podcast
 
-    async def _get_lib_items(self, lib: ABSLibrary):
+    async def _get_lib_items(self, lib: ABSLibrary) -> AsyncGenerator[bytes]:
         """Get library items with pagination."""
         page_cnt = 0
         while True:
@@ -176,7 +177,7 @@ class ABSClient:
             if not podcast_list:  # [] if page exceeds
                 return
 
-            async def _get_id(plist=podcast_list):
+            async def _get_id(plist: list[ABSLibraryItem] = podcast_list) -> AsyncGenerator[str]:
                 for entry in plist:
                     yield entry.id_
 
@@ -287,7 +288,7 @@ class ABSClient:
             if not audiobook_list:  # [] if page exceeds
                 return
 
-            async def _get_id(alist=audiobook_list):
+            async def _get_id(alist: list[ABSLibraryItem] = audiobook_list) -> AsyncGenerator[str]:
                 for entry in alist:
                     yield entry.id_
 
