@@ -1,10 +1,10 @@
 #!/usr/bin/python3
 # type: ignore
-# ruff: noqa
 """Events module for Spotify Connect."""
 
 import json
 import os
+import urllib.request
 from datetime import datetime
 
 player_event = os.getenv("PLAYER_EVENT")
@@ -79,11 +79,13 @@ elif player_event == "track_changed":
     elif item_type == "Episode":
         episode_metadata_fields = {}
         episode_metadata_fields["show_name"] = os.environ["SHOW_NAME"]
-        publish_time = datetime.utcfromtimestamp(int(os.environ["PUBLISH_TIME"])).strftime(
-            "%Y-%m-%d"
-        )
-        episode_metadata_fields["publish_time"] = publish_time
         episode_metadata_fields["description"] = os.environ["DESCRIPTION"]
         json_dict["episode_metadata_fields"] = episode_metadata_fields
 
-print(json.dumps(json_dict, indent=4))
+URL = os.environ["MASS_CALLBACK"]
+req = urllib.request.Request(URL)  # noqa: S310
+req.add_header("Content-Type", "application/json; charset=utf-8")
+jsondata = json.dumps(json_dict)
+jsondataasbytes = jsondata.encode("utf-8")
+req.add_header("Content-Length", len(jsondataasbytes))
+response = urllib.request.urlopen(req, jsondataasbytes)  # noqa: S310

@@ -803,7 +803,9 @@ class MusicController(CoreController):
         )
 
         # also update playcount in library table
-        ctrl = self.get_controller(media_type)
+        if not (ctrl := self.get_controller(media_type)):
+            # skip non media items (e.g. plugin source)
+            return
         db_item = await ctrl.get_library_item_by_prov_id(item_id, provider_instance_id_or_domain)
         if (
             not db_item

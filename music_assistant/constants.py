@@ -476,6 +476,14 @@ CONF_ENTRY_ENABLE_ICY_METADATA = ConfigEntry(
     "this correctly. If you experience issues with playback, try to disable this setting.",
 )
 
+CONF_ENTRY_WARN_PREVIEW = ConfigEntry(
+    key="preview_note",
+    type=ConfigEntryType.ALERT,
+    label="Please note that this feature/provider is still in early stages. \n\n"
+    "Functionality may still be limited and/or bugs may occur!",
+    required=False,
+)
+
 
 def create_sample_rates_config_entry(
     max_sample_rate: int,
