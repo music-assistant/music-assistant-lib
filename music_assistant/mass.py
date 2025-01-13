@@ -252,7 +252,7 @@ class MusicAssistant:
         """Return the application log from file."""
         logfile = os.path.join(self.storage_path, "musicassistant.log")
         async with aiofiles.open(logfile) as _file:
-            return await _file.read()
+            return str(await _file.read())
 
     @property
     def providers(self) -> list[ProviderInstanceType]:
