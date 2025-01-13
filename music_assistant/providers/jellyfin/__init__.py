@@ -47,7 +47,6 @@ from music_assistant.providers.jellyfin.parsers import (
 from .const import (
     ALBUM_FIELDS,
     ARTIST_FIELDS,
-    CLIENT_VERSION,
     ITEM_KEY_COLLECTION_TYPE,
     ITEM_KEY_ID,
     ITEM_KEY_MEDIA_CHANNELS,
@@ -157,7 +156,7 @@ class JellyfinProvider(MusicProvider):
             url=str(self.config.get_value(CONF_URL)),
             verify_ssl=bool(self.config.get_value(CONF_VERIFY_SSL)),
             app_name=USER_APP_NAME,
-            app_version=CLIENT_VERSION,
+            app_version=self.mass.version,
             device_name=socket.gethostname(),
             device_id=device_id,
         )
