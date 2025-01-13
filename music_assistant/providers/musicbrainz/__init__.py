@@ -70,7 +70,7 @@ def replace_hyphens(data: _T) -> _T:
         return cast(_T, new_values)
 
     if isinstance(data, list):
-        return cast(_T, [replace_hyphens(x) if isinstance(x, dict) else x for x in value])
+        return cast(_T, [replace_hyphens(x) if isinstance(x, dict) else x for x in data])
 
     return data
 
