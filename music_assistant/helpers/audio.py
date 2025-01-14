@@ -286,8 +286,7 @@ async def get_media_stream(
     extra_input_args: list[str] | None = None,
 ) -> AsyncGenerator[bytes, None]:
     """Get PCM audio stream for given media details."""
-    logger = LOGGER.getChild("media_stream")
-    logger.debug("start media stream for: %s", streamdetails.uri)
+    LOGGER.debug("Starting media stream for %s", streamdetails.uri)
     strip_silence_begin = streamdetails.strip_silence_begin
     strip_silence_end = streamdetails.strip_silence_end
     if streamdetails.fade_in:
@@ -308,6 +307,21 @@ async def get_media_stream(
     )
     try:
         await ffmpeg_proc.start()
+        logger = LOGGER.getChild(f"media_stream_{ffmpeg_proc.proc.pid}")
+        logger.debug(
+            "Started media stream for %s \n"
+            "- using streamtype: %s\n "
+            "- using volume normalization: %s\n"
+            "- using pcm format: %s\n"
+            "- using filter params: %s\n"
+            "- using extra input args: %s",
+            streamdetails.uri,
+            streamdetails.stream_type,
+            streamdetails.volume_normalization_mode,
+            pcm_format,
+            str(filter_params),
+            str(extra_input_args),
+        )
         async for chunk in ffmpeg_proc.iter_chunked(pcm_format.pcm_sample_size):
             # for radio streams we just yield all chunks directly
             if streamdetails.media_type == MediaType.RADIO:
@@ -349,6 +363,7 @@ async def get_media_stream(
                 buffer = buffer[pcm_format.pcm_sample_size :]
 
         # end of audio/track reached
+        logger.debug("End of stream reached ")
         if strip_silence_end and buffer:
             # strip silence from end of audio
             buffer = await strip_silence(
@@ -364,6 +379,7 @@ async def get_media_stream(
         finished = True
 
     finally:
+        logger.debug("Closing ffmpeg...")
         await ffmpeg_proc.close()
 
         if bytes_sent == 0:
@@ -396,6 +412,7 @@ async def get_media_stream(
             # if dynamic volume normalization is enabled and the entire track is streamed
             # the loudnorm filter will output the measuremeet in the log,
             # so we can use those directly instead of analyzing the audio
+            logger.debug("Collecting loudness measurement...")
             if loudness_details := parse_loudnorm(" ".join(ffmpeg_proc.log_history)):
                 logger.debug(
                     "Loudness measurement for %s: %s dB",

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from collections import deque
 from collections.abc import AsyncGenerator
 from typing import TYPE_CHECKING
@@ -140,10 +141,13 @@ class FFMpeg(AsyncProcess):
         asyncio.create_task(stdin_watchdog())
 
         try:
+            start = time.time()
+            self.logger.debug("Start reading audio data from source")
             async for chunk in self.audio_input:
                 if not audio_received.is_set():
                     audio_received.set()
                 await self.write(chunk)
+            self.logger.debug("Audio data source exhausted in %.2fs", time.time() - start)
             generator_exhausted = True
             if not audio_received.is_set():
                 raise AudioError("No audio data received from source")
