@@ -490,11 +490,11 @@ class Audiobookshelf(MusicProvider):
 
         items: list[MediaItemType | ItemMapping] = []
         if media_type == MediaType.PODCAST:
-            async for item in self._client.get_all_podcasts_by_library(library):
-                items.append(get_item_mapping(item))
+            async for podcast in self._client.get_all_podcasts_by_library(library):
+                items.append(get_item_mapping(podcast))
         elif media_type == MediaType.AUDIOBOOK:
-            async for item in self._client.get_all_audiobooks_by_library(library):
-                items.append(get_item_mapping(item))
+            async for audiobook in self._client.get_all_audiobooks_by_library(library):
+                items.append(get_item_mapping(audiobook))
         else:
             raise RuntimeError(f"Media type must not be {media_type}")
         return items

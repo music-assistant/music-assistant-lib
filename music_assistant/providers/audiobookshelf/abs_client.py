@@ -25,15 +25,6 @@ from music_assistant.providers.audiobookshelf.abs_schema import (
 LIMIT_ITEMS_PER_PAGE = 10
 
 
-def camel_to_snake(camel: str) -> str:
-    """Convert Camel to snake."""
-    if camel == "id":
-        return "id_"
-    elif camel == "type":
-        return "type_"
-    return "".join([x if x.islower() else f"_{x.lower()}" for x in camel]).strip("_")
-
-
 class ABSStatus(Enum):
     """ABS Status Enum."""
 
