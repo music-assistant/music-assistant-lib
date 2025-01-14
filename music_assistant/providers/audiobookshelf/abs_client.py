@@ -120,9 +120,8 @@ class ABSClient:
         return ABSLoginResponse.from_json(data).user
 
     async def logout(self) -> None:
-        """Logout and close aiohttp session."""
+        """Logout from ABS."""
         await self._post("logout", add_api_endpoint=False)
-        await self.session.close()
 
     async def get_user(self, id_: str) -> ABSUser:
         """Get an ABS user."""
