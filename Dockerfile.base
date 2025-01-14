@@ -1,9 +1,9 @@
 # syntax=docker/dockerfile:1
 
 # BASE docker image for music assistant container
-# Based on Debian Trixie (unstable) because we need a newer version of ffmpeg (and snapcast)
+# Based on Debian Trixie (testing) because we need a newer version of ffmpeg (and snapcast)
 # TODO: Switch back to regular python stable debian image + manually build ffmpeg and snapcast
-FROM debian:trixie
+FROM debian:trixie-slim
 
 ARG TARGETPLATFORM
 
