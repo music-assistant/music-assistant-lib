@@ -308,7 +308,8 @@ async def get_media_stream(
     try:
         await ffmpeg_proc.start()
         logger = LOGGER.getChild(f"media_stream_{ffmpeg_proc.proc.pid}")
-        logger.debug(
+        logger.log(
+            VERBOSE_LOG_LEVEL,
             "Started media stream for %s \n"
             "- using streamtype: %s\n "
             "- using volume normalization: %s\n"
@@ -318,7 +319,7 @@ async def get_media_stream(
             streamdetails.uri,
             streamdetails.stream_type,
             streamdetails.volume_normalization_mode,
-            pcm_format,
+            pcm_format.output_format_str,
             str(filter_params),
             str(extra_input_args),
         )
@@ -363,7 +364,7 @@ async def get_media_stream(
                 buffer = buffer[pcm_format.pcm_sample_size :]
 
         # end of audio/track reached
-        logger.debug("End of stream reached ")
+        logger.log(VERBOSE_LOG_LEVEL, "End of stream reached.")
         if strip_silence_end and buffer:
             # strip silence from end of audio
             buffer = await strip_silence(
@@ -379,7 +380,7 @@ async def get_media_stream(
         finished = True
 
     finally:
-        logger.debug("Closing ffmpeg...")
+        logger.log(VERBOSE_LOG_LEVEL, "Closing ffmpeg...")
         await ffmpeg_proc.close()
 
         if bytes_sent == 0:
@@ -412,7 +413,7 @@ async def get_media_stream(
             # if dynamic volume normalization is enabled and the entire track is streamed
             # the loudnorm filter will output the measuremeet in the log,
             # so we can use those directly instead of analyzing the audio
-            logger.debug("Collecting loudness measurement...")
+            logger.log(VERBOSE_LOG_LEVEL, "Collecting loudness measurement...")
             if loudness_details := parse_loudnorm(" ".join(ffmpeg_proc.log_history)):
                 logger.debug(
                     "Loudness measurement for %s: %s dB",
