@@ -38,6 +38,7 @@ class FFMpeg(AsyncProcess):
         extra_input_args: list[str] | None = None,
         audio_output: str | int = "-",
         collect_log_history: bool = False,
+        loglevel: str = "error",
     ) -> None:
         """Initialize AsyncProcess."""
         ffmpeg_args = get_ffmpeg_args(
@@ -48,7 +49,7 @@ class FFMpeg(AsyncProcess):
             input_path=audio_input if isinstance(audio_input, str) else "-",
             output_path=audio_output if isinstance(audio_output, str) else "-",
             extra_input_args=extra_input_args or [],
-            loglevel="debug" if LOGGER.isEnabledFor(VERBOSE_LOG_LEVEL) else "info",
+            loglevel=loglevel,
         )
         self.audio_input = audio_input
         self.input_format = input_format
