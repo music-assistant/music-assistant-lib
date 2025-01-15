@@ -193,7 +193,7 @@ class Audiobookshelf(MusicProvider):
         self,
         episode: ABSPodcastEpisodeExpanded,
         prov_podcast_id: str,
-        episode_cnt: int | None = None,
+        fallback_episode_cnt: int | None = None,
     ) -> PodcastEpisode:
         """Translate ABSPodcastEpisode to MassPodcastEpisode.
 
@@ -204,9 +204,12 @@ class Audiobookshelf(MusicProvider):
         url = f"{self.config.get_value(CONF_URL)}{episode.audio_track.content_url}"
         episode_id = f"{prov_podcast_id} {episode.id_}"
 
-        position = 0
-        if episode_cnt is not None:
-            position = episode_cnt
+        if episode.published_at is not None:
+            position = -episode.published_at
+        else:
+            position = 0
+            if fallback_episode_cnt is not None:
+                position = fallback_episode_cnt
         mass_episode = PodcastEpisode(
             item_id=episode_id,
             provider=self.domain,
