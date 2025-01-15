@@ -374,7 +374,7 @@ class Audiobookshelf(MusicProvider):
         if len(tracks) == 0:
             raise MediaNotFoundError("Stream not found")
         if len(tracks) > 1:
-            logging.warning("MASS probably only supports single file base audiobooks")
+            logging.warning("Music Assistant only supports single file base audiobooks")
         token = self._client.token
         base_url = str(self.config.get_value(CONF_URL))
         media_url = tracks[0].content_url
