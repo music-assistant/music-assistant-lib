@@ -418,32 +418,29 @@ class Audiobookshelf(MusicProvider):
             path=full_url,
         )
 
-    async def on_streamed(
-        self,
-        streamdetails: StreamDetails,
-        seconds_streamed: int,
-        fully_played: bool = False,
+    async def on_played(
+        self, media_type: MediaType, item_id: str, fully_played: bool, position: int
     ) -> None:
-        """Update in Audiobookshelf.
-
-        For a podcast id is: pod_id episode id
-        """
-        ids = streamdetails.item_id.split(" ")
-        if streamdetails.duration is None:
-            logging.warning("Unable to update progress")
-            return
-        if len(ids) > 1:
-            abs_podcast_id, abs_episode_id = streamdetails.item_id.split(" ")
+        """Update progress in Audiobookshelf."""
+        if media_type == MediaType.PODCAST_EPISODE:
+            abs_podcast_id, abs_episode_id = item_id.split(" ")
+            mass_podcast_episode = await self.get_podcast_episode(item_id)
+            duration = mass_podcast_episode.duration
             await self._client.update_podcast_progress(
-                abs_podcast_id,
-                abs_episode_id,
-                seconds_streamed,
-                streamdetails.duration,
-                fully_played,
+                podcast_id=abs_podcast_id,
+                episode_id=abs_episode_id,
+                progress_s=position,
+                duration_s=duration,
+                is_finished=fully_played,
             )
-        else:
+        if media_type == MediaType.AUDIOBOOK:
+            mass_audiobook = await self.get_audiobook(item_id)
+            duration = mass_audiobook.duration
             await self._client.update_audiobook_progress(
-                ids[0], seconds_streamed, streamdetails.duration, fully_played
+                audiobook_id=item_id,
+                progress_s=position,
+                duration_s=duration,
+                is_finished=fully_played,
             )
 
     async def _browse_root(
