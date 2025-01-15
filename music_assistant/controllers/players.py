@@ -964,18 +964,45 @@ class PlayerController(CoreController):
         if len(changed_values) == 0 and not force_update:
             return
 
-        # handle DSP reload when player is grouped or ungrouped
-        prev_is_grouped = bool(prev_state.get("synced_to")) or bool(prev_state.get("group_childs"))
-        new_is_grouped = bool(new_state.get("synced_to")) or bool(new_state.get("group_childs"))
+        # handle DSP reload of the leader when on grouping and ungrouping
+        prev_child_count = len(prev_state.get("group_childs", []))
+        new_child_count = len(new_state.get("group_childs", []))
+        is_player_group = player.provider.startswith("player_group")
 
-        if prev_is_grouped != new_is_grouped:
-            dsp_config = self.mass.config.get_player_dsp_config(player_id)
+        # handle special case for PlayerGroups: since there are no leaders,
+        # DSP still always works with a single player in the group.
+        multi_device_dsp_threshold = 1 if is_player_group else 0
+
+        prev_is_multiple_devices = prev_child_count > multi_device_dsp_threshold
+        new_is_multiple_devices = new_child_count > multi_device_dsp_threshold
+
+        if prev_is_multiple_devices != new_is_multiple_devices:
             supports_multi_device_dsp = PlayerFeature.MULTI_DEVICE_DSP in player.supported_features
-            if dsp_config.enabled and not supports_multi_device_dsp:
-                # We now know that that the player was grouped or ungrouped,
-                # the player has a custom DSP enabled, but the player provider does
-                # not support multi-device DSP.
-                # So we need to reload the DSP configuration.
+            dsp_enabled: bool
+            if is_player_group:
+                # Since player groups do not have leaders, we will use the only child
+                # that was in the group before and after the change
+                if prev_is_multiple_devices:
+                    if childs := new_state.get("group_childs"):
+                        # We shrank the group from multiple players to a single player
+                        # So the now only child will control the DSP
+                        dsp_enabled = self.mass.config.get_player_dsp_config(childs[0]).enabled
+                    else:
+                        dsp_enabled = False
+                elif childs := prev_state.get("group_childs"):
+                    # We grew the group from a single player to multiple players,
+                    # let's see if the previous single player had DSP enabled
+                    dsp_enabled = self.mass.config.get_player_dsp_config(childs[0]).enabled
+                else:
+                    dsp_enabled = False
+            else:
+                dsp_enabled = self.mass.config.get_player_dsp_config(player_id).enabled
+            if dsp_enabled and not supports_multi_device_dsp:
+                # We now know that that the group configuration has changed so:
+                # - multi-device DSP is not supported
+                # - we switched from a group with multiple players to a single player
+                #   (or vice versa)
+                # - the leader has DSP enabled
                 self.mass.create_task(self.mass.players.on_player_dsp_change(player_id))
 
         if changed_values.keys() != {"elapsed_time"} or force_update:
