@@ -1,64 +1,38 @@
 # syntax=docker/dockerfile:1
 
 # BASE docker image for music assistant container
-# Based on Debian Trixie (testing) because we need a newer version of ffmpeg (and snapcast)
-# TODO: Switch back to regular python stable debian image + manually build ffmpeg and snapcast ?
-FROM debian:trixie-slim
+#
+# It should contain ONLY packages we want to deploy in the final image, not
+# packages needed to build. Build dependencies should be installed in the
+# "builder" image in the main Dockerfile.
 
-ARG TARGETPLATFORM
-
+FROM python:3.12-alpine3.21
 
 RUN set -x \
-    && apt-get update \
-    && apt-get install -y --no-install-recommends \
+    && apk add --no-cache \
         ca-certificates \
-        curl \
-        git \
-        wget \
+        jemalloc \
         tzdata \
-        python3 \
-        python3-venv \
-        python3-pip \
-        libsox-fmt-all \
-        libsox3 \
-        ffmpeg \
         sox \
-        openssl \
         cifs-utils \
-        libnfs-utils \
-        libjemalloc2 \
-        snapserver \
-    # cleanup
-    && rm -rf /tmp/* \
-    && rm -rf /var/lib/apt/lists/*
+        snapcast \
+        libnfs \
+        openssl-dev  # needed for airplay
 
+# Get static ffmpeg builds from https://hub.docker.com/r/mwader/static-ffmpeg/
+COPY --from=mwader/static-ffmpeg:7.1 /ffmpeg /usr/local/bin/
+COPY --from=mwader/static-ffmpeg:7.1 /ffprobe /usr/local/bin/
 
 # Copy widevine client files to container
 RUN mkdir -p /usr/local/bin/widevine_cdm
 COPY widevine_cdm/* /usr/local/bin/widevine_cdm/
 
-WORKDIR /app
-
-# Enable jemalloc
-RUN \
-    export LD_PRELOAD="$(find /usr/lib/ -name *libjemalloc.so.2)" \
-    export MALLOC_CONF="background_thread:true,metadata_thp:auto,dirty_decay_ms:20000,muzzy_decay_ms:20000"
-
-# create python venv
-ENV VIRTUAL_ENV=/app/venv
-RUN python3 -m venv $VIRTUAL_ENV
-ENV PATH="$VIRTUAL_ENV/bin:$PATH"
-RUN pip install --upgrade pip \
-    && pip install uv==0.4.17
+# Configure runtime environmental variables
+ENV LD_PRELOAD="/usr/lib/libjemalloc.so.2"
 
 # we need to set (very permissive) permissions to the workdir
 # and /tmp to allow running the container as non-root
-# NOTE that home assistant add-ons always run as root (and use apparmor)
-# so we can't specify a user here
-RUN chmod -R 777 /app \
-    && chmod -R 777 /tmp
-
-WORKDIR $VIRTUAL_ENV
+RUN chmod -R 777 /tmp
 
 LABEL \
     org.opencontainers.image.title="Music Assistant Base Image" \
