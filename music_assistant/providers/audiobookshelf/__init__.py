@@ -153,7 +153,7 @@ class Audiobookshelf(MusicProvider):
     def is_streaming_provider(self) -> bool:
         """Return True if the provider is a streaming provider."""
         # For streaming providers return True here but for local file based providers return False.
-        return True
+        return False
 
     async def sync_library(self, media_types: tuple[MediaType, ...]) -> None:
         """Run library sync for this provider."""
