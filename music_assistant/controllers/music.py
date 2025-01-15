@@ -25,7 +25,6 @@ from music_assistant_models.errors import (
     InvalidProviderURI,
     MediaNotFoundError,
     MusicAssistantError,
-    ProviderUnavailableError,
 )
 from music_assistant_models.helpers import get_global_cache_value
 from music_assistant_models.media_items import (
@@ -79,7 +78,7 @@ DEFAULT_SYNC_INTERVAL = 12 * 60  # default sync interval in minutes
 CONF_SYNC_INTERVAL = "sync_interval"
 CONF_DELETED_PROVIDERS = "deleted_providers"
 CONF_ADD_LIBRARY_ON_PLAY = "add_library_on_play"
-DB_SCHEMA_VERSION: Final[int] = 14
+DB_SCHEMA_VERSION: Final[int] = 15
 
 
 class MusicController(CoreController):
@@ -458,30 +457,31 @@ class MusicController(CoreController):
     @api_command("music/recently_played_items")
     async def recently_played(
         self, limit: int = 10, media_types: list[MediaType] | None = None
-    ) -> list[MediaItemType]:
+    ) -> list[ItemMapping]:
         """Return a list of the last played items."""
         if media_types is None:
             media_types = MediaType.ALL
         media_types_str = "(" + ",".join(f'"{x}"' for x in media_types) + ")"
-        # temporary fix to avoid too many queries on providers:
-        # we only query for library items for now
         query = (
-            f"SELECT * FROM {DB_TABLE_PLAYLOG} WHERE provider = 'library' "
-            f"AND media_type in {media_types_str} ORDER BY timestamp DESC"
+            f"SELECT * FROM {DB_TABLE_PLAYLOG} "
+            f"WHERE media_type in {media_types_str} ORDER BY timestamp DESC"
         )
         db_rows = await self.mass.music.database.get_rows_from_query(query, limit=limit)
-        result: list[MediaItemType] = []
+        result: list[ItemMapping] = []
+        available_providers = ("library", *get_global_cache_value("unique_providers", []))
         for db_row in db_rows:
-            if db_row["provider"] not in get_global_cache_value("unique_providers", []):
-                continue
-            with suppress(MediaNotFoundError, ProviderUnavailableError):
-                media_type = MediaType(db_row["media_type"])
-                ctrl = self.get_controller(media_type)
-                item = await ctrl.get(
-                    db_row["item_id"],
-                    db_row["provider"],
+            result.append(
+                ItemMapping.from_dict(
+                    {
+                        "item_id": db_row["item_id"],
+                        "provider": db_row["provider"],
+                        "media_type": db_row["media_type"],
+                        "name": db_row["name"],
+                        "image": json_loads(db_row["image"]) if db_row["image"] else None,
+                        "available": db_row["provider"] in available_providers,
+                    }
                 )
-                result.append(item)
+            )
         return result
 
     @api_command("music/item_by_uri")
@@ -764,37 +764,31 @@ class MusicController(CoreController):
     @api_command("music/mark_played")
     async def mark_item_played(
         self,
-        media_type: MediaType,
-        item_id: str,
-        provider_instance_id_or_domain: str,
+        media_item: MediaItemType | ItemMapping,
         fully_played: bool | None = None,
         seconds_played: int | None = None,
     ) -> None:
         """Mark item as played in playlog."""
         timestamp = utc_timestamp()
-
         if (
-            provider_instance_id_or_domain.startswith("builtin")
-            and media_type != MediaType.PLAYLIST
+            media_item.provider.startswith("builtin")
+            and media_item.media_type != MediaType.PLAYLIST
         ):
             # we deliberately skip builtin provider items as those are often
             # one-off items like TTS or some sound effect etc.
             return
 
-        if provider_instance_id_or_domain == "library":
-            prov_key = "library"
-        elif prov := self.mass.get_provider(provider_instance_id_or_domain):
-            prov_key = prov.lookup_key
-        else:
-            prov_key = provider_instance_id_or_domain
-
         # update generic playlog table
         await self.database.insert(
             DB_TABLE_PLAYLOG,
             {
-                "item_id": item_id,
-                "provider": prov_key,
-                "media_type": media_type.value,
+                "item_id": media_item.item_id,
+                "provider": media_item.provider,
+                "media_type": media_item.media_type.value,
+                "name": media_item.name,
+                "image": serialize_to_json(media_item.image.to_dict())
+                if media_item.image
+                else None,
                 "fully_played": fully_played,
                 "seconds_played": seconds_played,
                 "timestamp": timestamp,
@@ -802,19 +796,30 @@ class MusicController(CoreController):
             allow_replace=True,
         )
 
+        # forward to provider(s) to sync resume state (e.g. for audiobooks)
+        for prov_mapping in media_item.provider_mappings:
+            if music_prov := self.mass.get_provider(prov_mapping.provider_instance):
+                self.mass.create_task(
+                    music_prov.on_played(
+                        media_type=media_item.media_type,
+                        item_id=prov_mapping.item_id,
+                        fully_played=False,
+                        position=0,
+                    )
+                )
+
         # also update playcount in library table
-        if not (ctrl := self.get_controller(media_type)):
+        if not (ctrl := self.get_controller(media_item.media_type)):
             # skip non media items (e.g. plugin source)
             return
-        db_item = await ctrl.get_library_item_by_prov_id(item_id, provider_instance_id_or_domain)
+        db_item = await ctrl.get_library_item_by_prov_id(media_item.item_id, media_item.provider)
         if (
             not db_item
-            and media_type in (MediaType.TRACK, MediaType.RADIO)
+            and media_item.media_type in (MediaType.TRACK, MediaType.RADIO)
             and self.mass.config.get_raw_core_config_value(self.domain, CONF_ADD_LIBRARY_ON_PLAY)
         ):
             # handle feature to add to the lib on playback
-            full_item = await ctrl.get(item_id, provider_instance_id_or_domain)
-            db_item = await ctrl.add_item_to_library(full_item)
+            db_item = await self.add_item_to_library(media_item)
 
         if db_item:
             await self.database.execute(
@@ -825,27 +830,33 @@ class MusicController(CoreController):
 
     @api_command("music/mark_unplayed")
     async def mark_item_unplayed(
-        self, media_type: MediaType, item_id: str, provider_instance_id_or_domain: str
+        self,
+        media_item: MediaItemType | ItemMapping,
     ) -> None:
         """Mark item as unplayed in playlog."""
-        if provider_instance_id_or_domain == "library":
-            prov_key = "library"
-        elif prov := self.mass.get_provider(provider_instance_id_or_domain):
-            prov_key = prov.lookup_key
-        else:
-            prov_key = provider_instance_id_or_domain
         # update generic playlog table
         await self.database.delete(
             DB_TABLE_PLAYLOG,
             {
-                "item_id": item_id,
-                "provider": prov_key,
-                "media_type": media_type.value,
+                "item_id": media_item.item_id,
+                "provider": media_item.provider,
+                "media_type": media_item.media_type.value,
             },
         )
+        # forward to provider(s) to sync resume state (e.g. for audiobooks)
+        for prov_mapping in media_item.provider_mappings:
+            if music_prov := self.mass.get_provider(prov_mapping.provider_instance):
+                self.mass.create_task(
+                    music_prov.on_played(
+                        media_type=media_item.media_type,
+                        item_id=prov_mapping.item_id,
+                        fully_played=False,
+                        position=0,
+                    )
+                )
         # also update playcount in library table
-        ctrl = self.get_controller(media_type)
-        db_item = await ctrl.get_library_item_by_prov_id(item_id, provider_instance_id_or_domain)
+        ctrl = self.get_controller(media_item.media_type)
+        db_item = await ctrl.get_library_item_by_prov_id(media_item.item_id, media_item.provider)
         if db_item:
             await self.database.execute(f"UPDATE {ctrl.db_table} SET play_count = play_count - 1")
             await self.database.commit()
@@ -1160,30 +1171,8 @@ class MusicController(CoreController):
             "Migrating database from version %s to %s", prev_version, DB_SCHEMA_VERSION
         )
 
-        if prev_version <= 6:
-            # unhandled schema version
-            # we do not try to handle more complex migrations
-            self.logger.warning(
-                "Database schema too old - Resetting library/database - "
-                "a full rescan will be performed, this can take a while!"
-            )
-            for table in (
-                DB_TABLE_TRACKS,
-                DB_TABLE_ALBUMS,
-                DB_TABLE_ARTISTS,
-                DB_TABLE_PLAYLISTS,
-                DB_TABLE_RADIOS,
-                DB_TABLE_AUDIOBOOKS,
-                DB_TABLE_PODCASTS,
-                DB_TABLE_ALBUM_TRACKS,
-                DB_TABLE_PLAYLOG,
-                DB_TABLE_PROVIDER_MAPPINGS,
-            ):
-                await self.database.execute(f"DROP TABLE IF EXISTS {table}")
-            await self.database.commit()
-            # recreate missing tables
-            await self.__create_database_tables()
-            return
+        if prev_version < 7:
+            raise MusicAssistantError("Database schema version too old to migrate")
 
         if prev_version <= 7:
             # remove redundant artists and provider_mappings columns
@@ -1229,17 +1218,9 @@ class MusicController(CoreController):
             await self.database.execute("DROP TABLE IF EXISTS track_loudness")
 
         if prev_version <= 10:
-            # add new columns to playlog table
-            try:
-                await self.database.execute(
-                    f"ALTER TABLE {DB_TABLE_PLAYLOG} ADD COLUMN fully_played BOOLEAN"
-                )
-                await self.database.execute(
-                    f"ALTER TABLE {DB_TABLE_PLAYLOG} ADD COLUMN seconds_played INTEGER"
-                )
-            except Exception as err:
-                if "duplicate column" not in str(err):
-                    raise
+            # Recreate playlog table due to complete new layout
+            await self.database.execute(f"DROP TABLE IF EXISTS {DB_TABLE_PLAYLOG}")
+            await self.__create_database_tables()
 
         if prev_version <= 12:
             # Need to drop the NOT NULL requirement on podcasts.publisher and audiobooks.publisher
@@ -1260,6 +1241,11 @@ class MusicController(CoreController):
                     {"item_id": db_row["item_id"]},
                     {"metadata": serialize_to_json(metadata)},
                 )
+
+        if prev_version <= 14:
+            # Recreate playlog table due to complete new layout
+            await self.database.execute(f"DROP TABLE IF EXISTS {DB_TABLE_PLAYLOG}")
+            await self.__create_database_tables()
 
         # save changes
         await self.database.commit()
@@ -1288,7 +1274,9 @@ class MusicController(CoreController):
                 [id] INTEGER PRIMARY KEY AUTOINCREMENT,
                 [item_id] TEXT NOT NULL,
                 [provider] TEXT NOT NULL,
-                [media_type] TEXT NOT NULL DEFAULT 'track',
+                [media_type] TEXT NOT NULL,
+                [name] TEXT NOT NULL,
+                [image] json,
                 [timestamp] INTEGER DEFAULT 0,
                 [fully_played] BOOLEAN,
                 [seconds_played] INTEGER,

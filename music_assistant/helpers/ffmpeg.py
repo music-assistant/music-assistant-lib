@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from collections import deque
 from collections.abc import AsyncGenerator
 from typing import TYPE_CHECKING
@@ -15,7 +16,7 @@ from music_assistant_models.helpers import get_global_cache_value
 from music_assistant.constants import VERBOSE_LOG_LEVEL
 
 from .process import AsyncProcess
-from .util import close_async_generator
+from .util import TimedAsyncGenerator, close_async_generator
 
 if TYPE_CHECKING:
     from music_assistant_models.media_items import AudioFormat
@@ -37,6 +38,7 @@ class FFMpeg(AsyncProcess):
         extra_input_args: list[str] | None = None,
         audio_output: str | int = "-",
         collect_log_history: bool = False,
+        loglevel: str = "error",
     ) -> None:
         """Initialize AsyncProcess."""
         ffmpeg_args = get_ffmpeg_args(
@@ -47,7 +49,7 @@ class FFMpeg(AsyncProcess):
             input_path=audio_input if isinstance(audio_input, str) else "-",
             output_path=audio_output if isinstance(audio_output, str) else "-",
             extra_input_args=extra_input_args or [],
-            loglevel="info",
+            loglevel=loglevel,
         )
         self.audio_input = audio_input
         self.input_format = input_format
@@ -127,36 +129,28 @@ class FFMpeg(AsyncProcess):
         if TYPE_CHECKING:
             self.audio_input: AsyncGenerator[bytes, None]
         generator_exhausted = False
-        audio_received = asyncio.Event()
-
-        async def stdin_watchdog() -> None:
-            # this is a simple watchdog to ensure we don't get stuck forever waiting for audio data
-            try:
-                await asyncio.wait_for(audio_received.wait(), timeout=30)
-            except TimeoutError:
-                self.logger.error("No audio data received from source after timeout")
-                self._stdin_task.cancel()
-
-        asyncio.create_task(stdin_watchdog())
-
+        cancelled = False
         try:
-            async for chunk in self.audio_input:
-                if not audio_received.is_set():
-                    audio_received.set()
+            start = time.time()
+            self.logger.log(VERBOSE_LOG_LEVEL, "Start reading audio data from source...")
+            async for chunk in TimedAsyncGenerator(self.audio_input, timeout=30):
                 await self.write(chunk)
+            self.logger.log(
+                VERBOSE_LOG_LEVEL, "Audio data source exhausted in %.2fs", time.time() - start
+            )
             generator_exhausted = True
-            if not audio_received.is_set():
-                raise AudioError("No audio data received from source")
         except Exception as err:
-            if isinstance(err, asyncio.CancelledError):
-                return
+            cancelled = isinstance(err, asyncio.CancelledError)
+            if cancelled:
+                raise
             self.logger.error(
                 "Stream error: %s",
                 str(err) or err.__class__.__name__,
                 exc_info=err if self.logger.isEnabledFor(VERBOSE_LOG_LEVEL) else None,
             )
         finally:
-            await self.write_eof()
+            if not cancelled:
+                await self.write_eof()
             # we need to ensure that we close the async generator
             # if we get cancelled otherwise it keeps lingering forever
             if not generator_exhausted:

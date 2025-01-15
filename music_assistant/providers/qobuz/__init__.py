@@ -47,10 +47,7 @@ from music_assistant.constants import (
 )
 from music_assistant.helpers.app_vars import app_var
 from music_assistant.helpers.json import json_loads
-from music_assistant.helpers.throttle_retry import (
-    ThrottlerManager,
-    throttle_with_retries,
-)
+from music_assistant.helpers.throttle_retry import ThrottlerManager, throttle_with_retries
 from music_assistant.helpers.util import lock, parse_title_and_version, try_parse_int
 from music_assistant.models.music_provider import MusicProvider
 
@@ -479,8 +476,6 @@ class QobuzProvider(MusicProvider):
     async def on_streamed(
         self,
         streamdetails: StreamDetails,
-        seconds_streamed: int,
-        fully_played: bool = False,
     ) -> None:
         """Handle callback when an item completed streaming."""
         user_id = self._user_auth_info["user"]["id"]
@@ -489,7 +484,7 @@ class QobuzProvider(MusicProvider):
                 "/track/reportStreamingEnd",
                 user_id=user_id,
                 track_id=str(streamdetails.item_id),
-                duration=try_parse_int(seconds_streamed),
+                duration=try_parse_int(streamdetails.seconds_streamed),
             )
 
     def _parse_artist(self, artist_obj: dict):

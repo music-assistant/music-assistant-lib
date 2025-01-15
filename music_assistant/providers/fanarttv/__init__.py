@@ -3,15 +3,15 @@
 from __future__ import annotations
 
 from json import JSONDecodeError
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 
 import aiohttp.client_exceptions
 from music_assistant_models.config_entries import ConfigEntry
 from music_assistant_models.enums import ConfigEntryType, ExternalID, ImageType, ProviderFeature
-from music_assistant_models.media_items import MediaItemImage, MediaItemMetadata
+from music_assistant_models.media_items import MediaItemImage, MediaItemMetadata, UniqueList
 
 from music_assistant.controllers.cache import use_cache
-from music_assistant.helpers.app_vars import app_var
+from music_assistant.helpers.app_vars import app_var  # type: ignore[attr-defined]
 from music_assistant.helpers.throttle_retry import Throttler
 from music_assistant.models.metadata_provider import MetadataProvider
 
@@ -20,7 +20,7 @@ if TYPE_CHECKING:
     from music_assistant_models.media_items import Album, Artist
     from music_assistant_models.provider import ProviderManifest
 
-    from music_assistant import MusicAssistant
+    from music_assistant.mass import MusicAssistant
     from music_assistant.models import ProviderInstanceType
 
 SUPPORTED_FEATURES = {
@@ -114,13 +114,12 @@ class FanartTvMetadataProvider(MetadataProvider):
         self.logger.debug("Fetching metadata for Artist %s on Fanart.tv", artist.name)
         if data := await self._get_data(f"music/{artist.mbid}"):
             metadata = MediaItemMetadata()
-            metadata.images = []
             for key, img_type in IMG_MAPPING.items():
                 items = data.get(key)
                 if not items:
                     continue
                 for item in items:
-                    metadata.images.append(
+                    metadata.add_image(
                         MediaItemImage(
                             type=img_type,
                             path=item["url"],
@@ -140,27 +139,27 @@ class FanartTvMetadataProvider(MetadataProvider):
         self.logger.debug("Fetching metadata for Album %s on Fanart.tv", album.name)
         if data := await self._get_data(f"music/albums/{mbid}"):
             if data and data.get("albums"):
-                data = data["albums"][mbid]
-                metadata = MediaItemMetadata()
-                metadata.images = []
-                for key, img_type in IMG_MAPPING.items():
-                    items = data.get(key)
-                    if not items:
-                        continue
-                    for item in items:
-                        metadata.images.append(
-                            MediaItemImage(
-                                type=img_type,
-                                path=item["url"],
-                                provider=self.domain,
-                                remotely_accessible=True,
+                if album := data["albums"][mbid]:
+                    metadata = MediaItemMetadata()
+                    metadata.images = UniqueList()
+                    for key, img_type in IMG_MAPPING.items():
+                        items = album.get(key)
+                        if not items:
+                            continue
+                        for item in items:
+                            metadata.images.append(
+                                MediaItemImage(
+                                    type=img_type,
+                                    path=item["url"],
+                                    provider=self.domain,
+                                    remotely_accessible=True,
+                                )
                             )
-                        )
-                return metadata
+                    return metadata
         return None
 
     @use_cache(86400 * 30)
-    async def _get_data(self, endpoint, **kwargs) -> dict | None:
+    async def _get_data(self, endpoint: str, **kwargs: str) -> dict[str, Any] | None:
         """Get data from api."""
         url = f"http://webservice.fanart.tv/v3/{endpoint}"
         headers = {
@@ -191,4 +190,4 @@ class FanartTvMetadataProvider(MetadataProvider):
             if "error" in result and "limit" in result["error"]:
                 self.logger.warning(result["error"])
                 return None
-            return result
+            return cast(dict[str, Any], result)

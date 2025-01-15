@@ -742,6 +742,8 @@ class MetaDataController(CoreController):
 
     async def _process_metadata_lookup_jobs(self) -> None:
         """Task to process metadata lookup jobs."""
+        # postpone the lookup for a while to allow the system to start up and providers initialized
+        await asyncio.sleep(60)
         while True:
             item_uri = await self._lookup_jobs.get()
             try:

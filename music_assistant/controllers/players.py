@@ -197,6 +197,11 @@ class PlayerController(CoreController):
         - player_id: player_id of the player to handle the command.
         """
         player = self._get_player_with_redirect(player_id)
+        if player.state == PlayerState.PLAYING:
+            self.logger.info(
+                "Ignore PLAY request to player %s: player is already playing", player.display_name
+            )
+            return
         # Redirect to queue controller if it is active
         active_source = player.active_source or player.player_id
         if (active_queue := self.mass.player_queues.get(active_source)) and active_queue.items:

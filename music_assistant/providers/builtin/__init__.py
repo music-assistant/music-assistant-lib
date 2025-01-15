@@ -617,8 +617,23 @@ class BuiltinProvider(MusicProvider):
     async def _get_builtin_playlist_recently_played(self) -> list[Track]:
         result: list[Track] = []
         recent_tracks = await self.mass.music.recently_played(100, [MediaType.TRACK])
-        for idx, track in enumerate(recent_tracks, 1):
-            assert isinstance(track, Track)
+        for idx, item in enumerate(recent_tracks, 1):
+            if not (item_provider := self.mass.get_provider(item.provider)):
+                continue
+            track = Track(
+                item_id=item.item_id,
+                provider=item.provider,
+                name=item.name,
+                provider_mappings={
+                    ProviderMapping(
+                        item_id=item.item_id,
+                        provider_domain=item_provider.domain,
+                        provider_instance=item_provider.instance_id,
+                    )
+                },
+            )
+            if item.image:
+                track.metadata.add_image(item.image)
             track.position = idx
             result.append(track)
         return result

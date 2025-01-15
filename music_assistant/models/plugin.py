@@ -55,7 +55,14 @@ class PluginProvider(Provider):
     async def on_streamed(
         self,
         streamdetails: StreamDetails,
-        seconds_streamed: int,
-        fully_played: bool = False,
     ) -> None:
-        """Handle callback when an item completed streaming."""
+        """
+        Handle callback when given streamdetails completed streaming.
+
+        To get the number of seconds streamed, see streamdetails.seconds_streamed.
+        To get the number of seconds seeked/skipped, see streamdetails.seek_position.
+        Note that seconds_streamed is the total streamed seconds, so without seeked time.
+
+        NOTE: Due to internal and player buffering,
+        this may be called in advance of the actual completion.
+        """

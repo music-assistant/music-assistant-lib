@@ -940,8 +940,6 @@ class PlexProvider(MusicProvider):
     async def on_streamed(
         self,
         streamdetails: StreamDetails,
-        seconds_streamed: int,
-        fully_played: bool = False,
     ) -> None:
         """Handle callback when an item completed streaming."""
 

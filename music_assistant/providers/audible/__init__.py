@@ -280,14 +280,27 @@ class Audibleprovider(MusicProvider):
         """Get streamdetails for a audiobook based of asin."""
         return await self.helper.get_stream(asin=item_id)
 
-    async def on_streamed(
+    async def on_played(
         self,
-        streamdetails: StreamDetails,
-        seconds_streamed: int,
-        fully_played: bool = False,
+        media_type: MediaType,
+        item_id: str,
+        fully_played: bool,
+        position: int,
     ) -> None:
-        """Handle callback when an item completed streaming."""
-        await self.helper.set_last_position(streamdetails.item_id, seconds_streamed)
+        """
+        Handle callback when a (playable) media item has been played.
+
+        This is called by the Queue controller when;
+            - a track has been fully played
+            - a track has been skipped
+            - a track has been stopped after being played
+
+        Fully played is True when the track has been played to the end.
+        Position is the last known position of the track in seconds, to sync resume state.
+        When fully_played is set to false and position is 0,
+        the user marked the item as unplayed in the UI.
+        """
+        await self.helper.set_last_position(item_id, position)
 
     async def unload(self, is_removed: bool = False) -> None:
         """

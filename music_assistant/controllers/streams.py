@@ -403,6 +403,10 @@ class StreamsController(CoreController):
                 queue_item.uri,
                 queue.display_name,
             )
+            # some players do not like it when we dont return anything after an error
+            # so we send some silence so they move on to the next track on their own (hopefully)
+            async for chunk in get_silence(10, output_format):
+                await resp.write(chunk)
         return resp
 
     async def serve_queue_flow_stream(self, request: web.Request) -> web.Response:
@@ -914,35 +918,24 @@ class StreamsController(CoreController):
         filter_params = []
         extra_input_args = streamdetails.extra_input_args or []
         # handle volume normalization
-        enable_volume_normalization = (
-            streamdetails.target_loudness is not None
-            and streamdetails.volume_normalization_mode != VolumeNormalizationMode.DISABLED
-        )
-        dynamic_volume_normalization = (
-            streamdetails.volume_normalization_mode == VolumeNormalizationMode.DYNAMIC
-            and enable_volume_normalization
-        )
-        if dynamic_volume_normalization:
+        if streamdetails.volume_normalization_mode == VolumeNormalizationMode.DYNAMIC:
             # volume normalization using loudnorm filter (in dynamic mode)
             # which also collects the measurement on the fly during playback
             # more info: https://k.ylo.ph/2016/04/04/loudnorm.html
             filter_rule = f"loudnorm=I={streamdetails.target_loudness}:TP=-2.0:LRA=10.0:offset=0.0"
             filter_rule += ":print_format=json"
             filter_params.append(filter_rule)
-        elif (
-            enable_volume_normalization
-            and streamdetails.volume_normalization_mode == VolumeNormalizationMode.FIXED_GAIN
-        ):
+        elif streamdetails.volume_normalization_mode == VolumeNormalizationMode.FIXED_GAIN:
             # apply used defined fixed volume/gain correction
             gain_correct: float = await self.mass.config.get_core_config_value(
                 self.domain,
-                CONF_VOLUME_NORMALIZATION_FIXED_GAIN_RADIO
-                if streamdetails.media_type == MediaType.RADIO
-                else CONF_VOLUME_NORMALIZATION_FIXED_GAIN_TRACKS,
+                CONF_VOLUME_NORMALIZATION_FIXED_GAIN_TRACKS
+                if streamdetails.media_type == MediaType.TRACK
+                else CONF_VOLUME_NORMALIZATION_FIXED_GAIN_RADIO,
             )
             gain_correct = round(gain_correct, 2)
             filter_params.append(f"volume={gain_correct}dB")
-        elif enable_volume_normalization and streamdetails.loudness is not None:
+        elif streamdetails.volume_normalization_mode == VolumeNormalizationMode.MEASUREMENT_ONLY:
             # volume normalization with known loudness measurement
             # apply volume/gain correction
             gain_correct = streamdetails.target_loudness - streamdetails.loudness
@@ -987,7 +980,11 @@ class StreamsController(CoreController):
             # pad some silence before the radio stream starts to create some headroom
             # for radio stations that do not provide any look ahead buffer
             # without this, some radio streams jitter a lot, especially with dynamic normalization
-            pad_seconds = 5 if dynamic_volume_normalization else 2
+            pad_seconds = (
+                5
+                if streamdetails.volume_normalization_mode == VolumeNormalizationMode.DYNAMIC
+                else 2
+            )
             async for chunk in get_silence(pad_seconds, pcm_format):
                 yield chunk
 

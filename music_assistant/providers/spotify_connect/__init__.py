@@ -287,6 +287,8 @@ class SpotifyConnectProvider(MusicProvider):
                     continue
                 if "dropping truncated packet" in line:
                     continue
+                if "couldn't parse packet from " in line:
+                    continue
                 self.logger.debug(line)
         except asyncio.CancelledError:
             await librespot.close(True)

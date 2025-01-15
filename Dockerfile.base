@@ -1,29 +1,37 @@
 # syntax=docker/dockerfile:1
 
 # BASE docker image for music assistant container
-
-FROM python:3.12-alpine3.20
+# Based on Debian Trixie (testing) because we need a newer version of ffmpeg (and snapcast)
+# TODO: Switch back to regular python stable debian image + manually build ffmpeg and snapcast ?
+FROM debian:trixie-slim
 
 ARG TARGETPLATFORM
 
+
 RUN set -x \
-    && apk add --no-cache \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends \
         ca-certificates \
-        jemalloc \
         curl \
         git \
         wget \
         tzdata \
+        python3 \
+        python3-venv \
+        python3-pip \
+        libsox-fmt-all \
+        libsox3 \
+        ffmpeg \
         sox \
+        openssl \
         cifs-utils \
-    # install ffmpeg from community repo
-    && apk add --no-cache ffmpeg --repository=https://dl-cdn.alpinelinux.org/alpine/v3.20/community \
-    # install snapcast from community repo
-    && apk add --no-cache snapcast --repository=https://dl-cdn.alpinelinux.org/alpine/edge/community \
-    # install libnfs from community repo
-    && apk add --no-cache libnfs --repository=https://dl-cdn.alpinelinux.org/alpine/v3.20/community \
-    # install openssl-dev (needed for airplay)
-    && apk add --no-cache openssl-dev
+        libnfs-utils \
+        libjemalloc2 \
+        snapserver \
+    # cleanup
+    && rm -rf /tmp/* \
+    && rm -rf /var/lib/apt/lists/*
+
 
 # Copy widevine client files to container
 RUN mkdir -p /usr/local/bin/widevine_cdm
@@ -31,14 +39,16 @@ COPY widevine_cdm/* /usr/local/bin/widevine_cdm/
 
 WORKDIR /app
 
-# Configure runtime environmental variables
-ENV LD_PRELOAD="/usr/lib/libjemalloc.so.2"
-ENV VIRTUAL_ENV=/app/venv
+# Enable jemalloc
+RUN \
+    export LD_PRELOAD="$(find /usr/lib/ -name *libjemalloc.so.2)" \
+    export MALLOC_CONF="background_thread:true,metadata_thp:auto,dirty_decay_ms:20000,muzzy_decay_ms:20000"
 
 # create python venv
-RUN python3 -m venv $VIRTUAL_ENV && \
-    source $VIRTUAL_ENV/bin/activate && \
-    pip install --upgrade pip \
+ENV VIRTUAL_ENV=/app/venv
+RUN python3 -m venv $VIRTUAL_ENV
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+RUN pip install --upgrade pip \
     && pip install uv==0.4.17
 
 # we need to set (very permissive) permissions to the workdir
@@ -48,7 +58,6 @@ RUN python3 -m venv $VIRTUAL_ENV && \
 RUN chmod -R 777 /app \
     && chmod -R 777 /tmp
 
-ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 WORKDIR $VIRTUAL_ENV
 
 LABEL \

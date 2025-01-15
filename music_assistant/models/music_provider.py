@@ -331,10 +331,38 @@ class MusicProvider(Provider):
     async def on_streamed(
         self,
         streamdetails: StreamDetails,
-        seconds_streamed: int,
-        fully_played: bool = False,
     ) -> None:
-        """Handle callback when an item completed streaming."""
+        """
+        Handle callback when given streamdetails completed streaming.
+
+        To get the number of seconds streamed, see streamdetails.seconds_streamed.
+        To get the number of seconds seeked/skipped, see streamdetails.seek_position.
+        Note that seconds_streamed is the total streamed seconds, so without seeked time.
+
+        NOTE: Due to internal and player buffering,
+        this may be called in advance of the actual completion.
+        """
+
+    async def on_played(
+        self,
+        media_type: MediaType,
+        item_id: str,
+        fully_played: bool,
+        position: int,
+    ) -> None:
+        """
+        Handle callback when a (playable) media item has been played.
+
+        This is called by the Queue controller when;
+            - a track has been fully played
+            - a track has been skipped
+            - a track has been stopped after being played
+
+        Fully played is True when the track has been played to the end.
+        Position is the last known position of the track in seconds, to sync resume state.
+        When fully_played is set to false and position is 0,
+        the user marked the item as unplayed in the UI.
+        """
 
     async def resolve_image(self, path: str) -> str | bytes:
         """
