@@ -50,7 +50,7 @@ if TYPE_CHECKING:
     from music_assistant_models.provider import ProviderManifest
     from zeroconf.asyncio import AsyncServiceInfo
 
-    from music_assistant import MusicAssistant
+    from music_assistant.mass import MusicAssistant
     from music_assistant.models import ProviderInstanceType
 
 
@@ -111,7 +111,7 @@ class MyDemoPlayerprovider(PlayerProvider):
         # you should return a tuple of provider-level features
         # here that your player provider supports or an empty tuple if none.
         # for example 'ProviderFeature.SYNC_PLAYERS' if you can sync players.
-        return (ProviderFeature.SYNC_PLAYERS,)
+        return {ProviderFeature.SYNC_PLAYERS}
 
     async def loaded_in_mass(self) -> None:
         """Call after the provider has been loaded."""
@@ -147,6 +147,9 @@ class MyDemoPlayerprovider(PlayerProvider):
         # If no mdns service type is specified, this method is omitted and you
         # can completely remove it from your provider implementation.
 
+        if not info:
+            return
+
         # NOTE: If you do not use mdns for discovery of players on the network,
         # you must implement your own discovery mechanism and logic to add new players
         # and update them on state changes when needed.
@@ -154,6 +157,10 @@ class MyDemoPlayerprovider(PlayerProvider):
         # player providers for more inspiration.
         name = name.split("@", 1)[1] if "@" in name else name
         player_id = info.decoded_properties["uuid"]  # this is just an example!
+
+        if not player_id:
+            return
+
         # handle removed player
         if state_change == ServiceStateChange.Removed:
             # check if the player manager has an existing entry for this player
@@ -173,14 +180,14 @@ class MyDemoPlayerprovider(PlayerProvider):
             # this is an existing player that has been updated/reconnected
             # or simply a re-announcement on mdns.
             cur_address = get_primary_ip_address_from_zeroconf(info)
-            if cur_address and cur_address != mass_player.device_info.address:
+            if cur_address and cur_address != mass_player.device_info.ip_address:
                 self.logger.debug(
                     "Address updated to %s for player %s", cur_address, mass_player.display_name
                 )
                 mass_player.device_info = DeviceInfo(
                     model=mass_player.device_info.model,
                     manufacturer=mass_player.device_info.manufacturer,
-                    address=str(cur_address),
+                    ip_address=str(cur_address),
                 )
             if not mass_player.available:
                 # if the player was marked offline and you now receive an mdns update
@@ -359,8 +366,9 @@ class MyDemoPlayerprovider(PlayerProvider):
 
             - player_id: player_id of the player to handle the command.
         """
-        sonos_player = self.sonos_players[player_id]
-        await sonos_player.client.player.leave_group()
+        # OPTIONAL - required only if you specified ProviderFeature.SYNC_PLAYERS
+        # this method should handle the ungroup command for the given player.
+        # you should unjoin the given player from the target_player/syncgroup.
 
     async def play_announcement(
         self, player_id: str, announcement: PlayerMedia, volume_level: int | None = None
