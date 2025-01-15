@@ -53,15 +53,15 @@ ARG MASS_VERSION
 ARG TARGETPLATFORM
 LABEL \
     org.opencontainers.image.title="Music Assistant Server" \
-    org.opencontainers.image.description="Music Assistant Server/Core" \
+    org.opencontainers.image.description="Music Assistant is a free, opensource Media library manager that connects to your streaming services and a wide range of connected speakers. The server is the beating heart, the core of Music Assistant and must run on an always-on device like a Raspberry Pi, a NAS or an Intel NUC or alike." \
     org.opencontainers.image.source="https://github.com/music-assistant/server" \
     org.opencontainers.image.authors="The Music Assistant Team" \
-    org.opencontainers.image.documentation="https://github.com/orgs/music-assistant/discussions" \
+    org.opencontainers.image.documentation="https://music-assistant.io" \
     org.opencontainers.image.licenses="Apache License 2.0" \
     io.hass.version="${MASS_VERSION}" \
     io.hass.type="addon" \
     io.hass.name="Music Assistant Server" \
-    io.hass.description="Music Assistant Server/Core" \
+    io.hass.description="Music Assistant Server" \
     io.hass.platform="${TARGETPLATFORM}" \
     io.hass.type="addon"
 
