@@ -2,7 +2,6 @@
 
 import logging
 import time
-from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 import pylast
@@ -69,18 +68,9 @@ class ScrobblerProvider(PluginProvider):
 
         self._network = _get_network(self._get_network_config())
 
-        def wrap(cb: Callable[[MassEvent], None]):
-            async def handler(event: MassEvent) -> None:
-                try:
-                    await cb(event)
-                except Exception as e:
-                    self.logger.exception(e)
-
-            return handler
-
         # subscribe to internal events
-        self.mass.subscribe(wrap(self._on_mass_queue_updated), EventType.QUEUE_UPDATED)
-        self.mass.subscribe(wrap(self._on_mass_media_item_played), EventType.MEDIA_ITEM_PLAYED)
+        self.mass.subscribe(self._on_mass_queue_updated, EventType.QUEUE_UPDATED)
+        self.mass.subscribe(self._on_mass_media_item_played, EventType.MEDIA_ITEM_PLAYED)
         self.logger.debug("subscribed to events")
 
     async def _on_mass_queue_updated(self, event: MassEvent) -> None:
