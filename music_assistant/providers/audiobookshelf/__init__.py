@@ -187,6 +187,12 @@ class Audiobookshelf(MusicProvider):
             [MediaItemImage(type=ImageType.THUMB, path=url, provider=self.lookup_key)]
         )
         mass_podcast.metadata.explicit = abs_podcast.media.metadata.explicit
+        if abs_podcast.media.metadata.language is not None:
+            mass_podcast.metadata.languages = UniqueList([abs_podcast.media.metadata.language])
+        if abs_podcast.media.metadata.genres is not None:
+            mass_podcast.metadata.genres = set(abs_podcast.media.metadata.genres)
+        mass_podcast.metadata.release_date = abs_podcast.media.metadata.release_date
+
         return mass_podcast
 
     async def _parse_podcast_episode(
@@ -308,7 +314,8 @@ class Audiobookshelf(MusicProvider):
         if abs_audiobook.media.metadata.language is not None:
             mass_audiobook.metadata.languages = UniqueList([abs_audiobook.media.metadata.language])
         mass_audiobook.metadata.release_date = abs_audiobook.media.metadata.published_date
-        mass_audiobook.metadata.genres = set(abs_audiobook.media.metadata.genres)
+        if abs_audiobook.media.metadata.genres is not None:
+            mass_audiobook.metadata.genres = set(abs_audiobook.media.metadata.genres)
 
         # chapters
         chapters = []

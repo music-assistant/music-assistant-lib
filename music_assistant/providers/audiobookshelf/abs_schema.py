@@ -73,7 +73,7 @@ class ABSPodcastMetaData(BaseModel):
     author: str | None
     description: str | None
     release_date: Annotated[str | None, Alias("releaseDate")]
-    genres: list[str]
+    genres: list[str] | None
     feed_url: Annotated[str | None, Alias("feedUrl")]
     image_url: Annotated[str | None, Alias("imageUrl")]
     itunes_page_url: Annotated[str | None, Alias("itunesPageUrl")]
@@ -141,7 +141,7 @@ class ABSAudioBookMetaData(BaseModel):
     authors: list[ABSAuthorMinified]
     narrators: list[str]
     series: list[ABSSeriesSequence]
-    genres: list[str]
+    genres: list[str] | None
     published_year: Annotated[str | None, Alias("publishedYear")]
     published_date: Annotated[str | None, Alias("publishedDate")]
     publisher: str | None
