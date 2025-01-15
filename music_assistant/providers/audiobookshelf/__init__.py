@@ -182,9 +182,9 @@ class Audiobookshelf(MusicProvider):
         )
         mass_podcast.metadata.description = abs_podcast.media.metadata.description
         token = self._client.token
-        url = f"{self.config.get_value(CONF_URL)}/api/items/{abs_podcast.id_}/cover?token={token}"
+        image_url = f"{self.config.get_value(CONF_URL)}/api/items/{abs_podcast.id_}/cover?token={token}"
         mass_podcast.metadata.images = UniqueList(
-            [MediaItemImage(type=ImageType.THUMB, path=url, provider=self.lookup_key)]
+            [MediaItemImage(type=ImageType.THUMB, path=image_url, provider=self.lookup_key)]
         )
         mass_podcast.metadata.explicit = abs_podcast.media.metadata.explicit
         if abs_podcast.media.metadata.language is not None:
