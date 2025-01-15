@@ -1,12 +1,9 @@
 # syntax=docker/dockerfile:1
 
 # Builder image. It builds the venv that will be copied to the final image
-# 
+#
 ARG BASE_IMAGE_VERSION=latest
 FROM ghcr.io/music-assistant/base:$BASE_IMAGE_VERSION AS builder
-
-# Fastest way to install uv
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 # create venv which will be copied to the final image
 ENV VIRTUAL_ENV=/app/venv
@@ -15,7 +12,7 @@ RUN uv venv $VIRTUAL_ENV
 ADD dist dist
 COPY requirements_all.txt .
 
-# pre-install ALL requirements
+# pre-install ALL requirements into the venv
 # comes at a cost of a slightly larger image size but is faster to start
 # because we do not have to install dependencies at runtime
 RUN uv pip install \
@@ -29,13 +26,8 @@ RUN uv pip install \
     --find-links "https://wheels.home-assistant.io/musllinux/" \
     "music-assistant@dist/music_assistant-${MASS_VERSION}-py3-none-any.whl"
 
-# TODO: delete the unneeded architecture of librespot to decrease size!
-
 # we need to set (very permissive) permissions to the workdir
 # and /tmp to allow running the container as non-root
-# NOTE that home assistant add-ons always run as root (and use apparmor)
-# so we can't specify a user here
-#
 # IMPORTANT: chmod here, NOT on the final image, to avoid creating extra layers and increase size!
 #
 RUN chmod -R 777 /app
@@ -52,7 +44,7 @@ ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 # copy the already build /app dir
 COPY --from=builder /app /app
 
-# the /app contents have correct permissinos but for some reason /app itself does not.
+# the /app contents have correct permissions but for some reason /app itself does not.
 # so apply again, but ONLY to the dir (otherwise we increase the size)
 RUN chmod 777 /app
 

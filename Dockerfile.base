@@ -1,10 +1,8 @@
 # syntax=docker/dockerfile:1
 
 # BASE docker image for music assistant container
-#
-# It should contain ONLY packages we want to deploy in the final image, not
-# packages needed to build. Build dependencies should be installed in the
-# "builder" image in the main Dockerfile.
+# This image forms the base for the final image and is not meant to be used directly
+# NOTE that the dev add-on is also based on this base image
 
 FROM python:3.12-alpine3.21
 
@@ -13,11 +11,13 @@ RUN set -x \
         ca-certificates \
         jemalloc \
         tzdata \
-        sox \
+        # cifs utils and libnfs are needed for smb and nfs support (file provider)
         cifs-utils \
-        snapcast \
         libnfs \
-        openssl-dev  # needed for airplay
+        # openssl-dev is needed for airplay
+        openssl-dev  \
+    # install snapcast from community repo (because we need 0.28+)
+    && apk add --no-cache snapcast --repository=https://dl-cdn.alpinelinux.org/alpine/v3.20/community
 
 # Get static ffmpeg builds from https://hub.docker.com/r/mwader/static-ffmpeg/
 COPY --from=mwader/static-ffmpeg:7.1 /ffmpeg /usr/local/bin/
@@ -27,7 +27,10 @@ COPY --from=mwader/static-ffmpeg:7.1 /ffprobe /usr/local/bin/
 RUN mkdir -p /usr/local/bin/widevine_cdm
 COPY widevine_cdm/* /usr/local/bin/widevine_cdm/
 
-# Configure runtime environmental variables
+# ensure UV is installed
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+
+# JEMalloc for more efficient memory management
 ENV LD_PRELOAD="/usr/lib/libjemalloc.so.2"
 
 # we need to set (very permissive) permissions to the workdir
