@@ -108,7 +108,7 @@ class MyDemoPlayerprovider(PlayerProvider):
     def supported_features(self) -> set[ProviderFeature]:
         """Return the features supported by this Provider."""
         # MANDATORY
-        # you should return a tuple of provider-level features
+        # you should return a set of provider-level features
         # here that your player provider supports or an empty tuple if none.
         # for example 'ProviderFeature.SYNC_PLAYERS' if you can sync players.
         return {ProviderFeature.SYNC_PLAYERS}
