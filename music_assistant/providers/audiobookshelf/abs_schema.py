@@ -3,7 +3,8 @@
 https://api.audiobookshelf.org/
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from enum import Enum
 from typing import Annotated
 
 from mashumaro.config import BaseConfig
@@ -12,12 +13,17 @@ from mashumaro.types import Alias
 
 
 class BaseModel(DataClassJSONMixin):
-    """BaseModel for Schema part where we don't need all keys."""
+    """BaseModel for Schema.
+
+    forbid_extra_keys: response of API may have more keys than used by us
+    serialize_by_alias: when using to_json(), we get the Alias keys
+    """
 
     class Config(BaseConfig):
-        """Not all keys required."""
+        """Config."""
 
         forbid_extra_keys = False
+        serialize_by_alias = True
 
 
 @dataclass
@@ -314,3 +320,82 @@ class ABSLibrariesItemsResponse(BaseModel):
     """
 
     results: list[ABSLibraryItem]
+
+
+# Schema to enable sessions:
+@dataclass
+class ABSDeviceInfo(BaseModel):
+    """ABSDeviceInfo.
+
+    https://api.audiobookshelf.org/#device-info-parameters
+    """
+
+    device_id: Annotated[str, Alias("deviceId")]
+    client_name: Annotated[str, Alias("clientName")]
+    client_version: Annotated[str, Alias("clientVersion")]
+    manufacturer: str
+    model: str
+    # sdkVersion # meant for an Android client
+
+
+@dataclass
+class ABSPlayRequest(BaseModel):
+    """ABSPlayRequest.
+
+    https://api.audiobookshelf.org/#play-a-library-item-or-podcast-episode
+    """
+
+    device_info: Annotated[ABSDeviceInfo, Alias("deviceInfo")]
+    force_direct_play: Annotated[bool, Alias("forceDirectPlay")] = False
+    force_transcode: Annotated[bool, Alias("forceTranscode")] = False
+    supported_mime_types: Annotated[list[str], Alias("supportedMimeTypes")] = field(
+        default_factory=list
+    )
+    media_player: Annotated[str, Alias("mediaPlayer")] = "unknown"
+
+
+class ABSPlayMethod(Enum):
+    """Playback method in playback session."""
+
+    DIRECT_PLAY = 0
+    DIRECT_STREAM = 1
+    TRANSCODE = 2
+    LOCAL = 3
+
+
+@dataclass
+class ABSPlaybackSessionExpanded(BaseModel):
+    """ABSPlaybackSessionExpanded.
+
+    https://api.audiobookshelf.org/#play-method
+    """
+
+    id_: Annotated[str, Alias("id")]
+    user_id: Annotated[str, Alias("userId")]
+    library_id: Annotated[str, Alias("libraryId")]
+    library_item_id: Annotated[str, Alias("libraryItemId")]
+    episode_id: Annotated[str | None, Alias("episodeId")]
+    media_type: Annotated[str, Alias("mediaType")]
+    media_metadata: Annotated[ABSPodcastMetaData | ABSAudioBookMetaData, Alias("mediaMetadata")]
+    chapters: list[ABSAudioBookChapter]
+    display_title: Annotated[str, Alias("displayTitle")]
+    display_author: Annotated[str, Alias("displayAuthor")]
+    cover_path: Annotated[str, Alias("coverPath")]
+    duration: float
+    # 0: direct play, 1: direct stream, 2: transcode, 3: local
+    play_method: Annotated[ABSPlayMethod, Alias("playMethod")]
+    media_player: Annotated[str, Alias("mediaPlayer")]
+    device_info: Annotated[ABSDeviceInfo, Alias("deviceInfo")]
+    server_version: Annotated[str, Alias("serverVersion")]
+    # YYYY-MM-DD
+    date: str
+    day_of_week: Annotated[str, Alias("dayOfWeek")]
+    time_listening: Annotated[float, Alias("timeListening")]  # s
+    start_time: Annotated[float, Alias("startTime")]  # s
+    current_time: Annotated[float, Alias("currentTime")]  # s
+    started_at: Annotated[int, Alias("startedAt")]  # ms since Unix Epoch
+    updated_at: Annotated[int, Alias("updatedAt")]  # ms since Unix Epoch
+    audio_tracks: Annotated[list[ABSAudioTrack], Alias("audioTracks")]
+
+    # videoTrack:
+    # libraryItem:
