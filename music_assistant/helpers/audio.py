@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING
 
 import aiofiles
 from aiohttp import ClientTimeout
+from music_assistant_models.dsp import DSPConfig, DSPDetails, DSPState
 from music_assistant_models.enums import (
     ContentType,
     MediaType,
@@ -51,6 +52,7 @@ from .util import TimedAsyncGenerator, create_tempfile, detect_charset
 
 if TYPE_CHECKING:
     from music_assistant_models.config_entries import CoreConfig, PlayerConfig
+    from music_assistant_models.player import Player
     from music_assistant_models.player_queue import QueueItem
     from music_assistant_models.streamdetails import StreamDetails
 
@@ -183,6 +185,63 @@ async def strip_silence(
     return stripped_data
 
 
+def get_player_dsp_details(
+    mass: MusicAssistant, player: Player, group_preventing_dsp=False
+) -> DSPDetails:
+    """Return DSP details of single a player.
+
+    This will however not check if the queried player is part of a group.
+    The caller is responsible for passing the result of is_grouping_preventing_dsp of
+    the leader/PlayerGroup as the group_preventing_dsp argument in such cases.
+    """
+    dsp_config = mass.config.get_player_dsp_config(player.player_id)
+    dsp_state = DSPState.ENABLED if dsp_config.enabled else DSPState.DISABLED
+    if dsp_state == DSPState.ENABLED and (
+        group_preventing_dsp or is_grouping_preventing_dsp(player)
+    ):
+        dsp_state = DSPState.DISABLED_BY_UNSUPPORTED_GROUP
+        dsp_config = DSPConfig(enabled=False)
+
+    # remove disabled filters
+    dsp_config.filters = [x for x in dsp_config.filters if x.enabled]
+
+    return DSPDetails(
+        state=dsp_state,
+        input_gain=dsp_config.input_gain,
+        filters=dsp_config.filters,
+        output_gain=dsp_config.output_gain,
+        output_limiter=dsp_config.output_limiter,
+    )
+
+
+def get_stream_dsp_details(
+    mass: MusicAssistant,
+    queue_id: str,
+) -> dict[str, DSPDetails]:
+    """Return DSP details of all players playing this queue, keyed by player_id."""
+    player = mass.players.get(queue_id)
+    dsp = {}
+    group_preventing_dsp: bool = False
+
+    # We skip the PlayerGroups as they don't provide an audio output
+    # by themselves, but only sync other players.
+    if not player.provider.startswith("player_group"):
+        details = get_player_dsp_details(mass, player)
+        details.is_leader = True
+        dsp[player.player_id] = details
+    else:
+        group_preventing_dsp = is_grouping_preventing_dsp(player)
+
+    if player and player.group_childs:
+        # grouped playback, get DSP details for each player in the group
+        for child_id in player.group_childs:
+            if child_player := mass.players.get(child_id):
+                dsp[child_id] = get_player_dsp_details(
+                    mass, child_player, group_preventing_dsp=group_preventing_dsp
+                )
+    return dsp
+
+
 async def get_stream_details(
     mass: MusicAssistant,
     queue_item: QueueItem,
@@ -269,6 +328,9 @@ async def get_stream_details(
     streamdetails.volume_normalization_mode = _get_normalization_mode(
         core_config, player_settings, streamdetails
     )
+
+    # attach the DSP details of all group members
+    streamdetails.dsp = get_stream_dsp_details(mass, streamdetails.queue_id)
 
     process_time = int((time.time() - time_start) * 1000)
     LOGGER.debug(
@@ -873,6 +935,27 @@ def get_chunksize(
     return int((320000 / 8) * seconds)
 
 
+def is_grouping_preventing_dsp(player: Player) -> bool:
+    """Check if grouping is preventing DSP from being applied to this leader/PlayerGroup.
+
+    If this returns True, no DSP should be applied to the player.
+    This function will not check if the Player is in a group, the caller should do that first.
+    """
+    # We require the caller to handle non-leader cases themselves since player.synced_to
+    # can be unreliable in some edge cases
+    multi_device_dsp_supported = PlayerFeature.MULTI_DEVICE_DSP in player.supported_features
+    child_count = len(player.group_childs) if player.group_childs else 0
+
+    is_multiple_devices: bool
+    if player.provider.startswith("player_group"):
+        # PlayerGroups have no leader, so having a child count of 1 means
+        # the group actually contains only a single player.
+        is_multiple_devices = child_count > 1
+    else:
+        is_multiple_devices = child_count > 0
+    return is_multiple_devices and not multi_device_dsp_supported
+
+
 def get_player_filter_params(
     mass: MusicAssistant,
     player_id: str,
@@ -884,11 +967,23 @@ def get_player_filter_params(
     dsp = mass.config.get_player_dsp_config(player_id)
 
     if player := mass.players.get(player_id):
-        is_grouped = bool(player.synced_to) or bool(player.group_childs)
-        if is_grouped and PlayerFeature.MULTI_DEVICE_DSP not in player.supported_features:
+        if is_grouping_preventing_dsp(player):
             # We can not correctly apply DSP to a grouped player without multi-device DSP support,
             # so we disable it.
             dsp.enabled = False
+        elif player.provider.startswith("player_group") and (
+            PlayerFeature.MULTI_DEVICE_DSP not in player.supported_features
+        ):
+            # This is a special case! We have a player group where:
+            # - The group leader does not support MULTI_DEVICE_DSP
+            # - But only contains a single player (since nothing is preventing DSP)
+            # We can still apply the DSP of that single player.
+            if player.group_childs:
+                child_player = mass.players.get(player.group_childs[0])
+                dsp = mass.config.get_player_dsp_config(mass, child_player)
+            else:
+                # This should normally never happen, but if it does, we disable DSP.
+                dsp.enabled = False
 
     if dsp.enabled:
         # Apply input gain

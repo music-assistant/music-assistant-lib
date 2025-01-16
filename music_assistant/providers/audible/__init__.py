@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import os
-import webbrowser
 from collections.abc import AsyncGenerator
 from logging import getLevelName
 from typing import TYPE_CHECKING, cast
@@ -17,7 +16,7 @@ from music_assistant_models.config_entries import (
     ConfigValueType,
     ProviderConfig,
 )
-from music_assistant_models.enums import ConfigEntryType, MediaType, ProviderFeature
+from music_assistant_models.enums import ConfigEntryType, EventType, MediaType, ProviderFeature
 from music_assistant_models.errors import LoginFailed
 
 from music_assistant.models.music_provider import MusicProvider
@@ -111,7 +110,9 @@ async def get_config_entries(
         values[CONF_CODE_VERIFIER] = code_verifier
         values[CONF_SERIAL] = serial
         values[CONF_LOGIN_URL] = login_url
-        webbrowser.open_new_tab(login_url)
+        session_id = str(values["session_id"])
+        mass.signal_event(EventType.AUTH_SESSION, session_id, login_url)
+        await asyncio.sleep(15)
 
     if action == CONF_ACTION_VERIFY:
         code_verifier = str(values.get(CONF_CODE_VERIFIER))
