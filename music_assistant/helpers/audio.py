@@ -1049,6 +1049,7 @@ def _get_normalization_mode(
     if streamdetails.loudness and preference not in (
         VolumeNormalizationMode.DISABLED,
         VolumeNormalizationMode.FIXED_GAIN,
+        VolumeNormalizationMode.DYNAMIC,
     ):
         return VolumeNormalizationMode.MEASUREMENT_ONLY
 
