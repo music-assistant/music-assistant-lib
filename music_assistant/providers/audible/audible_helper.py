@@ -74,6 +74,7 @@ class AudibleHelper:
         while True:
             library = await self._call_api(
                 "library",
+                use_cache=False,
                 response_groups=",".join(response_groups),
                 page=page,
                 num_results=page_size,
@@ -204,13 +205,15 @@ class AudibleHelper:
         """Report last position."""
 
     async def _call_api(self, path: str, **kwargs: Any) -> Any:
+        response = None
+        use_cache = False
         params_str = json.dumps(kwargs, sort_keys=True)
         params_hash = hashlib.md5(params_str.encode()).hexdigest()
         cache_key_with_params = f"{path}:{params_hash}"
-
-        response = await self.mass.cache.get(
-            key=cache_key_with_params, base_key=CACHE_DOMAIN, category=CACHE_CATEGORY_API
-        )
+        if use_cache:
+            response = await self.mass.cache.get(
+                key=cache_key_with_params, base_key=CACHE_DOMAIN, category=CACHE_CATEGORY_API
+            )
         if not response:
             response = await self.client.get(path, **kwargs)
             await self.mass.cache.set(
