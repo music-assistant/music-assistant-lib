@@ -185,11 +185,20 @@ async def strip_silence(
     return stripped_data
 
 
-def get_player_dsp_details(mass: MusicAssistant, player: Player) -> DSPDetails:
-    """Return DSP details of single a player."""
+def get_player_dsp_details(
+    mass: MusicAssistant, player: Player, group_preventing_dsp=False
+) -> DSPDetails:
+    """Return DSP details of single a player.
+
+    This will however not check if the queried player is part of a group.
+    The caller is responsible for passing the result of is_grouping_preventing_dsp of
+    the leader/PlayerGroup as the group_preventing_dsp argument in such cases.
+    """
     dsp_config = mass.config.get_player_dsp_config(player.player_id)
     dsp_state = DSPState.ENABLED if dsp_config.enabled else DSPState.DISABLED
-    if dsp_state == DSPState.ENABLED and is_grouping_preventing_dsp(player):
+    if dsp_state == DSPState.ENABLED and (
+        group_preventing_dsp or is_grouping_preventing_dsp(player)
+    ):
         dsp_state = DSPState.DISABLED_BY_UNSUPPORTED_GROUP
         dsp_config = DSPConfig(enabled=False)
 
@@ -212,6 +221,7 @@ def get_stream_dsp_details(
     """Return DSP details of all players playing this queue, keyed by player_id."""
     player = mass.players.get(queue_id)
     dsp = {}
+    group_preventing_dsp: bool = False
 
     # We skip the PlayerGroups as they don't provide an audio output
     # by themselves, but only sync other players.
@@ -219,12 +229,16 @@ def get_stream_dsp_details(
         details = get_player_dsp_details(mass, player)
         details.is_leader = True
         dsp[player.player_id] = details
+    else:
+        group_preventing_dsp = is_grouping_preventing_dsp(player)
 
     if player and player.group_childs:
         # grouped playback, get DSP details for each player in the group
         for child_id in player.group_childs:
             if child_player := mass.players.get(child_id):
-                dsp[child_id] = get_player_dsp_details(mass, child_player)
+                dsp[child_id] = get_player_dsp_details(
+                    mass, child_player, group_preventing_dsp=group_preventing_dsp
+                )
     return dsp
 
 
