@@ -257,6 +257,10 @@ class AsyncProcess:
             self._returncode = await self.proc.wait()
         return self._returncode
 
+    async def wait_with_timeout(self, timeout: int) -> int:
+        """Wait for the process and return the returncode with a timeout."""
+        return await asyncio.wait_for(self.wait(), timeout)
+
 
 async def check_output(*args: str, env: dict[str, str] | None = None) -> tuple[int, bytes]:
     """Run subprocess and return returncode and output."""
