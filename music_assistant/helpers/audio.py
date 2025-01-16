@@ -386,8 +386,8 @@ async def get_media_stream(
         # wait until stderr also completed reading
         await ffmpeg_proc.wait_with_timeout(5)
         finished = True
-    except Exception as err:
-        if isinstance(err, asyncio.CancelledError):
+    except (Exception, GeneratorExit) as err:
+        if isinstance(err, asyncio.CancelledError | GeneratorExit):
             # we were cancelled, just raise
             cancelled = True
             raise
@@ -443,9 +443,14 @@ async def get_media_stream(
                         media_type=streamdetails.media_type,
                     )
                 )
-        elif streamdetails.loudness is None and streamdetails.volume_normalization_mode not in (
-            VolumeNormalizationMode.DISABLED,
-            VolumeNormalizationMode.FIXED_GAIN,
+        elif (
+            streamdetails.loudness is None
+            and streamdetails.volume_normalization_mode
+            not in (
+                VolumeNormalizationMode.DISABLED,
+                VolumeNormalizationMode.FIXED_GAIN,
+            )
+            and (finished or (seconds_streamed >= 30))
         ):
             # dynamic mode not allowed and no measurement known, we need to analyze the audio
             # add background task to start analyzing the audio

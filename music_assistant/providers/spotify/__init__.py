@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import logging
 import os
 import time
 from typing import TYPE_CHECKING, Any, cast
@@ -570,8 +571,7 @@ class SpotifyProvider(MusicProvider):
             self._librespot_bin,
             "--cache",
             self.cache_dir,
-            "--cache-size-limit",
-            "1G",
+            "--disable-audio-cache",
             "--passthrough",
             "--bitrate",
             "320",
@@ -586,20 +586,42 @@ class SpotifyProvider(MusicProvider):
         if seek_position:
             args += ["--start-position", str(int(seek_position))]
         chunk_size = get_chunksize(streamdetails.audio_format)
-        stderr = None if self.logger.isEnabledFor(VERBOSE_LOG_LEVEL) else False
+        stderr = bool(self.logger.isEnabledFor(logging.DEBUG))
         bytes_received = 0
-        async with AsyncProcess(
+        log_lines: list[str] = []
+
+        librespot_proc: AsyncProcess = AsyncProcess(
             args,
             stdout=True,
             stderr=stderr,
             name="librespot",
-        ) as librespot_proc:
+        )
+        try:
+            await librespot_proc.start()
+
+            async def _read_stderr():
+                logger = self.logger.getChild("librespot")
+                async for line in librespot_proc.iter_stderr():
+                    log_lines.append(line)
+                    logger.log(VERBOSE_LOG_LEVEL, line)
+
+            if stderr:
+                log_reader = asyncio.create_task(_read_stderr())
+
             async for chunk in librespot_proc.iter_any(chunk_size):
                 yield chunk
                 bytes_received += len(chunk)
+            if stderr:
+                await log_reader
 
-        if librespot_proc.returncode != 0 or bytes_received == 0:
-            raise AudioError(f"Failed to stream track {spotify_uri}")
+            if bytes_received == 0:
+                raise AudioError("No audio received from librespot")
+
+        finally:
+            await librespot_proc.close()
+            if not bytes_received:
+                log_lines = "\n".join(log_lines)
+                self.logger.error("Error while streaming track %s\n%s", spotify_uri, log_lines)
 
     def _parse_artist(self, artist_obj):
         """Parse spotify artist object to generic layout."""
