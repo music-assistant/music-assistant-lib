@@ -48,7 +48,7 @@ from music_assistant.helpers.auth import AuthenticationHelper
 from music_assistant.helpers.json import json_loads
 from music_assistant.helpers.process import AsyncProcess, check_output
 from music_assistant.helpers.throttle_retry import ThrottlerManager, throttle_with_retries
-from music_assistant.helpers.util import lock, parse_title_and_version
+from music_assistant.helpers.util import TimedAsyncGenerator, lock, parse_title_and_version
 from music_assistant.models.music_provider import MusicProvider
 
 from .helpers import get_librespot_binary
@@ -608,7 +608,7 @@ class SpotifyProvider(MusicProvider):
             if stderr:
                 log_reader = asyncio.create_task(_read_stderr())
 
-            async for chunk in librespot_proc.iter_any(chunk_size):
+            async for chunk in TimedAsyncGenerator(librespot_proc.iter_any(chunk_size), 20):
                 yield chunk
                 bytes_received += len(chunk)
             if stderr:
