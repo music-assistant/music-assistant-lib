@@ -9,11 +9,7 @@ import logging
 from collections.abc import AsyncGenerator, Sequence
 from typing import TYPE_CHECKING
 
-from music_assistant_models.config_entries import (
-    ConfigEntry,
-    ConfigValueType,
-    ProviderConfig,
-)
+from music_assistant_models.config_entries import ConfigEntry, ConfigValueType, ProviderConfig
 from music_assistant_models.enums import (
     ConfigEntryType,
     ContentType,
@@ -39,9 +35,7 @@ from music_assistant_models.media_items import (
 from music_assistant_models.streamdetails import StreamDetails
 
 from music_assistant.models.music_provider import MusicProvider
-from music_assistant.providers.audiobookshelf.abs_client import (
-    ABSClient,
-)
+from music_assistant.providers.audiobookshelf.abs_client import ABSClient
 from music_assistant.providers.audiobookshelf.abs_schema import (
     ABSAudioBook,
     ABSLibrary,
@@ -182,7 +176,9 @@ class Audiobookshelf(MusicProvider):
         )
         mass_podcast.metadata.description = abs_podcast.media.metadata.description
         token = self._client.token
-        image_url = f"{self.config.get_value(CONF_URL)}/api/items/{abs_podcast.id_}/cover?token={token}"
+        image_url = (
+            f"{self.config.get_value(CONF_URL)}/api/items/{abs_podcast.id_}/cover?token={token}"
+        )
         mass_podcast.metadata.images = UniqueList(
             [MediaItemImage(type=ImageType.THUMB, path=image_url, provider=self.lookup_key)]
         )
