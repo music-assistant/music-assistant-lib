@@ -917,13 +917,24 @@ def get_chunksize(
 
 
 def is_grouping_preventing_dsp(player: Player) -> bool:
-    """Check if grouping is preventing DSP from being applied.
+    """Check if grouping is preventing DSP from being applied to this leader/PlayerGroup.
 
     If this returns True, no DSP should be applied to the player.
+    This function will not check if the Player is in a group, the caller should do that first.
     """
-    is_grouped = bool(player.synced_to) or bool(player.group_childs)
+    # We require the caller to handle non-leader cases themselves since player.synced_to
+    # can be unreliable in some edge cases
     multi_device_dsp_supported = PlayerFeature.MULTI_DEVICE_DSP in player.supported_features
-    return is_grouped and not multi_device_dsp_supported
+    child_count = len(player.group_childs) if player.group_childs else 0
+
+    is_multiple_devices: bool
+    if player.provider.startswith("player_group"):
+        # PlayerGroups have no leader, so having a child count of 1 means
+        # the group actually contains only a single player.
+        is_multiple_devices = child_count > 1
+    else:
+        is_multiple_devices = child_count > 0
+    return is_multiple_devices and not multi_device_dsp_supported
 
 
 def get_player_filter_params(
@@ -941,6 +952,19 @@ def get_player_filter_params(
             # We can not correctly apply DSP to a grouped player without multi-device DSP support,
             # so we disable it.
             dsp.enabled = False
+        elif player.provider.startswith("player_group") and (
+            PlayerFeature.MULTI_DEVICE_DSP not in player.supported_features
+        ):
+            # This is a special case! We have a player group where:
+            # - The group leader does not support MULTI_DEVICE_DSP
+            # - But only contains a single player (since nothing is preventing DSP)
+            # We can still apply the DSP of that single player.
+            if player.group_childs:
+                child_player = mass.players.get(player.group_childs[0])
+                dsp = mass.config.get_player_dsp_config(mass, child_player)
+            else:
+                # This should normally never happen, but if it does, we disable DSP.
+                dsp.enabled = False
 
     if dsp.enabled:
         # Apply input gain
