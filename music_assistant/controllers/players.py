@@ -886,7 +886,7 @@ class PlayerController(CoreController):
         self._prev_states.pop(player_id, None)
         self.mass.signal_event(EventType.PLAYER_REMOVED, player_id)
 
-    def update(
+    def update(  # noqa: PLR0915
         self, player_id: str, skip_forward: bool = False, force_update: bool = False
     ) -> None:
         """Update player state."""
