@@ -123,9 +123,9 @@ class ABSClient:
         """Logout from ABS."""
         await self._post("logout", add_api_endpoint=False)
 
-    async def get_user(self, id_: str) -> ABSUser:
+    async def get_authenticated_user(self) -> ABSUser:
         """Get an ABS user."""
-        data = await self._get(f"users/{id_}")
+        data = await self._get("me")
         return ABSUser.from_json(data)
 
     async def sync(self) -> None:
@@ -141,7 +141,7 @@ class ABSClient:
                     self.audiobook_libraries.append(library)
                 elif media_type == "podcast":
                     self.podcast_libraries.append(library)
-        self.user = await self.get_user(self.user.id_)
+        self.user = await self.get_authenticated_user()
 
     async def get_all_podcasts(self) -> AsyncGenerator[ABSPodcast]:
         """Get all available podcasts."""
