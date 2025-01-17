@@ -399,3 +399,17 @@ class ABSPlaybackSessionExpanded(BaseModel):
 
     # videoTrack:
     # libraryItem:
+
+
+@dataclass
+class ABSSessionUpdate(BaseModel):
+    """
+    ABSSessionUpdate.
+
+    Can be used as optional data to sync or closing request.
+    unit is seconds
+    """
+
+    current_time: Annotated[float, Alias("currentTime")]
+    time_listened: Annotated[float, Alias("timeListened")]
+    duration: float

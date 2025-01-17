@@ -11,13 +11,17 @@ from aiohttp import ClientSession
 
 from music_assistant.providers.audiobookshelf.abs_schema import (
     ABSAudioBook,
+    ABSDeviceInfo,
     ABSLibrariesItemsResponse,
     ABSLibrariesResponse,
     ABSLibrary,
     ABSLibraryItem,
     ABSLoginResponse,
     ABSMediaProgress,
+    ABSPlaybackSessionExpanded,
+    ABSPlayRequest,
     ABSPodcast,
+    ABSSessionUpdate,
     ABSUser,
 )
 
@@ -80,7 +84,7 @@ class ABSClient:
         )
         status = response.status
         if status != ABSStatus.STATUS_OK.value:
-            raise RuntimeError(f"API post call to {endpoint=} failed.")
+            raise RuntimeError(f"API post call to {endpoint=} failed with {status=}.")
         return await response.read()
 
     async def _get(self, endpoint: str, params: dict[str, str | int] | None = None) -> bytes:
@@ -291,3 +295,42 @@ class ABSClient:
         # this endpoint gives more audiobook extra data
         audiobook = await self._get(f"items/{id_}?expanded=1")
         return ABSAudioBook.from_json(audiobook)
+
+    async def get_playback_session_podcast(
+        self, device_info: ABSDeviceInfo, podcast_id: str, episode_id: str
+    ) -> ABSPlaybackSessionExpanded:
+        """Get Podcast playback session."""
+        endpoint = f"items/{podcast_id}/play/{episode_id}"
+        return await self._get_playback_session(endpoint, device_info=device_info)
+
+    async def get_playback_session_audiobook(
+        self, device_info: ABSDeviceInfo, audiobook_id: str
+    ) -> ABSPlaybackSessionExpanded:
+        """Get Audiobook playback session."""
+        endpoint = f"items/{audiobook_id}/play"
+        return await self._get_playback_session(endpoint, device_info=device_info)
+
+    async def _get_playback_session(
+        self, endpoint: str, device_info: ABSDeviceInfo
+    ) -> ABSPlaybackSessionExpanded:
+        """Get an ABS Playback Session."""
+        play_request = ABSPlayRequest(
+            device_info=device_info,
+            force_direct_play=False,
+            force_transcode=False,
+            # specifying no supported mime types makes abs send as is
+            supported_mime_types=[],
+        )
+        data = await self._post(endpoint, data=play_request.to_dict())
+        return ABSPlaybackSessionExpanded.from_json(data)
+
+    async def close_playback_session(self, playback_session_id: str) -> None:
+        """Close an open playback session."""
+        # optional data would be ABSSessionUpdate
+        await self._post(f"session/{playback_session_id}/close")
+
+    async def sync_playback_session(
+        self, playback_session_id: str, update: ABSSessionUpdate
+    ) -> None:
+        """Sync an open playback session."""
+        await self._post(f"session/{playback_session_id}/sync", data=update.to_dict())

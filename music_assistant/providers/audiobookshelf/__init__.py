@@ -5,7 +5,6 @@ Audiobookshelf is abbreviated ABS here.
 
 from __future__ import annotations
 
-import logging
 from collections.abc import AsyncGenerator, Sequence
 from typing import TYPE_CHECKING
 
@@ -38,7 +37,9 @@ from music_assistant.models.music_provider import MusicProvider
 from music_assistant.providers.audiobookshelf.abs_client import ABSClient
 from music_assistant.providers.audiobookshelf.abs_schema import (
     ABSAudioBook,
+    ABSDeviceInfo,
     ABSLibrary,
+    ABSPlaybackSessionExpanded,
     ABSPodcast,
     ABSPodcastEpisodeExpanded,
 )
@@ -124,15 +125,19 @@ class Audiobookshelf(MusicProvider):
 
     async def handle_async_init(self) -> None:
         """Pass config values to client and initialize."""
+        username = str(self.config.get_value(CONF_USERNAME))
         self._client = ABSClient()
+
         await self._client.init(
             session=self.mass.http_session,
             base_url=str(self.config.get_value(CONF_URL)),
-            username=str(self.config.get_value(CONF_USERNAME)),
+            username=username,
             password=str(self.config.get_value(CONF_PASSWORD)),
             check_ssl=bool(self.config.get_value(CONF_VERIFY_SSL)),
         )
         await self._client.sync()
+
+        self.device_info: ABSDeviceInfo
 
     async def unload(self, is_removed: bool = False) -> None:
         """
@@ -353,66 +358,56 @@ class Audiobookshelf(MusicProvider):
         abs_audiobook = await self._client.get_audiobook(prov_audiobook_id)
         return await self._parse_audiobook(abs_audiobook)
 
+    async def get_streamdetails_from_playback_session(
+        self, session: ABSPlaybackSessionExpanded
+    ) -> StreamDetails:
+        """Give Streamdetails from given session."""
+        tracks = session.audio_tracks
+        if len(tracks) == 0:
+            raise RuntimeError("Playback session has no tracks to play")
+        track = tracks[0]
+        track_url = track.content_url
+        if track_url.split("/")[1] != "hls":
+            raise RuntimeError("Did expect HLS stream for session playback")
+        item_id = ""
+        if session.media_type == "podcast":
+            media_type = MediaType.PODCAST_EPISODE
+        else:
+            media_type = MediaType.AUDIOBOOK
+            audiobook_id = session.library_item_id
+            session_id = session.id_
+            item_id = f"{audiobook_id} {session_id}"
+        token = self._client.token
+        base_url = str(self.config.get_value(CONF_URL))
+        media_url = track.content_url
+        stream_url = f"{base_url}{media_url}?token={token}"
+        return StreamDetails(
+            provider=self.instance_id,
+            item_id=item_id,
+            audio_format=AudioFormat(
+                content_type=ContentType.UNKNOWN,
+            ),
+            media_type=media_type,
+            stream_type=StreamType.HLS,
+            path=stream_url,
+        )
+
     async def get_stream_details(
         self, item_id: str, media_type: MediaType = MediaType.TRACK
     ) -> StreamDetails:
         """Get stream of item."""
         if media_type == MediaType.PODCAST_EPISODE:
-            return await self._get_stream_details_podcast_episode(item_id)
+            abs_podcast_id, abs_episode_id = item_id.split(" ")
+            session = await self._client.get_playback_session_podcast(
+                device_info=self.device_info, podcast_id=abs_podcast_id, episode_id=abs_episode_id
+            )
+            return await self.get_streamdetails_from_playback_session(session)
         elif media_type == MediaType.AUDIOBOOK:
-            return await self._get_stream_details_audiobook(item_id)
+            session = await self._client.get_playback_session_audiobook(
+                device_info=self.device_info, audiobook_id=item_id
+            )
+            return await self.get_streamdetails_from_playback_session(session)
         raise MediaNotFoundError("Stream unknown")
-
-    async def _get_stream_details_audiobook(self, audiobook_id: str) -> StreamDetails:
-        """Only single audio file in audiobook."""
-        abs_audiobook = await self._client.get_audiobook(audiobook_id)
-        tracks = abs_audiobook.media.tracks
-        if len(tracks) == 0:
-            raise MediaNotFoundError("Stream not found")
-        if len(tracks) > 1:
-            logging.warning("Music Assistant only supports single file base audiobooks")
-        token = self._client.token
-        base_url = str(self.config.get_value(CONF_URL))
-        media_url = tracks[0].content_url
-        stream_url = f"{base_url}{media_url}?token={token}"
-        # audiobookshelf returns information of stream, so we should be able
-        # to lift unknown at some point.
-        return StreamDetails(
-            provider=self.instance_id,
-            item_id=audiobook_id,
-            audio_format=AudioFormat(
-                content_type=ContentType.UNKNOWN,
-            ),
-            media_type=MediaType.AUDIOBOOK,
-            stream_type=StreamType.HTTP,
-            path=stream_url,
-        )
-
-    async def _get_stream_details_podcast_episode(self, podcast_id: str) -> StreamDetails:
-        """Stream of a Podcast."""
-        abs_podcast_id, abs_episode_id = podcast_id.split(" ")
-        abs_episode = None
-
-        abs_podcast = await self._client.get_podcast(abs_podcast_id)
-        for abs_episode in abs_podcast.media.episodes:
-            if abs_episode.id_ == abs_episode_id:
-                break
-        if abs_episode is None:
-            raise MediaNotFoundError("Stream not found")
-        token = self._client.token
-        base_url = str(self.config.get_value(CONF_URL))
-        media_url = abs_episode.audio_track.content_url
-        full_url = f"{base_url}{media_url}?token={token}"
-        return StreamDetails(
-            provider=self.instance_id,
-            item_id=podcast_id,
-            audio_format=AudioFormat(
-                content_type=ContentType.UNKNOWN,
-            ),
-            media_type=MediaType.PODCAST_EPISODE,
-            stream_type=StreamType.HTTP,
-            path=full_url,
-        )
 
     async def on_played(
         self, media_type: MediaType, item_id: str, fully_played: bool, position: int
