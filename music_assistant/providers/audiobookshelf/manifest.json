@@ -6,5 +6,6 @@
   "codeowners": [
     "@fmunkes"
   ],
-  "documentation": "https://music-assistant.io/music-providers/audiobookshelf"
+  "documentation": "https://music-assistant.io/music-providers/audiobookshelf",
+  "multi_instance": true
 }
