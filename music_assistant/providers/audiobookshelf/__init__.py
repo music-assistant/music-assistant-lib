@@ -18,7 +18,7 @@ from music_assistant_models.enums import (
     ProviderFeature,
     StreamType,
 )
-from music_assistant_models.errors import MediaNotFoundError
+from music_assistant_models.errors import LoginFailed, MediaNotFoundError
 from music_assistant_models.media_items import (
     Audiobook,
     AudioFormat,
@@ -125,13 +125,18 @@ class Audiobookshelf(MusicProvider):
     async def handle_async_init(self) -> None:
         """Pass config values to client and initialize."""
         self._client = ABSClient()
-        await self._client.init(
-            session=self.mass.http_session,
-            base_url=str(self.config.get_value(CONF_URL)),
-            username=str(self.config.get_value(CONF_USERNAME)),
-            password=str(self.config.get_value(CONF_PASSWORD)),
-            check_ssl=bool(self.config.get_value(CONF_VERIFY_SSL)),
-        )
+        base_url = str(self.config.get_value(CONF_URL))
+        try:
+            await self._client.init(
+                session=self.mass.http_session,
+                base_url=base_url,
+                username=str(self.config.get_value(CONF_USERNAME)),
+                password=str(self.config.get_value(CONF_PASSWORD)),
+                check_ssl=bool(self.config.get_value(CONF_VERIFY_SSL)),
+            )
+        except RuntimeError:
+            # login details were not correct
+            raise LoginFailed(f"Login to abs instance at {base_url} failed.")
         await self._client.sync()
 
     async def unload(self, is_removed: bool = False) -> None:
