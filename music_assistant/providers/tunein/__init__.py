@@ -245,7 +245,7 @@ class TuneInProvider(MusicProvider):
         if item_id.startswith("http"):
             # custom url
             return StreamDetails(
-                provider=self.instance_id,
+                provider=self.lookup_key,
                 item_id=item_id,
                 audio_format=AudioFormat(
                     content_type=ContentType.UNKNOWN,
@@ -264,7 +264,7 @@ class TuneInProvider(MusicProvider):
             if media_type and stream["media_type"] != media_type:
                 continue
             return StreamDetails(
-                provider=self.domain,
+                provider=self.lookup_key,
                 item_id=item_id,
                 # set contenttype to unknown so ffmpeg can auto detect it
                 audio_format=AudioFormat(content_type=ContentType.UNKNOWN),

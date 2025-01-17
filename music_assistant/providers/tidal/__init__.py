@@ -584,7 +584,7 @@ class TidalProvider(MusicProvider):
 
         return StreamDetails(
             item_id=track.id,
-            provider=self.instance_id,
+            provider=self.lookup_key,
             audio_format=AudioFormat(
                 content_type=ContentType.try_parse(manifest.codecs),
                 sample_rate=manifest.sample_rate,
@@ -643,7 +643,7 @@ class TidalProvider(MusicProvider):
         return ItemMapping(
             media_type=media_type,
             item_id=key,
-            provider=self.instance_id,
+            provider=self.lookup_key,
             name=name,
         )
 
@@ -713,7 +713,7 @@ class TidalProvider(MusicProvider):
         artist_id = artist_obj.id
         artist = Artist(
             item_id=str(artist_id),
-            provider=self.instance_id,
+            provider=self.lookup_key,
             name=artist_obj.name,
             provider_mappings={
                 ProviderMapping(
@@ -750,7 +750,7 @@ class TidalProvider(MusicProvider):
         album_id = album_obj.id
         album = Album(
             item_id=str(album_id),
-            provider=self.instance_id,
+            provider=self.lookup_key,
             name=name,
             version=version,
             provider_mappings={
@@ -813,7 +813,7 @@ class TidalProvider(MusicProvider):
         track_id = str(track_obj.id)
         track = Track(
             item_id=str(track_id),
-            provider=self.instance_id,
+            provider=self.lookup_key,
             name=track_obj.name,
             version=version,
             duration=track_obj.duration,
@@ -871,9 +871,10 @@ class TidalProvider(MusicProvider):
         playlist_id = playlist_obj.id
         creator_id = playlist_obj.creator.id if playlist_obj.creator else None
         creator_name = playlist_obj.creator.name if playlist_obj.creator else "Tidal"
+        is_editable = bool(creator_id and str(creator_id) == self._tidal_user_id)
         playlist = Playlist(
             item_id=str(playlist_id),
-            provider=self.instance_id,
+            provider=self.instance_id if is_editable else self.lookup_key,
             name=playlist_obj.name,
             owner=creator_name,
             provider_mappings={
@@ -884,9 +885,8 @@ class TidalProvider(MusicProvider):
                     url=f"{BROWSE_URL}/playlist/{playlist_id}",
                 )
             },
+            is_editable=is_editable,
         )
-        is_editable = bool(creator_id and str(creator_id) == self._tidal_user_id)
-        playlist.is_editable = is_editable
         # metadata
         playlist.cache_checksum = str(playlist_obj.last_updated)
         playlist.metadata.popularity = playlist_obj.popularity

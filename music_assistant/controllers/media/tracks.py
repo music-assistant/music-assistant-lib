@@ -315,7 +315,7 @@ class TracksController(MediaControllerBase[Track, Track]):
 
         return []
 
-    async def remove_item_from_library(self, item_id: str | int) -> None:
+    async def remove_item_from_library(self, item_id: str | int, recursive: bool = True) -> None:
         """Delete record from the database."""
         db_id = int(item_id)  # ensure integer
         # delete entry(s) from albumtracks table

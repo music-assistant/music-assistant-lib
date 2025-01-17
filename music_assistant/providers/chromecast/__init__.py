@@ -56,7 +56,7 @@ PLAYER_CONFIG_ENTRIES = (
 # originally/officially cast supports 96k sample rate (even for groups)
 # but it seems a (recent?) update broke this ?!
 # For now only set safe default values and let the user try out higher values
-CONF_ENTRY_SAMPLE_RATES_CAST = create_sample_rates_config_entry(96000, 24, 48000, 24)
+CONF_ENTRY_SAMPLE_RATES_CAST = create_sample_rates_config_entry(192000, 24, 48000, 24)
 CONF_ENTRY_SAMPLE_RATES_CAST_GROUP = create_sample_rates_config_entry(96000, 24, 44100, 16)
 
 

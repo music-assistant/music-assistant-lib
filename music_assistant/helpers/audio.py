@@ -29,7 +29,6 @@ from music_assistant_models.errors import (
     MusicAssistantError,
     ProviderUnavailableError,
 )
-from music_assistant_models.helpers import set_global_cache_values
 from music_assistant_models.streamdetails import AudioFormat
 
 from music_assistant.constants import (
@@ -47,8 +46,8 @@ from music_assistant.helpers.util import clean_stream_title
 from .dsp import filter_to_ffmpeg_params
 from .ffmpeg import FFMpeg, get_ffmpeg_stream
 from .playlists import IsHLSPlaylist, PlaylistItem, fetch_playlist, parse_m3u
-from .process import AsyncProcess, check_output, communicate
-from .util import TimedAsyncGenerator, create_tempfile, detect_charset
+from .process import AsyncProcess, communicate
+from .util import create_tempfile, detect_charset
 
 if TYPE_CHECKING:
     from music_assistant_models.config_entries import CoreConfig, PlayerConfig
@@ -385,9 +384,7 @@ async def get_media_stream(
             pcm_format.content_type.value,
             ffmpeg_proc.proc.pid,
         )
-        async for chunk in TimedAsyncGenerator(
-            ffmpeg_proc.iter_chunked(pcm_format.pcm_sample_size), timeout=30
-        ):
+        async for chunk in ffmpeg_proc.iter_chunked(pcm_format.pcm_sample_size):
             # for non-tracks we just yield all chunks directly
             if streamdetails.media_type != MediaType.TRACK:
                 yield chunk
@@ -468,7 +465,7 @@ async def get_media_stream(
             log_tail = ""
         logger.debug(
             "stream %s (with code %s) for %s - seconds streamed: %s %s",
-            "finished" if finished else "aborted",
+            "cancelled" if cancelled else "finished" if finished else "aborted",
             ffmpeg_proc.returncode,
             streamdetails.uri,
             seconds_streamed,
@@ -833,21 +830,6 @@ async def get_file_stream(
             if not data:
                 break
             yield data
-
-
-async def check_audio_support() -> tuple[bool, bool, str]:
-    """Check if ffmpeg is present (with/without libsoxr support)."""
-    # check for FFmpeg presence
-    returncode, output = await check_output("ffmpeg", "-version")
-    ffmpeg_present = returncode == 0 and "FFmpeg" in output.decode()
-
-    # use globals as in-memory cache
-    version = output.decode().split("ffmpeg version ")[1].split(" ")[0].split("-")[0]
-    libsoxr_support = "enable-libsoxr" in output.decode()
-    result = (ffmpeg_present, libsoxr_support, version)
-    # store in global cache for easy access by 'get_ffmpeg_args'
-    await set_global_cache_values({"ffmpeg_support": result})
-    return result
 
 
 async def get_preview_stream(

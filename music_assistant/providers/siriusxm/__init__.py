@@ -232,7 +232,7 @@ class SiriusXMProvider(MusicProvider):
         # See `_channel_updated` for where this is handled.
         self._current_stream_details = StreamDetails(
             item_id=item_id,
-            provider=self.instance_id,
+            provider=self.lookup_key,
             audio_format=AudioFormat(
                 content_type=ContentType.AAC,
             ),
@@ -287,7 +287,7 @@ class SiriusXMProvider(MusicProvider):
 
     def _parse_radio(self, channel: XMChannel) -> Radio:
         radio = Radio(
-            provider=self.instance_id,
+            provider=self.lookup_key,
             item_id=channel.id,
             name=channel.name,
             provider_mappings={
@@ -309,7 +309,7 @@ class SiriusXMProvider(MusicProvider):
         if icon is not None:
             images.append(
                 MediaItemImage(
-                    provider=self.instance_id,
+                    provider=self.lookup_key,
                     type=ImageType.THUMB,
                     path=icon,
                     remotely_accessible=True,
@@ -317,7 +317,7 @@ class SiriusXMProvider(MusicProvider):
             )
             images.append(
                 MediaItemImage(
-                    provider=self.instance_id,
+                    provider=self.lookup_key,
                     type=ImageType.LOGO,
                     path=icon,
                     remotely_accessible=True,
@@ -327,7 +327,7 @@ class SiriusXMProvider(MusicProvider):
         if banner is not None:
             images.append(
                 MediaItemImage(
-                    provider=self.instance_id,
+                    provider=self.lookup_key,
                     type=ImageType.BANNER,
                     path=banner,
                     remotely_accessible=True,
@@ -335,7 +335,7 @@ class SiriusXMProvider(MusicProvider):
             )
             images.append(
                 MediaItemImage(
-                    provider=self.instance_id,
+                    provider=self.lookup_key,
                     type=ImageType.LANDSCAPE,
                     path=banner,
                     remotely_accessible=True,

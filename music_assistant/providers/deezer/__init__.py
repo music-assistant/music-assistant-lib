@@ -435,7 +435,7 @@ class DeezerProvider(MusicProvider):
         url = url_details["sources"][0]["url"]
         return StreamDetails(
             item_id=item_id,
-            provider=self.instance_id,
+            provider=self.lookup_key,
             audio_format=AudioFormat(
                 content_type=ContentType.try_parse(url_details["format"].split("_")[0])
             ),
@@ -553,7 +553,7 @@ class DeezerProvider(MusicProvider):
         """Parse the deezer-python artist to a Music Assistant artist."""
         return Artist(
             item_id=str(artist.id),
-            provider=self.domain,
+            provider=self.lookup_key,
             name=artist.name,
             media_type=MediaType.ARTIST,
             provider_mappings={
@@ -572,13 +572,13 @@ class DeezerProvider(MusicProvider):
         return Album(
             album_type=AlbumType(album.type),
             item_id=str(album.id),
-            provider=self.domain,
+            provider=self.lookup_key,
             name=album.title,
             artists=[
                 ItemMapping(
                     media_type=MediaType.ARTIST,
                     item_id=str(album.artist.id),
-                    provider=self.instance_id,
+                    provider=self.lookup_key,
                     name=album.artist.name,
                 )
             ],
@@ -597,9 +597,10 @@ class DeezerProvider(MusicProvider):
     def parse_playlist(self, playlist: deezer.Playlist) -> Playlist:
         """Parse the deezer-python playlist to a Music Assistant playlist."""
         creator = self.get_playlist_creator(playlist)
+        is_editable = creator.id == self.user.id
         return Playlist(
             item_id=str(playlist.id),
-            provider=self.domain,
+            provider=self.instance_id if is_editable else self.lookup_key,
             name=playlist.title,
             media_type=MediaType.PLAYLIST,
             provider_mappings={
@@ -620,7 +621,7 @@ class DeezerProvider(MusicProvider):
                     )
                 ],
             ),
-            is_editable=creator.id == self.user.id,
+            is_editable=is_editable,
             owner=creator.name,
             cache_checksum=playlist.checksum,
         )
@@ -637,7 +638,7 @@ class DeezerProvider(MusicProvider):
             artist = ItemMapping(
                 media_type=MediaType.ARTIST,
                 item_id=str(getattr(track.artist, "id", f"deezer-{track.artist.name}")),
-                provider=self.instance_id,
+                provider=self.lookup_key,
                 name=track.artist.name,
             )
         else:
@@ -646,7 +647,7 @@ class DeezerProvider(MusicProvider):
             album = ItemMapping(
                 media_type=MediaType.ALBUM,
                 item_id=str(track.album.id),
-                provider=self.instance_id,
+                provider=self.lookup_key,
                 name=track.album.title,
             )
         else:
@@ -654,7 +655,7 @@ class DeezerProvider(MusicProvider):
 
         item = Track(
             item_id=str(track.id),
-            provider=self.domain,
+            provider=self.lookup_key,
             name=track.title,
             sort_name=self.get_short_title(track),
             duration=track.duration,

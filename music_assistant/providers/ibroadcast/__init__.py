@@ -200,7 +200,7 @@ class IBroadcastProvider(MusicProvider):
         return ItemMapping(
             media_type=media_type,
             item_id=key,
-            provider=self.instance_id,
+            provider=self.lookup_key,
             name=name,
         )
 
@@ -241,7 +241,7 @@ class IBroadcastProvider(MusicProvider):
         url = await self._client.get_full_stream_url(int(item_id), "music-assistant")
 
         return StreamDetails(
-            provider=self.instance_id,
+            provider=self.lookup_key,
             item_id=item_id,
             audio_format=AudioFormat(
                 content_type=ContentType.UNKNOWN,
@@ -268,7 +268,7 @@ class IBroadcastProvider(MusicProvider):
         artist = Artist(
             item_id=artist_id,
             name=artist_obj["name"],
-            provider=self.domain,
+            provider=self.lookup_key,
             provider_mappings={
                 ProviderMapping(
                     item_id=artist_id,
@@ -285,7 +285,7 @@ class IBroadcastProvider(MusicProvider):
                     MediaItemImage(
                         type=ImageType.THUMB,
                         path=await self._client.get_artist_artwork_url(artist_id),
-                        provider=self.instance_id,
+                        provider=self.lookup_key,
                         remotely_accessible=True,
                     )
                 ]
@@ -298,7 +298,7 @@ class IBroadcastProvider(MusicProvider):
         name, version = parse_title_and_version(album_obj["name"])
         album = Album(
             item_id=album_id,
-            provider=self.domain,
+            provider=self.lookup_key,
             name=name,
             year=album_obj["year"],
             version=version,
@@ -316,7 +316,7 @@ class IBroadcastProvider(MusicProvider):
             artist = Artist(
                 item_id=VARIOUS_ARTISTS_MBID,
                 name=VARIOUS_ARTISTS_NAME,
-                provider=self.instance_id,
+                provider=self.lookup_key,
                 provider_mappings={
                     ProviderMapping(
                         item_id=VARIOUS_ARTISTS_MBID,
@@ -350,7 +350,7 @@ class IBroadcastProvider(MusicProvider):
         return MediaItemImage(
             type=ImageType.THUMB,
             path=url,
-            provider=self.instance_id,
+            provider=self.lookup_key,
             remotely_accessible=True,
         )
 
@@ -358,7 +358,7 @@ class IBroadcastProvider(MusicProvider):
         """Parse an iBroadcast track object to a Track model object."""
         track = Track(
             item_id=track_obj["track_id"],
-            provider=self.domain,
+            provider=self.lookup_key,
             name=track_obj["title"],
             provider_mappings={
                 ProviderMapping(
@@ -432,7 +432,7 @@ class IBroadcastProvider(MusicProvider):
         playlist_id = str(playlist_obj["playlist_id"])
         playlist = Playlist(
             item_id=playlist_id,
-            provider=self.domain,
+            provider=self.lookup_key,
             name=playlist_obj["name"],
             provider_mappings={
                 ProviderMapping(

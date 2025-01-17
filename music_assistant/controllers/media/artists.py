@@ -6,20 +6,13 @@ import asyncio
 import contextlib
 from typing import TYPE_CHECKING, Any
 
-from music_assistant_models.enums import (
-    AlbumType,
-    CacheCategory,
-    MediaType,
-    ProviderFeature,
+from music_assistant_models.enums import AlbumType, CacheCategory, MediaType, ProviderFeature
+from music_assistant_models.errors import (
+    MediaNotFoundError,
+    MusicAssistantError,
+    ProviderUnavailableError,
 )
-from music_assistant_models.errors import MediaNotFoundError, ProviderUnavailableError
-from music_assistant_models.media_items import (
-    Album,
-    Artist,
-    ItemMapping,
-    Track,
-    UniqueList,
-)
+from music_assistant_models.media_items import Album, Artist, ItemMapping, Track, UniqueList
 
 from music_assistant.constants import (
     DB_TABLE_ALBUM_ARTISTS,
@@ -176,26 +169,31 @@ class ArtistsController(MediaControllerBase[Artist, Artist | ItemMapping]):
                     result.append(provider_album)
         return result
 
-    async def remove_item_from_library(self, item_id: str | int) -> None:
+    async def remove_item_from_library(self, item_id: str | int, recursive: bool = True) -> None:
         """Delete record from the database."""
         db_id = int(item_id)  # ensure integer
+
         # recursively also remove artist albums
         for db_row in await self.mass.music.database.get_rows_from_query(
             f"SELECT album_id FROM {DB_TABLE_ALBUM_ARTISTS} WHERE artist_id = {db_id}",
             limit=5000,
         ):
+            if not recursive:
+                raise MusicAssistantError("Artist still has albums linked")
             with contextlib.suppress(MediaNotFoundError):
                 await self.mass.music.albums.remove_item_from_library(db_row["album_id"])
-
         # recursively also remove artist tracks
         for db_row in await self.mass.music.database.get_rows_from_query(
             f"SELECT track_id FROM {DB_TABLE_TRACK_ARTISTS} WHERE artist_id = {db_id}",
             limit=5000,
         ):
+            if not recursive:
+                raise MusicAssistantError("Artist still has tracks linked")
             with contextlib.suppress(MediaNotFoundError):
                 await self.mass.music.tracks.remove_item_from_library(db_row["track_id"])
 
         # delete the artist itself from db
+        # this will raise if the item still has references and recursive is false
         await super().remove_item_from_library(db_id)
 
     async def get_provider_artist_toptracks(

@@ -432,7 +432,7 @@ class QobuzProvider(MusicProvider):
         self.mass.create_task(self._report_playback_started(streamdata))
         return StreamDetails(
             item_id=str(item_id),
-            provider=self.instance_id,
+            provider=self.lookup_key,
             audio_format=AudioFormat(
                 content_type=content_type,
                 sample_rate=int(streamdata["sampling_rate"] * 1000),
@@ -670,9 +670,13 @@ class QobuzProvider(MusicProvider):
 
     def _parse_playlist(self, playlist_obj):
         """Parse qobuz playlist object to generic layout."""
+        is_editable = (
+            playlist_obj["owner"]["id"] == self._user_auth_info["user"]["id"]
+            or playlist_obj["is_collaborative"]
+        )
         playlist = Playlist(
             item_id=str(playlist_obj["id"]),
-            provider=self.domain,
+            provider=self.instance_id if is_editable else self.lookup_key,
             name=playlist_obj["name"],
             owner=playlist_obj["owner"]["name"],
             provider_mappings={
@@ -683,10 +687,7 @@ class QobuzProvider(MusicProvider):
                     url=f'https://open.qobuz.com/playlist/{playlist_obj["id"]}',
                 )
             },
-        )
-        playlist.is_editable = (
-            playlist_obj["owner"]["id"] == self._user_auth_info["user"]["id"]
-            or playlist_obj["is_collaborative"]
+            is_editable=is_editable,
         )
         if img := self.__get_image(playlist_obj):
             playlist.metadata.images = [

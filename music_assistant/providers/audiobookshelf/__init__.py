@@ -17,7 +17,7 @@ from music_assistant_models.enums import (
     ProviderFeature,
     StreamType,
 )
-from music_assistant_models.errors import MediaNotFoundError
+from music_assistant_models.errors import LoginFailed, MediaNotFoundError
 from music_assistant_models.media_items import (
     Audiobook,
     AudioFormat,
@@ -125,16 +125,19 @@ class Audiobookshelf(MusicProvider):
 
     async def handle_async_init(self) -> None:
         """Pass config values to client and initialize."""
-        username = str(self.config.get_value(CONF_USERNAME))
         self._client = ABSClient()
-
-        await self._client.init(
-            session=self.mass.http_session,
-            base_url=str(self.config.get_value(CONF_URL)),
-            username=username,
-            password=str(self.config.get_value(CONF_PASSWORD)),
-            check_ssl=bool(self.config.get_value(CONF_VERIFY_SSL)),
-        )
+        base_url = str(self.config.get_value(CONF_URL))
+        try:
+            await self._client.init(
+                session=self.mass.http_session,
+                base_url=base_url,
+                username=str(self.config.get_value(CONF_USERNAME)),
+                password=str(self.config.get_value(CONF_PASSWORD)),
+                check_ssl=bool(self.config.get_value(CONF_VERIFY_SSL)),
+            )
+        except RuntimeError:
+            # login details were not correct
+            raise LoginFailed(f"Login to abs instance at {base_url} failed.")
         await self._client.sync()
 
         self.device_info: ABSDeviceInfo
@@ -169,7 +172,7 @@ class Audiobookshelf(MusicProvider):
             item_id=abs_podcast.id_,
             name=title,
             publisher=abs_podcast.media.metadata.author,
-            provider=self.domain,
+            provider=self.lookup_key,
             total_episodes=abs_podcast.media.num_episodes,
             provider_mappings={
                 ProviderMapping(
@@ -219,13 +222,13 @@ class Audiobookshelf(MusicProvider):
                 position = fallback_episode_cnt
         mass_episode = PodcastEpisode(
             item_id=episode_id,
-            provider=self.domain,
+            provider=self.lookup_key,
             name=episode.title,
             duration=int(episode.duration),
             position=position,
             podcast=ItemMapping(
                 item_id=prov_podcast_id,
-                provider=self.instance_id,
+                provider=self.lookup_key,
                 name=episode.title,
                 media_type=MediaType.PODCAST,
             ),
@@ -297,7 +300,7 @@ class Audiobookshelf(MusicProvider):
     async def _parse_audiobook(self, abs_audiobook: ABSAudioBook) -> Audiobook:
         mass_audiobook = Audiobook(
             item_id=abs_audiobook.id_,
-            provider=self.domain,
+            provider=self.lookup_key,
             name=abs_audiobook.media.metadata.title,
             duration=int(abs_audiobook.media.duration),
             provider_mappings={
@@ -448,7 +451,7 @@ class Audiobookshelf(MusicProvider):
                 BrowseFolder(
                     item_id=library.id_,
                     name=library.name,
-                    provider=self.instance_id,
+                    provider=self.lookup_key,
                     path=f"{self.instance_id}://{item_path}/{library.id_}",
                 )
             )
@@ -481,7 +484,7 @@ class Audiobookshelf(MusicProvider):
             return ItemMapping(
                 media_type=media_type,
                 item_id=item.id_,
-                provider=self.instance_id,
+                provider=self.lookup_key,
                 name=title,
                 image=image,
             )

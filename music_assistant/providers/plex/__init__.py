@@ -433,14 +433,14 @@ class PlexProvider(MusicProvider):
         return ItemMapping(
             media_type=media_type,
             item_id=key,
-            provider=self.instance_id,
+            provider=self.lookup_key,
             name=name,
             version=version,
         )
 
     async def _get_or_create_artist_by_name(self, artist_name: str) -> Artist | ItemMapping:
         if library_items := await self.mass.music.artists._get_library_items_by_query(
-            search=artist_name, provider=self.instance_id
+            search=artist_name, provider=self.lookup_key
         ):
             return ItemMapping.from_item(library_items[0])
 
@@ -448,7 +448,7 @@ class PlexProvider(MusicProvider):
         return Artist(
             item_id=artist_id,
             name=artist_name or UNKNOWN_ARTIST,
-            provider=self.domain,
+            provider=self.lookup_key,
             provider_mappings={
                 ProviderMapping(
                     item_id=str(artist_id),
@@ -540,7 +540,7 @@ class PlexProvider(MusicProvider):
         album_id = plex_album.key
         album = Album(
             item_id=album_id,
-            provider=self.domain,
+            provider=self.lookup_key,
             name=plex_album.title or "[Unknown]",
             provider_mappings={
                 ProviderMapping(
@@ -566,7 +566,7 @@ class PlexProvider(MusicProvider):
                     MediaItemImage(
                         type=ImageType.THUMB,
                         path=thumb,
-                        provider=self.instance_id,
+                        provider=self.lookup_key,
                         remotely_accessible=False,
                     )
                 ]
@@ -592,7 +592,7 @@ class PlexProvider(MusicProvider):
         artist = Artist(
             item_id=artist_id,
             name=plex_artist.title or UNKNOWN_ARTIST,
-            provider=self.domain,
+            provider=self.lookup_key,
             provider_mappings={
                 ProviderMapping(
                     item_id=str(artist_id),
@@ -610,7 +610,7 @@ class PlexProvider(MusicProvider):
                     MediaItemImage(
                         type=ImageType.THUMB,
                         path=thumb,
-                        provider=self.instance_id,
+                        provider=self.lookup_key,
                         remotely_accessible=False,
                     )
                 ]
@@ -621,7 +621,7 @@ class PlexProvider(MusicProvider):
         """Parse a Plex Playlist response to a Playlist object."""
         playlist = Playlist(
             item_id=plex_playlist.key,
-            provider=self.domain,
+            provider=self.lookup_key,
             name=plex_playlist.title or "[Unknown]",
             provider_mappings={
                 ProviderMapping(
@@ -640,7 +640,7 @@ class PlexProvider(MusicProvider):
                     MediaItemImage(
                         type=ImageType.THUMB,
                         path=thumb,
-                        provider=self.instance_id,
+                        provider=self.lookup_key,
                         remotely_accessible=False,
                     )
                 ]
@@ -660,7 +660,7 @@ class PlexProvider(MusicProvider):
             content = None
         track = Track(
             item_id=plex_track.key,
-            provider=self.instance_id,
+            provider=self.lookup_key,
             name=plex_track.title or "[Unknown]",
             provider_mappings={
                 ProviderMapping(
@@ -711,7 +711,7 @@ class PlexProvider(MusicProvider):
                     MediaItemImage(
                         type=ImageType.THUMB,
                         path=thumb,
-                        provider=self.instance_id,
+                        provider=self.lookup_key,
                         remotely_accessible=False,
                     )
                 ]
@@ -909,7 +909,7 @@ class PlexProvider(MusicProvider):
 
         stream_details = StreamDetails(
             item_id=plex_track.key,
-            provider=self.instance_id,
+            provider=self.lookup_key,
             audio_format=AudioFormat(
                 content_type=content_type,
                 channels=media.audioChannels,

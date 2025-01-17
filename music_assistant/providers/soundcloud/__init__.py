@@ -309,7 +309,7 @@ class SoundcloudMusicProvider(MusicProvider):
         """Return the content details for the given track when it will be streamed."""
         url: str = await self._soundcloud.get_stream_url(track_id=item_id)
         return StreamDetails(
-            provider=self.instance_id,
+            provider=self.lookup_key,
             item_id=item_id,
             # let ffmpeg work out the details itself as
             # soundcloud uses a mix of different content types and streaming methods

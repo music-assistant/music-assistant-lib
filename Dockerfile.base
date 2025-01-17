@@ -16,8 +16,8 @@ RUN set -x \
         libnfs \
         # openssl-dev is needed for airplay
         openssl-dev  \
-    # install snapcast from community repo (because we need 0.28+)
-    && apk add --no-cache snapcast --repository=https://dl-cdn.alpinelinux.org/alpine/v3.20/community
+        # install snapcast so the snapcast provider can run the builtin snapcast server
+        snapcast
 
 # Get static ffmpeg builds from https://hub.docker.com/r/mwader/static-ffmpeg/
 COPY --from=mwader/static-ffmpeg:7.1 /ffmpeg /usr/local/bin/
@@ -26,9 +26,6 @@ COPY --from=mwader/static-ffmpeg:7.1 /ffprobe /usr/local/bin/
 # Copy widevine client files to container
 RUN mkdir -p /usr/local/bin/widevine_cdm
 COPY widevine_cdm/* /usr/local/bin/widevine_cdm/
-
-# ensure UV is installed
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 # JEMalloc for more efficient memory management
 ENV LD_PRELOAD="/usr/lib/libjemalloc.so.2"

@@ -39,18 +39,18 @@ from music_assistant.constants import (
     CONF_OUTPUT_CHANNELS,
     CONF_PUBLISH_IP,
     CONF_SAMPLE_RATES,
-    CONF_VOLUME_NORMALIZATION,
     CONF_VOLUME_NORMALIZATION_FIXED_GAIN_RADIO,
     CONF_VOLUME_NORMALIZATION_FIXED_GAIN_TRACKS,
     CONF_VOLUME_NORMALIZATION_RADIO,
     CONF_VOLUME_NORMALIZATION_TRACKS,
-    MASS_LOGO_ONLINE,
+    DEFAULT_PCM_FORMAT,
+    DEFAULT_STREAM_HEADERS,
+    ICY_HEADERS,
     SILENCE_FILE,
     VERBOSE_LOG_LEVEL,
 )
 from music_assistant.helpers.audio import LOGGER as AUDIO_LOGGER
 from music_assistant.helpers.audio import (
-    check_audio_support,
     crossfade_pcm_parts,
     get_chunksize,
     get_hls_substream,
@@ -61,7 +61,7 @@ from music_assistant.helpers.audio import (
     get_stream_details,
 )
 from music_assistant.helpers.ffmpeg import LOGGER as FFMPEG_LOGGER
-from music_assistant.helpers.ffmpeg import get_ffmpeg_stream
+from music_assistant.helpers.ffmpeg import check_ffmpeg_version, get_ffmpeg_stream
 from music_assistant.helpers.util import get_ip, get_ips, select_free_port, try_parse_bool
 from music_assistant.helpers.webserver import Webserver
 from music_assistant.models.core_controller import CoreController
@@ -73,23 +73,6 @@ if TYPE_CHECKING:
     from music_assistant_models.player_queue import PlayerQueue
     from music_assistant_models.queue_item import QueueItem
     from music_assistant_models.streamdetails import StreamDetails
-
-
-DEFAULT_STREAM_HEADERS = {
-    "Server": "Music Assistant",
-    "transferMode.dlna.org": "Streaming",
-    "contentFeatures.dlna.org": "DLNA.ORG_OP=00;DLNA.ORG_CI=0;DLNA.ORG_FLAGS=0d500000000000000000000000000000",  # noqa: E501
-    "Cache-Control": "no-cache",
-    "Pragma": "no-cache",
-}
-ICY_HEADERS = {
-    "icy-name": "Music Assistant",
-    "icy-description": "Music Assistant - Your personal music assistant",
-    "icy-version": "1",
-    "icy-logo": MASS_LOGO_ONLINE,
-}
-FLOW_DEFAULT_SAMPLE_RATE = 48000
-FLOW_DEFAULT_BIT_DEPTH = 24
 
 
 isfile = wrap(os.path.isfile)
@@ -216,25 +199,11 @@ class StreamsController(CoreController):
 
     async def setup(self, config: CoreConfig) -> None:
         """Async initialize of module."""
-        ffmpeg_present, libsoxr_support, version = await check_audio_support()
-        major_version = int("".join(char for char in version.split(".")[0] if not char.isalpha()))
-        if not ffmpeg_present:
-            self.logger.error("FFmpeg binary not found on your system, playback will NOT work!.")
-        elif major_version < 6:
-            self.logger.error("FFMpeg version is too old, you may run into playback issues.")
-        elif not libsoxr_support:
-            self.logger.warning(
-                "FFmpeg version found without libsoxr support, "
-                "highest quality audio not available. "
-            )
-        self.logger.info(
-            "Detected ffmpeg version %s %s",
-            version,
-            "with libsoxr support" if libsoxr_support else "",
-        )
         # copy log level to audio/ffmpeg loggers
         AUDIO_LOGGER.setLevel(self.logger.level)
         FFMPEG_LOGGER.setLevel(self.logger.level)
+        # perform check for ffmpeg version
+        await check_ffmpeg_version()
         # start the webserver
         self.publish_port = config.get_value(CONF_BIND_PORT)
         self.publish_ip = config.get_value(CONF_PUBLISH_IP)
@@ -361,17 +330,10 @@ class StreamsController(CoreController):
         )
 
         # pick pcm format based on the streamdetails and player capabilities
-        if self.mass.config.get_raw_player_config_value(queue_id, CONF_VOLUME_NORMALIZATION, True):
-            # prefer f32 when volume normalization is enabled
-            bit_depth = 32
-            floating_point = True
-        else:
-            bit_depth = queue_item.streamdetails.audio_format.bit_depth
-            floating_point = False
         pcm_format = AudioFormat(
-            content_type=ContentType.from_bit_depth(bit_depth, floating_point),
+            content_type=DEFAULT_PCM_FORMAT.content_type,
             sample_rate=queue_item.streamdetails.audio_format.sample_rate,
-            bit_depth=bit_depth,
+            bit_depth=DEFAULT_PCM_FORMAT.bit_depth,
             channels=2,
         )
         chunk_num = 0
@@ -1096,24 +1058,13 @@ class StreamsController(CoreController):
             player.player_id, CONF_SAMPLE_RATES
         )
         supported_sample_rates: tuple[int] = tuple(x[0] for x in supported_rates_conf)
-        supported_bit_depths: tuple[int] = tuple(x[1] for x in supported_rates_conf)
-        player_max_bit_depth = max(supported_bit_depths)
-        for sample_rate in (192000, 96000, 48000, 44100):
+        for sample_rate in (192000, 96000, DEFAULT_PCM_FORMAT.sample_rate):
             if sample_rate in supported_sample_rates:
                 output_sample_rate = sample_rate
                 break
-        if self.mass.config.get_raw_player_config_value(
-            player.player_id, CONF_VOLUME_NORMALIZATION, True
-        ):
-            # prefer f32 when volume normalization is enabled
-            output_bit_depth = 32
-            floating_point = True
-        else:
-            output_bit_depth = min(24, player_max_bit_depth)
-            floating_point = False
         return AudioFormat(
-            content_type=ContentType.from_bit_depth(output_bit_depth, floating_point),
+            content_type=DEFAULT_PCM_FORMAT.content_type,
             sample_rate=output_sample_rate,
-            bit_depth=output_bit_depth,
+            bit_depth=DEFAULT_PCM_FORMAT.bit_depth,
             channels=2,
         )

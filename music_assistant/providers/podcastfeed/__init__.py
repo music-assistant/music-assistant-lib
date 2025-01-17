@@ -172,7 +172,7 @@ class PodcastMusicprovider(MusicProvider):
         for episode in self.parsed["episodes"]:
             if item_id == episode["guid"]:
                 return StreamDetails(
-                    provider=self.instance_id,
+                    provider=self.lookup_key,
                     item_id=item_id,
                     audio_format=AudioFormat(
                         # hard coded to unknown, so ffmpeg figures out
@@ -189,7 +189,7 @@ class PodcastMusicprovider(MusicProvider):
         podcast = Podcast(
             item_id=self.podcast_id,
             name=self.parsed["title"],
-            provider=self.domain,
+            provider=self.lookup_key,
             uri=self.parsed["link"],
             total_episodes=len(self.parsed["episodes"]),
             provider_mappings={
@@ -224,13 +224,13 @@ class PodcastMusicprovider(MusicProvider):
         item_id = episode_obj["guid"]
         episode = PodcastEpisode(
             item_id=item_id,
-            provider=self.domain,
+            provider=self.lookup_key,
             name=name,
             duration=episode_obj["total_time"],
-            position=episode_obj.get("number", fallback_position),
+            position=episode_obj.get("number", episode_obj.get("published", fallback_position)),
             podcast=ItemMapping(
                 item_id=self.podcast_id,
-                provider=self.instance_id,
+                provider=self.lookup_key,
                 name=self.parsed["title"],
                 media_type=MediaType.PODCAST,
             ),

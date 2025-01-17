@@ -53,6 +53,7 @@ from music_assistant.constants import (
     CONF_GROUP_MEMBERS,
     CONF_HTTP_PROFILE,
     CONF_SAMPLE_RATES,
+    DEFAULT_PCM_FORMAT,
     create_sample_rates_config_entry,
 )
 from music_assistant.controllers.streams import DEFAULT_STREAM_HEADERS
@@ -75,9 +76,9 @@ if TYPE_CHECKING:
 
 
 UGP_FORMAT = AudioFormat(
-    content_type=ContentType.PCM_F32LE,
-    sample_rate=48000,
-    bit_depth=32,
+    content_type=DEFAULT_PCM_FORMAT.content_type,
+    sample_rate=DEFAULT_PCM_FORMAT.sample_rate,
+    bit_depth=DEFAULT_PCM_FORMAT.bit_depth,
 )
 
 # ruff: noqa: ARG002

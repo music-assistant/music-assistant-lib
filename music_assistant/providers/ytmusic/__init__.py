@@ -501,7 +501,7 @@ class YoutubeMusicProvider(MusicProvider):
         stream_format = await self._get_stream_format(item_id=item_id)
         self.logger.debug("Found stream_format: %s for song %s", stream_format["format"], item_id)
         stream_details = StreamDetails(
-            provider=self.instance_id,
+            provider=self.lookup_key,
             item_id=item_id,
             audio_format=AudioFormat(
                 content_type=ContentType.try_parse(stream_format["audio_ext"]),
@@ -572,7 +572,7 @@ class YoutubeMusicProvider(MusicProvider):
         album = Album(
             item_id=album_id,
             name=name,
-            provider=self.domain,
+            provider=self.lookup_key,
             provider_mappings={
                 ProviderMapping(
                     item_id=str(album_id),
@@ -625,7 +625,7 @@ class YoutubeMusicProvider(MusicProvider):
         artist = Artist(
             item_id=artist_id,
             name=artist_obj["name"],
-            provider=self.domain,
+            provider=self.lookup_key,
             provider_mappings={
                 ProviderMapping(
                     item_id=str(artist_id),
@@ -645,6 +645,7 @@ class YoutubeMusicProvider(MusicProvider):
         """Parse a YT Playlist response to a Playlist object."""
         playlist_id = playlist_obj["id"]
         playlist_name = playlist_obj["title"]
+        is_editable = playlist_obj.get("privacy") and playlist_obj.get("privacy") == "PRIVATE"
         # Playlist ID's are not unique across instances for lists like 'Likes', 'Supermix', etc.
         # So suffix with the instance id to make them unique
         if playlist_id in YT_PERSONAL_PLAYLISTS:
@@ -652,7 +653,7 @@ class YoutubeMusicProvider(MusicProvider):
             playlist_name = f"{playlist_name} ({self.name})"
         playlist = Playlist(
             item_id=playlist_id,
-            provider=self.domain,
+            provider=self.instance_id if is_editable else self.lookup_key,
             name=playlist_name,
             provider_mappings={
                 ProviderMapping(
@@ -662,15 +663,13 @@ class YoutubeMusicProvider(MusicProvider):
                     url=f"{YTM_DOMAIN}/playlist?list={playlist_id}",
                 )
             },
+            is_editable=is_editable,
         )
         if "description" in playlist_obj:
             playlist.metadata.description = playlist_obj["description"]
         if playlist_obj.get("thumbnails"):
             playlist.metadata.images = self._parse_thumbnails(playlist_obj["thumbnails"])
-        is_editable = False
-        if playlist_obj.get("privacy") and playlist_obj.get("privacy") == "PRIVATE":
-            is_editable = True
-        playlist.is_editable = is_editable
+
         if authors := playlist_obj.get("author"):
             if isinstance(authors, str):
                 playlist.owner = authors
@@ -691,7 +690,7 @@ class YoutubeMusicProvider(MusicProvider):
         track_id = str(track_obj["videoId"])
         track = Track(
             item_id=track_id,
-            provider=self.domain,
+            provider=self.lookup_key,
             name=track_obj["title"],
             provider_mappings={
                 ProviderMapping(
@@ -770,7 +769,7 @@ class YoutubeMusicProvider(MusicProvider):
         return ItemMapping(
             media_type=media_type,
             item_id=key,
-            provider=self.instance_id,
+            provider=self.lookup_key,
             name=name,
         )
 

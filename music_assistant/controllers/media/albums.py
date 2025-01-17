@@ -6,26 +6,11 @@ import contextlib
 from collections.abc import Iterable
 from typing import TYPE_CHECKING, Any
 
-from music_assistant_models.enums import (
-    AlbumType,
-    CacheCategory,
-    MediaType,
-    ProviderFeature,
-)
-from music_assistant_models.errors import InvalidDataError, MediaNotFoundError
-from music_assistant_models.media_items import (
-    Album,
-    Artist,
-    ItemMapping,
-    Track,
-    UniqueList,
-)
+from music_assistant_models.enums import AlbumType, CacheCategory, MediaType, ProviderFeature
+from music_assistant_models.errors import InvalidDataError, MediaNotFoundError, MusicAssistantError
+from music_assistant_models.media_items import Album, Artist, ItemMapping, Track, UniqueList
 
-from music_assistant.constants import (
-    DB_TABLE_ALBUM_ARTISTS,
-    DB_TABLE_ALBUM_TRACKS,
-    DB_TABLE_ALBUMS,
-)
+from music_assistant.constants import DB_TABLE_ALBUM_ARTISTS, DB_TABLE_ALBUM_TRACKS, DB_TABLE_ALBUMS
 from music_assistant.controllers.media.base import MediaControllerBase
 from music_assistant.helpers.compare import (
     compare_album,
@@ -199,11 +184,13 @@ class AlbumsController(MediaControllerBase[Album, Album]):
             sql_query += f" WHERE {' AND '.join(query_parts)}"
         return await self.mass.music.database.get_count_from_query(sql_query, query_params)
 
-    async def remove_item_from_library(self, item_id: str | int) -> None:
+    async def remove_item_from_library(self, item_id: str | int, recursive: bool = True) -> None:
         """Delete record from the database."""
         db_id = int(item_id)  # ensure integer
         # recursively also remove album tracks
         for db_track in await self.get_library_album_tracks(db_id):
+            if not recursive:
+                raise MusicAssistantError("Album still has tracks linked")
             with contextlib.suppress(MediaNotFoundError):
                 await self.mass.music.tracks.remove_item_from_library(db_track.item_id)
         # delete entry(s) from albumtracks table
@@ -211,6 +198,7 @@ class AlbumsController(MediaControllerBase[Album, Album]):
         # delete entry(s) from album artists table
         await self.mass.music.database.delete(DB_TABLE_ALBUM_ARTISTS, {"album_id": db_id})
         # delete the album itself from db
+        # this will raise if the item still has references and recursive is false
         await super().remove_item_from_library(item_id)
 
     async def tracks(

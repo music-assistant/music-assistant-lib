@@ -7,15 +7,15 @@ import logging
 import time
 from collections import deque
 from collections.abc import AsyncGenerator
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Final
 
 from music_assistant_models.enums import ContentType
 from music_assistant_models.errors import AudioError
-from music_assistant_models.helpers import get_global_cache_value
+from music_assistant_models.helpers import get_global_cache_value, set_global_cache_values
 
 from music_assistant.constants import VERBOSE_LOG_LEVEL
 
-from .process import AsyncProcess
+from .process import AsyncProcess, check_output
 from .util import TimedAsyncGenerator, close_async_generator
 
 if TYPE_CHECKING:
@@ -23,6 +23,7 @@ if TYPE_CHECKING:
 
 LOGGER = logging.getLogger("ffmpeg")
 MINIMAL_FFMPEG_VERSION = 6
+CACHE_ATTR_LIBSOXR_PRESENT: Final[str] = "libsoxr_present"
 
 
 class FFMpeg(AsyncProcess):
@@ -133,7 +134,12 @@ class FFMpeg(AsyncProcess):
         try:
             start = time.time()
             self.logger.log(VERBOSE_LOG_LEVEL, "Start reading audio data from source...")
-            async for chunk in TimedAsyncGenerator(self.audio_input, timeout=30):
+            # use TimedAsyncGenerator to catch we're stuck waiting on data forever
+            # don't set this timeout too low because in some cases it can indeed take a while
+            # for data to arrive (e.g. when there is X amount of seconds in the buffer)
+            # so this timeout is just to catch if the source is stuck and rpeort it and not
+            # to recover from it.
+            async for chunk in TimedAsyncGenerator(self.audio_input, timeout=300):
                 await self.write(chunk)
             self.logger.log(
                 VERBOSE_LOG_LEVEL, "Audio data source exhausted in %.2fs", time.time() - start
@@ -186,7 +192,7 @@ async def get_ffmpeg_stream(
             yield chunk
 
 
-def get_ffmpeg_args(  # noqa: PLR0915
+def get_ffmpeg_args(
     input_format: AudioFormat,
     output_format: AudioFormat,
     filter_params: list[str],
@@ -199,24 +205,6 @@ def get_ffmpeg_args(  # noqa: PLR0915
     """Collect all args to send to the ffmpeg process."""
     if extra_args is None:
         extra_args = []
-    ffmpeg_present, libsoxr_support, version = get_global_cache_value("ffmpeg_support")
-    if not ffmpeg_present:
-        msg = (
-            "FFmpeg binary is missing from system."
-            "Please install ffmpeg on your OS to enable playback."
-        )
-        raise AudioError(
-            msg,
-        )
-
-    major_version = int("".join(char for char in version.split(".")[0] if not char.isalpha()))
-    if major_version < MINIMAL_FFMPEG_VERSION:
-        msg = (
-            f"FFmpeg version {version} is not supported. "
-            f"Minimal version required is {MINIMAL_FFMPEG_VERSION}."
-        )
-        raise AudioError(msg)
-
     # generic args
     generic_args = [
         "ffmpeg",
@@ -306,13 +294,16 @@ def get_ffmpeg_args(  # noqa: PLR0915
             *filter_params,
         ]
 
-    # determine if we need to do resampling
-    if (
-        input_format.sample_rate != output_format.sample_rate
-        or input_format.bit_depth > output_format.bit_depth
+    # determine if we need to do resampling (or dithering)
+    if input_format.sample_rate != output_format.sample_rate or (
+        input_format.bit_depth > 16 and output_format.bit_depth == 16
     ):
+        libsoxr_support = get_global_cache_value(CACHE_ATTR_LIBSOXR_PRESENT)
         # prefer resampling with libsoxr due to its high quality
-        if libsoxr_support:
+        # but skip if loudnorm filter is present, due to this bug:
+        # https://trac.ffmpeg.org/ticket/11323
+        loudnorm_present = any("loudnorm" in f for f in filter_params)
+        if libsoxr_support and not loudnorm_present:
             resample_filter = "aresample=resampler=soxr:precision=30"
         else:
             resample_filter = "aresample=resampler=swr"
@@ -322,6 +313,8 @@ def get_ffmpeg_args(  # noqa: PLR0915
             resample_filter += f":osr={output_format.sample_rate}"
 
         # bit depth conversion: apply dithering when going down to 16 bits
+        # this is only needed when we need to back to 16 bits
+        # when going from 32bits FP to 24 bits no dithering is needed
         if output_format.bit_depth == 16 and input_format.bit_depth > 16:
             resample_filter += ":osf=s16:dither_method=triangular_hp"
 
@@ -331,3 +324,38 @@ def get_ffmpeg_args(  # noqa: PLR0915
         extra_args += ["-af", ",".join(filter_params)]
 
     return generic_args + input_args + extra_args + output_args
+
+
+async def check_ffmpeg_version() -> None:
+    """Check if ffmpeg is present (with libsoxr support)."""
+    # check for FFmpeg presence
+    returncode, output = await check_output("ffmpeg", "-version")
+    ffmpeg_present = returncode == 0 and "FFmpeg" in output.decode()
+
+    # use globals as in-memory cache
+    version = output.decode().split("ffmpeg version ")[1].split(" ")[0].split("-")[0]
+    libsoxr_support = "enable-libsoxr" in output.decode()
+    await set_global_cache_values({CACHE_ATTR_LIBSOXR_PRESENT: libsoxr_support})
+
+    if not ffmpeg_present:
+        msg = (
+            "FFmpeg binary is missing from system."
+            "Please install ffmpeg on your OS to enable playback."
+        )
+        raise AudioError(
+            msg,
+        )
+
+    major_version = int("".join(char for char in version.split(".")[0] if not char.isalpha()))
+    if major_version < MINIMAL_FFMPEG_VERSION:
+        msg = (
+            f"FFmpeg version {version} is not supported. "
+            f"Minimal version required is {MINIMAL_FFMPEG_VERSION}."
+        )
+        raise AudioError(msg)
+
+    LOGGER.info(
+        "Detected ffmpeg version %s %s",
+        version,
+        "with libsoxr support" if libsoxr_support else "",
+    )

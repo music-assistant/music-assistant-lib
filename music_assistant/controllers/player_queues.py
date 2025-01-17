@@ -934,6 +934,8 @@ class PlayerQueuesController(CoreController):
                 queue.elapsed_time = int(player.corrected_elapsed_time or 0)
                 if item_id := self._parse_player_current_item_id(queue_id, player):
                     queue.current_index = self.index_by_id(queue_id, item_id)
+                else:
+                    queue.current_index = None
             # generic attributes we update when player is playing
             queue.state = PlayerState.PLAYING
             queue.elapsed_time_last_updated = time.time()
@@ -1012,73 +1014,81 @@ class PlayerQueuesController(CoreController):
 
         # detect change in current index to report that a item has been played
         prev_item_id = prev_state["current_item_id"]
+        cur_item_id = new_state["current_item_id"]
         player_stopped = (
-            prev_state["state"] == PlayerState.PLAYING and new_state["state"] == PlayerState.IDLE
+            prev_state["state"] in (PlayerState.PLAYING, PlayerState.PAUSED)
+            and new_state["state"] == PlayerState.IDLE
         )
+        track_changed = not player_stopped and prev_item_id and prev_item_id != cur_item_id
+        prev_item = self.get_item(queue_id, prev_item_id)
         end_of_queue_reached = (
-            player_stopped and queue.current_item is not None and queue.next_item is None
-        )
-        if (
-            prev_item_id is not None
-            and (prev_item_id != new_state["current_item_id"] or player_stopped)
-            and (prev_item := self.get_item(queue_id, prev_item_id))
+            player_stopped
+            and queue.next_item is None
+            and prev_item is not None
             and (stream_details := prev_item.streamdetails)
-        ):
+            and int(prev_state["elapsed_time"]) >= (stream_details.duration or 3600) - 5
+        )
+        if prev_item and (player_stopped or track_changed or end_of_queue_reached):
             position = int(prev_state["elapsed_time"])
-            seconds_played = int(prev_state["elapsed_time"]) - stream_details.seek_position
+            prev_item = self.get_item(queue_id, prev_item_id)
+            stream_details = prev_item.streamdetails if prev_item else None
+            seconds_played = (
+                int(prev_state["elapsed_time"]) - stream_details.seek_position
+                if stream_details
+                else 0
+            )
             fully_played = position >= (stream_details.duration or 3600) - 5
             self.logger.debug(
-                "PlayerQueue %s played item %s for %s seconds",
+                "PlayerQueue %s played item %s for %s seconds - fully_played: %s - progress: %s",
                 queue.display_name,
                 prev_item.uri,
                 seconds_played,
+                fully_played,
+                prev_state["elapsed_time"],
             )
-            if prev_item.media_item and (fully_played or seconds_played > 10):
-                # add entry to playlog - this also handles resume of podcasts/audiobooks
-                self.mass.create_task(
-                    self.mass.music.mark_item_played(
-                        prev_item.media_item,
-                        fully_played=fully_played,
-                        seconds_played=seconds_played,
-                    )
+            # add entry to playlog - this also handles resume of podcasts/audiobooks
+            self.mass.create_task(
+                self.mass.music.mark_item_played(
+                    prev_item.media_item,
+                    fully_played=fully_played,
+                    seconds_played=prev_state["elapsed_time"],
                 )
-                # signal 'media item played' event,
-                # which is useful for plugins that want to do scrobbling
-                self.mass.signal_event(
-                    EventType.MEDIA_ITEM_PLAYED,
-                    object_id=prev_item.media_item.uri,
-                    data={
-                        # TODO: Maybe we should create a dataclass for this as well?!
-                        "media_item": {
-                            "uri": prev_item.media_item.uri,
-                            "name": prev_item.media_item.name,
-                            "media_type": prev_item.media_item.media_type,
-                            "artist": getattr(prev_item.media_item, "artist_str", None),
-                            "album": album.name
-                            if (album := getattr(prev_item.media_item, "album", None))
-                            else None,
-                            "image_url": self.mass.metadata.get_image_url(
-                                prev_item.media_item.image, size=512
-                            )
-                            if prev_item.media_item.image
-                            else None,
-                            "duration": getattr(prev_item.media_item, "duration", 0),
-                            "mbid": getattr(prev_item.media_item, "mbid", None),
-                        },
-                        "seconds_played": seconds_played,
-                        "fully_played": fully_played,
+            )
+            # signal 'media item played' event,
+            # which is useful for plugins that want to do scrobbling
+            self.mass.signal_event(
+                EventType.MEDIA_ITEM_PLAYED,
+                object_id=prev_item.media_item.uri,
+                data={
+                    # TODO: Maybe we should create a dataclass for this as well?!
+                    "media_item": {
+                        "uri": prev_item.media_item.uri,
+                        "name": prev_item.media_item.name,
+                        "media_type": prev_item.media_item.media_type,
+                        "artist": getattr(prev_item.media_item, "artist_str", None),
+                        "album": album.name
+                        if (album := getattr(prev_item.media_item, "album", None))
+                        else None,
+                        "image_url": self.mass.metadata.get_image_url(
+                            prev_item.media_item.image, size=512
+                        )
+                        if prev_item.media_item.image
+                        else None,
+                        "duration": getattr(prev_item.media_item, "duration", 0),
+                        "mbid": getattr(prev_item.media_item, "mbid", None),
                     },
-                )
+                    "seconds_played": seconds_played,
+                    "fully_played": fully_played,
+                },
+            )
 
-        if end_of_queue_reached:
-            # end of queue reached, clear items
-            self.logger.debug(
-                "PlayerQueue %s reached end of queue...",
-                queue.display_name,
-            )
-            self.mass.call_later(
-                5, self._check_clear_queue, queue, task_id=f"clear_queue_{queue_id}"
-            )
+        if (
+            end_of_queue_reached
+            and queue.current_index is not None
+            and queue.current_item is not None
+        ):
+            # end of queue reached
+            self.mass.create_task(self._check_clear_queue(queue))
 
         # watch dynamic radio items refill if needed
         if "current_item_id" in changed_keys:
@@ -1348,7 +1358,7 @@ class PlayerQueuesController(CoreController):
             CONF_DEFAULT_ENQUEUE_SELECT_ARTIST,
             ENQUEUE_SELECT_ARTIST_DEFAULT_VALUE,
         )
-        self.logger.debug(
+        self.logger.info(
             "Fetching tracks to play for artist %s",
             artist.name,
         )
@@ -1387,7 +1397,7 @@ class PlayerQueuesController(CoreController):
         )
         result: list[Track] = []
         start_item_found = False
-        self.logger.debug(
+        self.logger.info(
             "Fetching tracks to play for album %s",
             album.name,
         )
@@ -1409,7 +1419,7 @@ class PlayerQueuesController(CoreController):
         """Return tracks for given playlist, based on user preference."""
         result: list[Track] = []
         start_item_found = False
-        self.logger.debug(
+        self.logger.info(
             "Fetching tracks to play for playlist %s",
             playlist.name,
         )

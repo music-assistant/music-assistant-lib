@@ -962,6 +962,11 @@ class PlayerController(CoreController):
         self.mass.player_queues.on_player_update(player, changed_values)
 
         if len(changed_values) == 0 and not force_update:
+            # nothing changed
+            return
+
+        if changed_values.keys() == {"elapsed_time"} and not force_update:
+            # ignore elapsed_time only changes
             return
 
         # handle DSP reload of the leader when on grouping and ungrouping
@@ -970,7 +975,7 @@ class PlayerController(CoreController):
         is_player_group = player.provider.startswith("player_group")
 
         # handle special case for PlayerGroups: since there are no leaders,
-        # DSP still always works with a single player in the group.
+        # DSP still always work with a single player in the group.
         multi_device_dsp_threshold = 1 if is_player_group else 0
 
         prev_is_multiple_devices = prev_child_count > multi_device_dsp_threshold
@@ -1005,16 +1010,15 @@ class PlayerController(CoreController):
                 # - the leader has DSP enabled
                 self.mass.create_task(self.mass.players.on_player_dsp_change(player_id))
 
-        if changed_values.keys() != {"elapsed_time"} or force_update:
-            # ignore elapsed_time only changes
-            self.mass.signal_event(EventType.PLAYER_UPDATED, object_id=player_id, data=player)
-
-        if skip_forward and not force_update:
-            return
+        # signal player update on the eventbus
+        self.mass.signal_event(EventType.PLAYER_UPDATED, object_id=player_id, data=player)
 
         # handle player becoming unavailable
         if "available" in changed_values and not player.available:
             self._handle_player_unavailable(player)
+
+        if skip_forward and not force_update:
+            return
 
         # update/signal group player(s) child's when group updates
         for child_player in self.iter_group_members(player, exclude_self=True):

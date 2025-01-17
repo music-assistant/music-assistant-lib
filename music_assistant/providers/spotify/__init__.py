@@ -48,7 +48,7 @@ from music_assistant.helpers.auth import AuthenticationHelper
 from music_assistant.helpers.json import json_loads
 from music_assistant.helpers.process import AsyncProcess, check_output
 from music_assistant.helpers.throttle_retry import ThrottlerManager, throttle_with_retries
-from music_assistant.helpers.util import TimedAsyncGenerator, lock, parse_title_and_version
+from music_assistant.helpers.util import lock, parse_title_and_version
 from music_assistant.models.music_provider import MusicProvider
 
 from .helpers import get_librespot_binary
@@ -381,7 +381,7 @@ class SpotifyProvider(MusicProvider):
     async def _get_liked_songs_playlist(self) -> Playlist:
         liked_songs = Playlist(
             item_id=self._get_liked_songs_playlist_id(),
-            provider=self.domain,
+            provider=self.lookup_key,
             name=f'Liked Songs {self._sp_user["display_name"]}',  # TODO to be translated
             owner=self._sp_user["display_name"],
             provider_mappings={
@@ -400,7 +400,7 @@ class SpotifyProvider(MusicProvider):
             MediaItemImage(
                 type=ImageType.THUMB,
                 path="https://misc.scdn.co/liked-songs/liked-songs-64.png",
-                provider=self.domain,
+                provider=self.lookup_key,
                 remotely_accessible=True,
             )
         ]
@@ -552,7 +552,7 @@ class SpotifyProvider(MusicProvider):
         """Return the content details for the given track when it will be streamed."""
         return StreamDetails(
             item_id=item_id,
-            provider=self.instance_id,
+            provider=self.lookup_key,
             audio_format=AudioFormat(
                 content_type=ContentType.OGG,
             ),
@@ -608,7 +608,7 @@ class SpotifyProvider(MusicProvider):
             if stderr:
                 log_reader = asyncio.create_task(_read_stderr())
 
-            async for chunk in TimedAsyncGenerator(librespot_proc.iter_any(chunk_size), 20):
+            async for chunk in librespot_proc.iter_any(chunk_size):
                 yield chunk
                 bytes_received += len(chunk)
             if stderr:
@@ -627,7 +627,7 @@ class SpotifyProvider(MusicProvider):
         """Parse spotify artist object to generic layout."""
         artist = Artist(
             item_id=artist_obj["id"],
-            provider=self.domain,
+            provider=self.lookup_key,
             name=artist_obj["name"] or artist_obj["id"],
             provider_mappings={
                 ProviderMapping(
@@ -648,7 +648,7 @@ class SpotifyProvider(MusicProvider):
                         MediaItemImage(
                             type=ImageType.THUMB,
                             path=img_url,
-                            provider=self.instance_id,
+                            provider=self.lookup_key,
                             remotely_accessible=True,
                         )
                     ]
@@ -660,7 +660,7 @@ class SpotifyProvider(MusicProvider):
         name, version = parse_title_and_version(album_obj["name"])
         album = Album(
             item_id=album_obj["id"],
-            provider=self.domain,
+            provider=self.lookup_key,
             name=name,
             version=version,
             provider_mappings={
@@ -693,7 +693,7 @@ class SpotifyProvider(MusicProvider):
                 MediaItemImage(
                     type=ImageType.THUMB,
                     path=album_obj["images"][0]["url"],
-                    provider=self.instance_id,
+                    provider=self.lookup_key,
                     remotely_accessible=True,
                 )
             ]
@@ -716,7 +716,7 @@ class SpotifyProvider(MusicProvider):
         name, version = parse_title_and_version(track_obj["name"])
         track = Track(
             item_id=track_obj["id"],
-            provider=self.domain,
+            provider=self.lookup_key,
             name=name,
             version=version,
             duration=track_obj["duration_ms"] / 1000,
@@ -758,7 +758,7 @@ class SpotifyProvider(MusicProvider):
                     MediaItemImage(
                         type=ImageType.THUMB,
                         path=track_obj["album"]["images"][0]["url"],
-                        provider=self.instance_id,
+                        provider=self.lookup_key,
                         remotely_accessible=True,
                     )
                 ]
@@ -772,9 +772,12 @@ class SpotifyProvider(MusicProvider):
 
     def _parse_playlist(self, playlist_obj):
         """Parse spotify playlist object to generic layout."""
+        is_editable = (
+            playlist_obj["owner"]["id"] == self._sp_user["id"] or playlist_obj["collaborative"]
+        )
         playlist = Playlist(
             item_id=playlist_obj["id"],
-            provider=self.domain,
+            provider=self.instance_id if is_editable else self.lookup_key,
             name=playlist_obj["name"],
             owner=playlist_obj["owner"]["display_name"],
             provider_mappings={
@@ -785,16 +788,14 @@ class SpotifyProvider(MusicProvider):
                     url=playlist_obj["external_urls"]["spotify"],
                 )
             },
-        )
-        playlist.is_editable = (
-            playlist_obj["owner"]["id"] == self._sp_user["id"] or playlist_obj["collaborative"]
+            is_editable=is_editable,
         )
         if playlist_obj.get("images"):
             playlist.metadata.images = [
                 MediaItemImage(
                     type=ImageType.THUMB,
                     path=playlist_obj["images"][0]["url"],
-                    provider=self.instance_id,
+                    provider=self.lookup_key,
                     remotely_accessible=True,
                 )
             ]

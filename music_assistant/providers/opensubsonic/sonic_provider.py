@@ -490,7 +490,7 @@ class OpenSonicProvider(MusicProvider):
             album: SonicAlbum | None = None
             for entry in results["songs"]:
                 if album is None or album.item_id != entry.parent:
-                    album = await self._run_async(self.get_album, prov_album_id=entry.parent)
+                    album = await self.get_album(prov_album_id=entry.parent)
                 yield self._parse_track(entry, album=album)
             offset += count
             results = await self._run_async(
@@ -572,7 +572,7 @@ class OpenSonicProvider(MusicProvider):
         except (ParameterError, DataNotFoundError) as e:
             msg = f"Item {prov_track_id} not found"
             raise MediaNotFoundError(msg) from e
-        album: SonicAlbum = await self._run_async(self.get_album, prov_album_id=sonic_song.parent)
+        album: SonicAlbum = await self.get_album(prov_album_id=sonic_song.parent)
         return self._parse_track(sonic_song, album=album)
 
     async def get_artist_albums(self, prov_artist_id: str) -> list[Album]:
@@ -665,7 +665,7 @@ class OpenSonicProvider(MusicProvider):
         album: SonicAlbum | None = None
         for index, sonic_song in enumerate(sonic_playlist.songs, 1):
             if not album or album.item_id != sonic_song.parent:
-                album = await self._run_async(self.get_album, prov_album_id=sonic_song.parent)
+                album = await self.get_album(prov_album_id=sonic_song.parent)
             track = self._parse_track(sonic_song, album=album)
             track.position = index
             result.append(track)

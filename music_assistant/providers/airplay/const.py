@@ -5,6 +5,8 @@ from __future__ import annotations
 from music_assistant_models.enums import ContentType
 from music_assistant_models.media_items import AudioFormat
 
+from music_assistant.constants import DEFAULT_PCM_FORMAT
+
 DOMAIN = "airplay"
 
 CONF_ENCRYPTION = "encryption"
@@ -22,9 +24,9 @@ CACHE_KEY_PREV_VOLUME = "airplay_prev_volume"
 FALLBACK_VOLUME = 20
 
 AIRPLAY_FLOW_PCM_FORMAT = AudioFormat(
-    content_type=ContentType.PCM_F32LE,
+    content_type=DEFAULT_PCM_FORMAT.content_type,
     sample_rate=44100,
-    bit_depth=32,
+    bit_depth=DEFAULT_PCM_FORMAT.bit_depth,
 )
 AIRPLAY_PCM_FORMAT = AudioFormat(
     content_type=ContentType.from_bit_depth(16), sample_rate=44100, bit_depth=16
