@@ -328,14 +328,20 @@ class ABSDeviceInfo(BaseModel):
     """ABSDeviceInfo.
 
     https://api.audiobookshelf.org/#device-info-parameters
+    https://api.audiobookshelf.org/#device-info
+    https://github.com/advplyr/audiobookshelf/blob/master/server/objects/DeviceInfo.js#L3
+    apparently there was a change, which at some point not yet reflected
+    in API docs
     """
 
     device_id: Annotated[str, Alias("deviceId")] = ""
-    client_name: Annotated[str, Alias("clientName")] = ""
+    # sdkVersion # meant for an Android client
+
     client_version: Annotated[str, Alias("clientVersion")] = ""
     manufacturer: str = ""
     model: str = ""
-    # sdkVersion # meant for an Android client
+    client_name: Annotated[str, Alias("clientName")] = ""
+    # device_name: Annotated[str, Alias("deviceName")] = ""
 
 
 @dataclass

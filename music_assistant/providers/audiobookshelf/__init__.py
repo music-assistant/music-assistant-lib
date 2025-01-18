@@ -135,6 +135,7 @@ class Audiobookshelf(MusicProvider):
                 base_url=base_url,
                 username=username,
                 password=str(self.config.get_value(CONF_PASSWORD)),
+                logger=self.logger,
                 check_ssl=bool(self.config.get_value(CONF_VERIFY_SSL)),
             )
         except RuntimeError:
@@ -144,19 +145,18 @@ class Audiobookshelf(MusicProvider):
 
         # this is stolen from the Jellyfin provider, and gives an id surviving
         # reboots/ provider removal+adds
-        device_id = hashlib.sha256(f"{self.mass.server_id}+{username}".encode()).hexdigest()
+        self.device_id = hashlib.sha256(f"{self.mass.server_id}+{username}".encode()).hexdigest()
 
-        # this will be provided when creating sessions
+        # this will be provided when creating sessions or receive already opened sessions
         self.device_info = ABSDeviceInfo(
-            device_id=device_id,
+            device_id=self.device_id,
             client_name="Music Assistant",
             client_version=self.mass.version,
             manufacturer="",
             model=self.mass.server_id,
         )
 
-        # cleanup old listening sessions
-        await self._client.close_all_playback_sessions_device(device_id=device_id)
+        self.logger.debug(f"Our playback session device_id is {self.device_id=}")
 
     async def unload(self, is_removed: bool = False) -> None:
         """
@@ -165,6 +165,7 @@ class Audiobookshelf(MusicProvider):
         Called when provider is deregistered (e.g. MA exiting or config reloading).
         is_removed will be set to True when the provider is removed from the configuration.
         """
+        await self._client.close_all_playback_sessions()
         await self._client.logout()
 
     @property
@@ -435,11 +436,20 @@ class Audiobookshelf(MusicProvider):
     async def on_played(
         self, media_type: MediaType, item_id: str, fully_played: bool, position: int
     ) -> None:
-        """Update progress in Audiobookshelf."""
+        """Update progress in Audiobookshelf.
+
+        In our case media_type may have 3 values:
+            - PODCAST
+            - PODCAST_EPISODE
+            - AUDIOBOOK
+        We ignore PODCAST (function is called on adding a podcast with position=None)
+        """
+        # self.logger.debug(f"on_played: {media_type=} {item_id=}, {fully_played=} {position=}")
         if media_type == MediaType.PODCAST_EPISODE:
             abs_podcast_id, abs_episode_id = item_id.split(" ")
             mass_podcast_episode = await self.get_podcast_episode(item_id)
             duration = mass_podcast_episode.duration
+            self.logger.debug(f"Updating of {media_type.value} named {mass_podcast_episode.name}")
             await self._client.update_podcast_progress(
                 podcast_id=abs_podcast_id,
                 episode_id=abs_episode_id,
@@ -450,6 +460,7 @@ class Audiobookshelf(MusicProvider):
         if media_type == MediaType.AUDIOBOOK:
             mass_audiobook = await self.get_audiobook(item_id)
             duration = mass_audiobook.duration
+            self.logger.debug(f"Updating {media_type.value} named {mass_audiobook.name} progress")
             await self._client.update_audiobook_progress(
                 audiobook_id=item_id,
                 progress_s=position,

@@ -3,11 +3,13 @@
 We only implement the functions necessary for mass.
 """
 
+import logging
 from collections.abc import AsyncGenerator
 from enum import Enum
 from typing import Any
 
 from aiohttp import ClientSession
+from music_assistant_models.media_items import UniqueList
 
 from music_assistant.providers.audiobookshelf.abs_schema import (
     ABSAudioBook,
@@ -50,6 +52,10 @@ class ABSClient:
         self.audiobook_libraries: list[ABSLibrary] = []
         self.user: ABSUser
         self.check_ssl: bool
+        # I would like to receive opened sessions via the API, however, it appears
+        # that this only possible for closed sessions. That's probably because
+        # abs expects only a single session per device
+        self.open_playback_session_ids: UniqueList[str] = UniqueList([])
 
     async def init(
         self,
@@ -57,12 +63,20 @@ class ABSClient:
         base_url: str,
         username: str,
         password: str,
+        logger: logging.Logger | None = None,
         check_ssl: bool = True,
     ) -> None:
         """Initialize."""
         self.session = session
         self.base_url = base_url
         self.check_ssl = check_ssl
+
+        if logger is None:
+            self.logger = logging.getLogger(name="ABSClient")
+            self.logger.setLevel(logging.DEBUG)
+        else:
+            self.logger = logger
+
         self.session_headers = {}
         self.user = await self.login(username=username, password=password)
         self.token: str = self.user.token
@@ -237,15 +251,18 @@ class ABSClient:
             data={"isFinished": is_finished},
         )
         if is_finished:
+            self.logger.debug(f"Marked played {endpoint}")
             return
+        percentage = progress_seconds / duration_seconds
         await self._patch(
             endpoint,
-            data={"progress": progress_seconds / duration_seconds},
+            data={"progress": percentage},
         )
         await self._patch(
             endpoint,
             data={"duration": duration_seconds, "currentTime": progress_seconds},
         )
+        self.logger.debug(f"Updated to {percentage * 100:.0f}%")
 
     async def update_podcast_progress(
         self,
@@ -305,37 +322,24 @@ class ABSClient:
 
         Returns an open session if it is already available.
         """
-        # check for available session:
-        async for session in self.get_all_playback_sessions():
-            if (
-                session.device_info.device_id == device_info.device_id
-                and session.library_item_id == podcast_id
-                and session.episode_id == episode_id
-            ):
-                expanded_session = await self.get_open_playback_session(session.id_)
-                if expanded_session is not None:
-                    return expanded_session
-                break
-        # otherwise create a new session
         endpoint = f"items/{podcast_id}/play/{episode_id}"
+        # by adding in the media item id, we can have several
+        # open sessions (i.e. we are able to stream more than a single
+        # audiobook/ podcast from abs at the same time)
+        # also fixes preload in playlist
+        device_info.device_id += f"/{podcast_id}/{episode_id}"
         return await self._get_playback_session(endpoint, device_info=device_info)
 
     async def get_playback_session_audiobook(
         self, device_info: ABSDeviceInfo, audiobook_id: str
     ) -> ABSPlaybackSessionExpanded:
-        """Get Audiobook playback session."""
-        # check for available session:
-        async for session in self.get_all_playback_sessions():
-            if (
-                session.device_info.device_id == device_info.device_id
-                and session.library_item_id == audiobook_id
-            ):
-                expanded_session = await self.get_open_playback_session(session.id_)
-                if expanded_session is not None:
-                    return expanded_session
-                break
+        """Get Audiobook playback session.
 
+        Returns an open session if it is already available.
+        """
         endpoint = f"items/{audiobook_id}/play"
+        # see podcast comment above
+        device_info.device_id += f"/{audiobook_id}"
         return await self._get_playback_session(endpoint, device_info=device_info)
 
     async def get_open_playback_session(self, session_id: str) -> ABSPlaybackSessionExpanded | None:
@@ -349,20 +353,31 @@ class ABSClient:
     async def _get_playback_session(
         self, endpoint: str, device_info: ABSDeviceInfo
     ) -> ABSPlaybackSessionExpanded:
-        """Get an ABS Playback Session."""
+        """Get an ABS Playback Session.
+
+        You can only have a single session per device.
+        """
         play_request = ABSPlayRequest(
             device_info=device_info,
             force_direct_play=False,
             force_transcode=False,
-            # specifying no supported mime types makes abs send as is
+            # specifying no supported mime types makes abs send the file
+            # via hls but without transcoding to another format
             supported_mime_types=[],
         )
         data = await self._post(endpoint, data=play_request.to_dict())
-        return ABSPlaybackSessionExpanded.from_json(data)
+        session = ABSPlaybackSessionExpanded.from_json(data)
+        self.logger.debug(
+            f"Got playback session {session.id_} "
+            f"for {session.media_type} named {session.display_title}"
+        )
+        self.open_playback_session_ids.append(session.id_)
+        return session
 
     async def close_playback_session(self, playback_session_id: str) -> None:
         """Close an open playback session."""
         # optional data would be ABSSessionUpdate
+        self.logger.debug(f"Closing playback session {playback_session_id=}")
         await self._post(f"session/{playback_session_id}/close")
 
     async def sync_playback_session(
@@ -371,8 +386,11 @@ class ABSClient:
         """Sync an open playback session."""
         await self._post(f"session/{playback_session_id}/sync", data=update.to_dict())
 
-    async def get_all_playback_sessions(self) -> AsyncGenerator[ABSPlaybackSession]:
-        """Get library items with pagination."""
+    async def get_all_closed_playback_sessions(self) -> AsyncGenerator[ABSPlaybackSession]:
+        """Get library items with pagination.
+
+        This returns only sessions, which are already closed.
+        """
         page_cnt = 0
         while True:
             data = await self._get(
@@ -382,14 +400,18 @@ class ABSClient:
             page_cnt += 1
 
             sessions = ABSSessionsResponse.from_json(data).sessions
+            self.logger.debug([session.device_info for session in sessions])
             if sessions:
                 for session in sessions:
                     yield session
             else:
                 return
 
-    async def close_all_playback_sessions_device(self, device_id: str) -> None:
-        """Cleanup all open playback sessions."""
-        async for session in self.get_all_playback_sessions():
-            if session.device_info.device_id == device_id:
-                await self.close_playback_session(session.id_)
+    async def close_all_playback_sessions(self) -> None:
+        """Cleanup all playback sessions opened by us."""
+        self.logger.debug("Closing our playback sessions")
+        for session_id in self.open_playback_session_ids:
+            try:
+                await self.close_playback_session(session_id)
+            except RuntimeError:
+                self.logger.debug(f"Was unable to close session {session_id}")
