@@ -40,6 +40,8 @@ from .player import SonosPlayer
 if TYPE_CHECKING:
     from zeroconf.asyncio import AsyncServiceInfo
 
+CONF_IPS = "ips"
+
 
 class SonosPlayerProvider(PlayerProvider):
     """Sonos Player provider."""
@@ -66,6 +68,34 @@ class SonosPlayerProvider(PlayerProvider):
         self.mass.streams.register_dynamic_route(
             "/sonos_queue/v2.3/timePlayed", self._handle_sonos_queue_time_played
         )
+
+    async def loaded_in_mass(self) -> None:
+        """Call after the provider has been loaded."""
+        await super().loaded_in_mass()
+
+        manual_ip_config: str | None
+        # comma separated
+        if (manual_ip_config := self.config.get_value(CONF_IPS)) is not None:
+            ips = manual_ip_config.split(",")
+            for raw_ip in ips:
+                # strip to ignore whitespace
+                # (e.g. '10.0.0.42, 10.0.0.43' -> ('10.0.0.42', ' 10.0.0.43'))
+                ip = raw_ip.strip()
+                if ip == "":
+                    continue
+                try:
+                    # get discovery info from SONOS speaker so we can provide an ID & other info
+                    discovery_info = await get_discovery_info(self.mass.http_session, ip)
+                except ClientError as err:
+                    self.logger.debug(
+                        "Ignoring %s (manual IP) as it is not reachable: %s", ip, str(err)
+                    )
+                    continue
+                player_id = discovery_info["device"]["id"]
+                self.sonos_players[player_id] = sonos_player = SonosPlayer(
+                    self, player_id, discovery_info=discovery_info, ip_address=ip
+                )
+                await sonos_player.setup()
 
     async def unload(self, is_removed: bool = False) -> None:
         """Handle close/cleanup of the provider."""
