@@ -65,7 +65,6 @@ from music_assistant.helpers.ffmpeg import check_ffmpeg_version, get_ffmpeg_stre
 from music_assistant.helpers.util import get_ip, get_ips, select_free_port, try_parse_bool
 from music_assistant.helpers.webserver import Webserver
 from music_assistant.models.core_controller import CoreController
-from music_assistant.models.plugin import PluginProvider
 
 if TYPE_CHECKING:
     from music_assistant_models.config_entries import CoreConfig
@@ -97,7 +96,7 @@ class StreamsController(CoreController):
     def __init__(self, *args, **kwargs) -> None:
         """Initialize instance."""
         super().__init__(*args, **kwargs)
-        self._server = Webserver(self.logger, enable_dynamic_routes=True)
+        self._server = Webserver(self.mass, self.logger, enable_dynamic_routes=True)
         self.register_dynamic_route = self._server.register_dynamic_route
         self.unregister_dynamic_route = self._server.unregister_dynamic_route
         self.manifest.name = "Streamserver"
@@ -182,6 +181,7 @@ class StreamsController(CoreController):
                 "This is an advanced setting that should normally "
                 "not be adjusted in regular setups.",
                 category="advanced",
+                required=False,
             ),
             ConfigEntry(
                 key=CONF_BIND_IP,
@@ -194,6 +194,7 @@ class StreamsController(CoreController):
                 "This is an advanced setting that should normally "
                 "not be adjusted in regular setups.",
                 category="advanced",
+                required=False,
             ),
         )
 
@@ -231,11 +232,6 @@ class StreamsController(CoreController):
                     "*",
                     "/announcement/{player_id}.{fmt}",
                     self.serve_announcement_stream,
-                ),
-                (
-                    "*",
-                    "/pluginsource/{provider_id}/{source_id}/{player_id}.{fmt}",
-                    self.serve_plugin_source_stream,
                 ),
             ],
         )
@@ -568,85 +564,6 @@ class StreamsController(CoreController):
 
         return resp
 
-    async def serve_plugin_source_stream(self, request: web.Request) -> web.Response:
-        """Stream PluginSource audio to a player."""
-        self._log_request(request)
-        provider_id = request.match_info["provider_id"]
-        provider: PluginProvider | None
-        if not (provider := self.mass.get_provider(provider_id)):
-            raise web.HTTPNotFound(reason=f"Unknown Provider: {provider_id}")
-        source_id = request.match_info["source_id"]
-        if not (source := await provider.get_source(source_id)):
-            raise web.HTTPNotFound(reason=f"Unknown PluginSource: {source_id}")
-        try:
-            streamdetails = await provider.get_stream_details(source_id, "plugin_source")
-        except Exception:
-            err_msg = f"No streamdetails for PluginSource: {source_id}"
-            self.logger.error(err_msg)
-            raise web.HTTPNotFound(reason=err_msg)
-
-        # work out output format/details
-        player_id = request.match_info["player_id"]
-        player = self.mass.players.get(player_id)
-        if not player:
-            raise web.HTTPNotFound(reason=f"Unknown Player: {player_id}")
-        output_format = await self._get_output_format(
-            output_format_str=request.match_info["fmt"],
-            player=player,
-            default_sample_rate=streamdetails.audio_format.sample_rate,
-            default_bit_depth=streamdetails.audio_format.bit_depth,
-        )
-
-        # prepare request, add some DLNA/UPNP compatible headers
-        headers = {
-            **DEFAULT_STREAM_HEADERS,
-            "icy-name": source.name,
-        }
-        resp = web.StreamResponse(
-            status=200,
-            reason="OK",
-            headers=headers,
-        )
-        resp.content_type = f"audio/{output_format.output_format_str}"
-        http_profile: str = await self.mass.config.get_player_config_value(
-            player_id, CONF_HTTP_PROFILE
-        )
-        if http_profile == "forced_content_length" and streamdetails.duration:
-            # guess content length based on duration
-            resp.content_length = get_chunksize(output_format, streamdetails.duration)
-        elif http_profile == "chunked":
-            resp.enable_chunked_encoding()
-
-        await resp.prepare(request)
-
-        # return early if this is not a GET request
-        if request.method != "GET":
-            return resp
-
-        # all checks passed, start streaming!
-        self.logger.debug(
-            "Start serving audio stream for PluginSource %s (%s) to %s",
-            source.name,
-            source.id,
-            player.display_name,
-        )
-        async for chunk in self.get_plugin_source_stream(
-            streamdetails,
-            output_format=output_format,
-        ):
-            try:
-                await resp.write(chunk)
-            except (BrokenPipeError, ConnectionResetError, ConnectionError):
-                break
-        if streamdetails.stream_error:
-            self.logger.error(
-                "Error streaming PluginSource %s (%s) to %s",
-                source.name,
-                source.uri,
-                player.display_name,
-            )
-        return resp
-
     def get_command_url(self, player_or_queue_id: str, command: str) -> str:
         """Get the url for the special command stream."""
         return f"{self.base_url}/command/{player_or_queue_id}/{command}.mp3"
@@ -956,38 +873,6 @@ class StreamsController(CoreController):
             pcm_format=pcm_format,
             audio_source=audio_source,
             filter_params=filter_params,
-            extra_input_args=extra_input_args,
-        ):
-            yield chunk
-
-    async def get_plugin_source_stream(
-        self,
-        streamdetails: StreamDetails,
-        output_format: AudioFormat,
-    ) -> AsyncGenerator[tuple[bool, bytes], None]:
-        """Get the audio stream for a PluginSource."""
-        streamdetails.seek_position = 0
-        extra_input_args = ["-re"]
-        # work out audio source for these streamdetails
-        if streamdetails.stream_type == StreamType.CUSTOM:
-            audio_source = self.mass.get_provider(streamdetails.provider).get_audio_stream(
-                streamdetails,
-                seek_position=streamdetails.seek_position,
-            )
-        elif streamdetails.stream_type == StreamType.HLS:
-            substream = await get_hls_substream(self.mass, streamdetails.path)
-            audio_source = substream.path
-        else:
-            audio_source = streamdetails.path
-
-        # add support for decryption key provided in streamdetails
-        if streamdetails.decryption_key:
-            extra_input_args += ["-decryption_key", streamdetails.decryption_key]
-
-        async for chunk in get_ffmpeg_stream(
-            audio_input=audio_source,
-            input_format=streamdetails.audio_format,
-            output_format=output_format,
             extra_input_args=extra_input_args,
         ):
             yield chunk

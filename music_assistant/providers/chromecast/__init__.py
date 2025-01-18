@@ -291,7 +291,7 @@ class ChromecastProvider(PlayerProvider):
         }
         media_controller = castplayer.cc.media_controller
         queuedata["mediaSessionId"] = media_controller.status.media_session_id
-        self.mass.create_task(media_controller.send_message, data=queuedata, inc_session_id=True)
+        await asyncio.to_thread(media_controller.send_message, data=queuedata, inc_session_id=True)
         self.logger.debug(
             "Enqued next track (%s) to player %s",
             media.title or media.uri,
@@ -712,7 +712,7 @@ class ChromecastProvider(PlayerProvider):
                     }
                 },
             }
-            self.mass.create_task(
+            await asyncio.to_thread(
                 media_controller.send_message, data=queuedata, inc_session_id=True
             )
 
@@ -743,4 +743,4 @@ class ChromecastProvider(PlayerProvider):
                     }
                 ],
             }
-            self.mass.create_task(media_controller.send_message, data=msg, inc_session_id=True)
+            await asyncio.to_thread(media_controller.send_message, data=msg, inc_session_id=True)

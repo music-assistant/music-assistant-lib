@@ -89,6 +89,13 @@ class RaopStreamSession:
                         *[x.raop_stream.write_eof() for x in self._sync_clients if x.raop_stream],
                         return_exceptions=True,
                     )
+            except Exception as err:
+                logger = self.prov.logger
+                logger.error(
+                    "Stream error: %s",
+                    str(err) or err.__class__.__name__,
+                    exc_info=err if logger.isEnabledFor(logging.DEBUG) else None,
+                )
             finally:
                 if not generator_exhausted:
                     await close_async_generator(self._audio_source)
@@ -114,8 +121,10 @@ class RaopStreamSession:
         if self._stopped:
             return
         self._stopped = True
-        if self._audio_source_task and not self._audio_source_task.done():
+        if self._audio_source_task:
             self._audio_source_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await self._audio_source_task
         await asyncio.gather(
             *[self.remove_client(x) for x in self._sync_clients],
             return_exceptions=True,
@@ -269,6 +278,10 @@ class RaopStream:
             await self._cliraop_proc.close(True)
         if self._ffmpeg_proc and not self._ffmpeg_proc.closed:
             await self._ffmpeg_proc.close(True)
+        if self._log_reader_task:
+            self._log_reader_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await self._log_reader_task
         self._cliraop_proc = None
         self._ffmpeg_proc = None
 

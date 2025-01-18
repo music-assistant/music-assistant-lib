@@ -565,7 +565,7 @@ class SnapCastProvider(PlayerProvider):
                 await self._delete_current_snapstream(stream, media)
 
         # start streaming the queue (pcm) audio in a background task
-        self._stream_tasks[player_id] = asyncio.create_task(_streamer())
+        self._stream_tasks[player_id] = self.mass.create_task(_streamer())
 
     async def _delete_current_snapstream(self, stream: Snapstream, media: PlayerMedia) -> None:
         with suppress(TypeError, KeyError, AttributeError):
@@ -727,7 +727,7 @@ class SnapCastProvider(PlayerProvider):
         """Start the built-in Snapserver."""
         if self._use_builtin_server:
             self._snapserver_started = asyncio.Event()
-            self._snapserver_runner = asyncio.create_task(self._builtin_server_runner())
+            self._snapserver_runner = self.mass.create_task(self._builtin_server_runner())
             await asyncio.wait_for(self._snapserver_started.wait(), 10)
 
     def _handle_disconnect(self, exc: Exception) -> None:

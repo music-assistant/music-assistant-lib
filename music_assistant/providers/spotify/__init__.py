@@ -606,7 +606,7 @@ class SpotifyProvider(MusicProvider):
                     logger.log(VERBOSE_LOG_LEVEL, line)
 
             if stderr:
-                log_reader = asyncio.create_task(_read_stderr())
+                log_reader = self.mass.create_task(_read_stderr())
 
             async for chunk in librespot_proc.iter_any(chunk_size):
                 yield chunk

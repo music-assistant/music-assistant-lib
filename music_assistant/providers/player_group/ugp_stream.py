@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncGenerator, Awaitable, Callable
+from contextlib import suppress
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -53,6 +54,8 @@ class UGPStream:
             return
         if self._task and not self._task.done():
             self._task.cancel()
+        with suppress(asyncio.CancelledError):
+            await self._task
         self._done.set()
 
     async def subscribe_raw(self) -> AsyncGenerator[bytes, None]:

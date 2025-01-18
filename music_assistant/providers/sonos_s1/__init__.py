@@ -403,7 +403,7 @@ class SonosPlayerProvider(PlayerProvider):
             finally:
                 self._discovery_running = False
 
-        await self.mass.create_task(do_discover)
+        await asyncio.to_thread(do_discover)
 
         def reschedule() -> None:
             self._discovery_reschedule_timer = None

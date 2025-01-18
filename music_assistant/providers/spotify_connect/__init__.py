@@ -31,6 +31,7 @@ from music_assistant_models.streamdetails import LivestreamMetadata, StreamDetai
 
 from music_assistant.constants import CONF_ENTRY_WARN_PREVIEW
 from music_assistant.helpers.audio import get_chunksize
+from music_assistant.helpers.ffmpeg import get_ffmpeg_stream
 from music_assistant.helpers.process import AsyncProcess
 from music_assistant.models.music_provider import MusicProvider
 from music_assistant.providers.spotify.helpers import get_librespot_binary
@@ -136,6 +137,7 @@ class SpotifyConnectProvider(MusicProvider):
         self._librespot_started = asyncio.Event()
         self._player_connected: bool = False
         self._current_streamdetails: StreamDetails | None = None
+        self._audio_buffer: asyncio.Queue[bytes] = asyncio.Queue(60)
         self._on_unload_callbacks: list[Callable[..., None]] = [
             self.mass.subscribe(
                 self._on_mass_player_event,
@@ -207,13 +209,12 @@ class SpotifyConnectProvider(MusicProvider):
             item_id=CONNECT_ITEM_ID,
             provider=self.instance_id,
             audio_format=AudioFormat(
-                content_type=ContentType.PCM_S16LE,
+                content_type=ContentType.OGG,
             ),
             media_type=MediaType.PLUGIN_SOURCE,
             allow_seek=False,
             can_seek=False,
             stream_type=StreamType.CUSTOM,
-            extra_input_args=["-readrate", "1.0", "-readrate_initial_burst", "10"],
         )
         return streamdetails
 
@@ -224,12 +225,9 @@ class SpotifyConnectProvider(MusicProvider):
         if not self._librespot_proc or self._librespot_proc.closed:
             raise MediaNotFoundError(f"Librespot not ready for: {streamdetails.item_id}")
         self._player_connected = True
-        chunksize = get_chunksize(streamdetails.audio_format)
         try:
-            async for chunk in self._librespot_proc.iter_chunked(chunksize):
-                if self._librespot_proc.closed or self._stop_called:
-                    break
-                yield chunk
+            while True:
+                yield await self._audio_buffer.get()
         finally:
             self._player_connected = False
             await asyncio.sleep(2)
@@ -260,6 +258,7 @@ class SpotifyConnectProvider(MusicProvider):
                 "pipe",
                 "--dither",
                 "none",
+                "--passthrough",
                 # disable volume control
                 "--mixer",
                 "softvol",
@@ -276,20 +275,38 @@ class SpotifyConnectProvider(MusicProvider):
                 args, stdout=True, stderr=True, name=f"librespot[{name}]"
             )
             await librespot.start()
+
             # keep reading logging from stderr until exit
-            async for line in librespot.iter_stderr():
-                if (
-                    not self._librespot_started.is_set()
-                    and "Using StdoutSink (pipe) with format: S16" in line
+            async def log_reader() -> None:
+                async for line in librespot.iter_stderr():
+                    if (
+                        not self._librespot_started.is_set()
+                        and "Using StdoutSink (pipe) with format: S16" in line
+                    ):
+                        self._librespot_started.set()
+                    if "error sending packet Os" in line:
+                        continue
+                    if "dropping truncated packet" in line:
+                        continue
+                    if "couldn't parse packet from " in line:
+                        continue
+                    self.logger.debug(line)
+
+            async def audio_reader() -> None:
+                chunksize = get_chunksize(AudioFormat(content_type=ContentType.OGG))
+                async for chunk in get_ffmpeg_stream(
+                    librespot.iter_chunked(chunksize),
+                    input_format=AudioFormat(content_type=ContentType.OGG),
+                    output_format=AudioFormat(content_type=ContentType.OGG),
+                    extra_input_args=["-readrate", "1.0"],
                 ):
-                    self._librespot_started.set()
-                if "error sending packet Os" in line:
-                    continue
-                if "dropping truncated packet" in line:
-                    continue
-                if "couldn't parse packet from " in line:
-                    continue
-                self.logger.debug(line)
+                    if librespot.closed or self._stop_called:
+                        break
+                    if not self._player_connected:
+                        continue
+                    await self._audio_buffer.put(chunk)
+
+            await asyncio.gather(log_reader(), audio_reader())
         except asyncio.CancelledError:
             await librespot.close(True)
         finally:
@@ -301,7 +318,7 @@ class SpotifyConnectProvider(MusicProvider):
     def _setup_player_daemon(self) -> None:
         """Handle setup of the spotify connect daemon for a player."""
         self._librespot_started.clear()
-        self._runner_task = asyncio.create_task(self._librespot_runner())
+        self._runner_task = self.mass.create_task(self._librespot_runner())
 
     def _on_mass_player_event(self, event: MassEvent) -> None:
         """Handle incoming event from linked airplay player."""

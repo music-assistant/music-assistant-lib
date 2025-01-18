@@ -7,6 +7,7 @@ import logging
 import time
 from collections import deque
 from collections.abc import AsyncGenerator
+from contextlib import suppress
 from typing import TYPE_CHECKING, Final
 
 from music_assistant_models.enums import ContentType
@@ -91,6 +92,8 @@ class FFMpeg(AsyncProcess):
             return
         if self._stdin_task and not self._stdin_task.done():
             self._stdin_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await self._stdin_task
         await super().close(send_signal)
 
     async def _log_reader_task(self) -> None:
@@ -147,13 +150,12 @@ class FFMpeg(AsyncProcess):
             generator_exhausted = True
         except Exception as err:
             cancelled = isinstance(err, asyncio.CancelledError)
-            if cancelled:
-                raise
             self.logger.error(
                 "Stream error: %s",
                 str(err) or err.__class__.__name__,
-                exc_info=err if self.logger.isEnabledFor(VERBOSE_LOG_LEVEL) else None,
+                exc_info=err if self.logger.isEnabledFor(logging.DEBUG) else None,
             )
+            raise
         finally:
             if not cancelled:
                 await self.write_eof()
