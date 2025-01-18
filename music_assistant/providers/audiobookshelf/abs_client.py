@@ -18,9 +18,11 @@ from music_assistant.providers.audiobookshelf.abs_schema import (
     ABSLibraryItem,
     ABSLoginResponse,
     ABSMediaProgress,
+    ABSPlaybackSession,
     ABSPlaybackSessionExpanded,
     ABSPlayRequest,
     ABSPodcast,
+    ABSSessionsResponse,
     ABSSessionUpdate,
     ABSUser,
 )
@@ -299,7 +301,22 @@ class ABSClient:
     async def get_playback_session_podcast(
         self, device_info: ABSDeviceInfo, podcast_id: str, episode_id: str
     ) -> ABSPlaybackSessionExpanded:
-        """Get Podcast playback session."""
+        """Get Podcast playback session.
+
+        Returns an open session if it is already available.
+        """
+        # check for available session:
+        async for session in self.get_all_playback_sessions():
+            if (
+                session.device_info.device_id == device_info.device_id
+                and session.library_item_id == podcast_id
+                and session.episode_id == episode_id
+            ):
+                expanded_session = await self.get_open_playback_session(session.id_)
+                if expanded_session is not None:
+                    return expanded_session
+                break
+        # otherwise create a new session
         endpoint = f"items/{podcast_id}/play/{episode_id}"
         return await self._get_playback_session(endpoint, device_info=device_info)
 
@@ -307,8 +324,27 @@ class ABSClient:
         self, device_info: ABSDeviceInfo, audiobook_id: str
     ) -> ABSPlaybackSessionExpanded:
         """Get Audiobook playback session."""
+        # check for available session:
+        async for session in self.get_all_playback_sessions():
+            if (
+                session.device_info.device_id == device_info.device_id
+                and session.library_item_id == audiobook_id
+            ):
+                expanded_session = await self.get_open_playback_session(session.id_)
+                if expanded_session is not None:
+                    return expanded_session
+                break
+
         endpoint = f"items/{audiobook_id}/play"
         return await self._get_playback_session(endpoint, device_info=device_info)
+
+    async def get_open_playback_session(self, session_id: str) -> ABSPlaybackSessionExpanded | None:
+        """Return open playback session."""
+        data = await self._get(f"session/{session_id}")
+        if data:
+            return ABSPlaybackSessionExpanded.from_json(data)
+        else:
+            return None
 
     async def _get_playback_session(
         self, endpoint: str, device_info: ABSDeviceInfo
@@ -334,3 +370,26 @@ class ABSClient:
     ) -> None:
         """Sync an open playback session."""
         await self._post(f"session/{playback_session_id}/sync", data=update.to_dict())
+
+    async def get_all_playback_sessions(self) -> AsyncGenerator[ABSPlaybackSession]:
+        """Get library items with pagination."""
+        page_cnt = 0
+        while True:
+            data = await self._get(
+                "me/listening-sessions",
+                params={"itemsPerPage": LIMIT_ITEMS_PER_PAGE, "page": page_cnt},
+            )
+            page_cnt += 1
+
+            sessions = ABSSessionsResponse.from_json(data).sessions
+            if sessions:
+                for session in sessions:
+                    yield session
+            else:
+                return
+
+    async def close_all_playback_sessions_device(self, device_id: str) -> None:
+        """Cleanup all open playback sessions."""
+        async for session in self.get_all_playback_sessions():
+            if session.device_info.device_id == device_id:
+                await self.close_playback_session(session.id_)

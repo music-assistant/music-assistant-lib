@@ -5,6 +5,7 @@ Audiobookshelf is abbreviated ABS here.
 
 from __future__ import annotations
 
+import hashlib
 from collections.abc import AsyncGenerator, Sequence
 from typing import TYPE_CHECKING
 
@@ -127,11 +128,12 @@ class Audiobookshelf(MusicProvider):
         """Pass config values to client and initialize."""
         self._client = ABSClient()
         base_url = str(self.config.get_value(CONF_URL))
+        username = str(self.config.get_value(CONF_USERNAME))
         try:
             await self._client.init(
                 session=self.mass.http_session,
                 base_url=base_url,
-                username=str(self.config.get_value(CONF_USERNAME)),
+                username=username,
                 password=str(self.config.get_value(CONF_PASSWORD)),
                 check_ssl=bool(self.config.get_value(CONF_VERIFY_SSL)),
             )
@@ -140,7 +142,21 @@ class Audiobookshelf(MusicProvider):
             raise LoginFailed(f"Login to abs instance at {base_url} failed.")
         await self._client.sync()
 
-        self.device_info: ABSDeviceInfo
+        # this is stolen from the Jellyfin provider, and gives an id surviving
+        # reboots/ provider removal+adds
+        device_id = hashlib.sha256(f"{self.mass.server_id}+{username}".encode()).hexdigest()
+
+        # this will be provided when creating sessions
+        self.device_info = ABSDeviceInfo(
+            device_id=device_id,
+            client_name="Music Assistant",
+            client_version=self.mass.version,
+            manufacturer="",
+            model=self.mass.server_id,
+        )
+
+        # cleanup old listening sessions
+        await self._client.close_all_playback_sessions_device(device_id=device_id)
 
     async def unload(self, is_removed: bool = False) -> None:
         """
@@ -375,6 +391,10 @@ class Audiobookshelf(MusicProvider):
         item_id = ""
         if session.media_type == "podcast":
             media_type = MediaType.PODCAST_EPISODE
+            podcast_id = session.library_item_id
+            session_id = session.id_
+            episode_id = session.episode_id
+            item_id = f"{podcast_id} {episode_id} {session_id}"
         else:
             media_type = MediaType.AUDIOBOOK
             audiobook_id = session.library_item_id

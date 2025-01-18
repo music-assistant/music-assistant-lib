@@ -330,11 +330,11 @@ class ABSDeviceInfo(BaseModel):
     https://api.audiobookshelf.org/#device-info-parameters
     """
 
-    device_id: Annotated[str, Alias("deviceId")]
-    client_name: Annotated[str, Alias("clientName")]
-    client_version: Annotated[str, Alias("clientVersion")]
-    manufacturer: str
-    model: str
+    device_id: Annotated[str, Alias("deviceId")] = ""
+    client_name: Annotated[str, Alias("clientName")] = ""
+    client_version: Annotated[str, Alias("clientVersion")] = ""
+    manufacturer: str = ""
+    model: str = ""
     # sdkVersion # meant for an Android client
 
 
@@ -364,7 +364,7 @@ class ABSPlayMethod(Enum):
 
 
 @dataclass
-class ABSPlaybackSessionExpanded(BaseModel):
+class ABSPlaybackSession(BaseModel):
     """ABSPlaybackSessionExpanded.
 
     https://api.audiobookshelf.org/#play-method
@@ -376,8 +376,8 @@ class ABSPlaybackSessionExpanded(BaseModel):
     library_item_id: Annotated[str, Alias("libraryItemId")]
     episode_id: Annotated[str | None, Alias("episodeId")]
     media_type: Annotated[str, Alias("mediaType")]
-    media_metadata: Annotated[ABSPodcastMetaData | ABSAudioBookMetaData, Alias("mediaMetadata")]
-    chapters: list[ABSAudioBookChapter]
+    # media_metadata: Annotated[ABSPodcastMetaData | ABSAudioBookMetaData, Alias("mediaMetadata")]
+    # chapters: list[ABSAudioBookChapter]
     display_title: Annotated[str, Alias("displayTitle")]
     display_author: Annotated[str, Alias("displayAuthor")]
     cover_path: Annotated[str, Alias("coverPath")]
@@ -395,6 +395,15 @@ class ABSPlaybackSessionExpanded(BaseModel):
     current_time: Annotated[float, Alias("currentTime")]  # s
     started_at: Annotated[int, Alias("startedAt")]  # ms since Unix Epoch
     updated_at: Annotated[int, Alias("updatedAt")]  # ms since Unix Epoch
+
+
+@dataclass
+class ABSPlaybackSessionExpanded(ABSPlaybackSession):
+    """ABSPlaybackSessionExpanded.
+
+    https://api.audiobookshelf.org/#play-method
+    """
+
     audio_tracks: Annotated[list[ABSAudioTrack], Alias("audioTracks")]
 
     # videoTrack:
@@ -413,3 +422,13 @@ class ABSSessionUpdate(BaseModel):
     current_time: Annotated[float, Alias("currentTime")]
     time_listened: Annotated[float, Alias("timeListened")]
     duration: float
+
+
+@dataclass
+class ABSSessionsResponse(BaseModel):
+    """Response to GET http://abs.example.com/api/me/listening-sessions."""
+
+    total: int
+    num_pages: Annotated[int, Alias("numPages")]
+    items_per_page: Annotated[int, Alias("itemsPerPage")]
+    sessions: list[ABSPlaybackSession]
