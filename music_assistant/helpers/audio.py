@@ -19,6 +19,7 @@ from music_assistant_models.enums import (
     ContentType,
     MediaType,
     PlayerFeature,
+    PlayerType,
     StreamType,
     VolumeNormalizationMode,
 )
@@ -934,6 +935,9 @@ def is_grouping_preventing_dsp(player: Player) -> bool:
         # PlayerGroups have no leader, so having a child count of 1 means
         # the group actually contains only a single player.
         is_multiple_devices = child_count > 1
+    elif player.type == PlayerType.GROUP:
+        # This is an group player external to Music Assistant.
+        is_multiple_devices = True
     else:
         is_multiple_devices = child_count > 0
     return is_multiple_devices and not multi_device_dsp_supported
