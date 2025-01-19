@@ -74,7 +74,7 @@ class SonosPlayerProvider(PlayerProvider):
         await super().loaded_in_mass()
 
         manual_ip_config: str | None
-        # comma separated
+        # Handle config option for manual IP's (comma separated list)
         if (manual_ip_config := self.config.get_value(CONF_IPS)) is not None:
             ips = manual_ip_config.split(",")
             for raw_ip in ips:
