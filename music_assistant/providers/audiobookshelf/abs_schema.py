@@ -434,3 +434,244 @@ class ABSSessionsResponse(BaseModel):
     num_pages: Annotated[int, Alias("numPages")]
     items_per_page: Annotated[int, Alias("itemsPerPage")]
     sessions: list[ABSPlaybackSession]
+
+
+## REWORK
+@dataclass
+class ABSPodcastMetaDataNormal(BaseModel):
+    """ABSPodcastMetaDataNormal."""
+
+    title: str | None
+    author: str | None
+    description: str | None
+    release_date: Annotated[str | None, Alias("releaseDate")]
+    genres: list[str] | None
+    feed_url: Annotated[str | None, Alias("feedUrl")]
+    image_url: Annotated[str | None, Alias("imageUrl")]
+    itunes_page_url: Annotated[str | None, Alias("itunesPageUrl")]
+    itunes_id: Annotated[int | None, Alias("itunesId")]
+    itunes_artist_id: Annotated[int | None, Alias("itunesArtistId")]
+    explicit: bool
+    language: str | None
+    type_: Annotated[str | None, Alias("type")]
+
+
+@dataclass
+class ABSPodcastMetaDataMinified(ABSPodcastMetaDataNormal):
+    """ABSPodcastMetaDataMinified."""
+
+    title_ignore_prefix: Annotated[str, Alias("titleIgnorePrefix")]
+
+
+ABSPodcastMetaDataExpanded = ABSPodcastMetaDataMinified
+
+
+@dataclass
+class ABSPodcastEpisodeNormal(BaseModel):
+    """ABSPodcastEpisodeNormal."""
+
+    library_item_id: Annotated[str, Alias("libraryItemId")]
+    id_: Annotated[str, Alias("id")]
+    index: int | None
+    # audio_file: # not needed for mass application
+    published_at: Annotated[int | None, Alias("publishedAt")]  # ms posix epoch
+    added_at: Annotated[int | None, Alias("addedAt")]  # ms posix epoch
+    updated_at: Annotated[int | None, Alias("updatedAt")]  # ms posix epoch
+    season: str = ""
+    episode: str = ""
+    episode_type: Annotated[str, Alias("episodeType")] = ""
+    title: str = ""
+    subtitle: str = ""
+    description: str = ""
+    enclosure: str = ""
+    pub_date: Annotated[str, Alias("pubDate")] = ""
+    guid: str = ""
+    # chapters
+
+
+@dataclass
+class ABSPodcastBase(BaseModel):
+    """ABSPodcastNormal."""
+
+    cover_path: Annotated[str, Alias("coverPath")]
+
+
+@dataclass
+class ABSPodcastNormal(BaseModel):
+    """ABSPodcastNormal."""
+
+    metadata: ABSPodcastMetaDataNormal
+    library_item_id: Annotated[str, Alias("libraryItemId")]
+    tags: list[str]
+    episodes: list[ABSPodcastEpisodeNormal]
+
+
+@dataclass
+class ABSPodcastMinified(ABSPodcastBase):
+    """ABSPodcastMinified."""
+
+    metadata: ABSPodcastMetaDataMinified
+    size: int  # bytes
+    num_episodes: Annotated[int, Alias("numEpisodes")] = 0
+
+
+@dataclass
+class ABSPodcastExpanded(ABSPodcastBase):
+    """ABSPodcastEpisodeExpanded."""
+
+    size: int  # bytes
+    metadata: ABSPodcastMetaDataExpanded
+    episodes: list[ABSPodcastEpisodeExpanded]
+
+
+@dataclass
+class ABSAudioBookMetaDataBase(BaseModel):
+    """ABSAudioBookMetaDataMinified."""
+
+    title: str
+    subtitle: str
+    genres: list[str] | None
+    published_year: Annotated[str | None, Alias("publishedYear")]
+    published_date: Annotated[str | None, Alias("publishedDate")]
+    publisher: str | None
+    description: str | None
+    isbn: str | None
+    asin: str | None
+    language: str | None
+    explicit: bool
+
+
+@dataclass
+class ABSAudioBookMetaDataNormal(ABSAudioBookMetaDataBase):
+    """ABSAudioBookMetaDataNormal."""
+
+    authors: list[ABSAuthorMinified]
+    narrators: list[str]
+    series: list[ABSSeriesSequence]
+
+
+@dataclass
+class ABSAudioBookMetaDataMinified(ABSAudioBookMetaDataBase):
+    """ABSAudioBookMetaDataMinified."""
+
+    # these are normally there
+    title_ignore_prefix: Annotated[str, Alias("titleIgnorePrefix")]
+    author_name: Annotated[str, Alias("authorName")]
+    author_name_lf: Annotated[str, Alias("authorNameLF")]
+    narrator_name: Annotated[str, Alias("narratorName")]
+    series_name: Annotated[str, Alias("seriesName")]
+
+
+@dataclass
+class ABSAudioBookMetaDataExpanded(ABSAudioBookMetaDataNormal, ABSAudioBookMetaDataMinified):
+    """ABSAudioBookMetaDataExpanded."""
+
+
+@dataclass
+class ABSAudioBookBase(BaseModel):
+    """ABSAudioBookBase."""
+
+    tags: list[str]
+    cover_path: Annotated[str | None, Alias("coverPath")]
+
+
+@dataclass
+class ABSAudioBookNormal(ABSAudioBookBase):
+    """ABSAudioBookNormal."""
+
+    library_item_id: Annotated[str, Alias("libraryItemId")]
+    metadata: ABSAudioBookMetaDataNormal
+    # audioFiles
+    chapters: list[ABSAudioBookChapter]
+    # ebookFile
+
+
+@dataclass
+class ABSAudioBookMinified(ABSAudioBookBase):
+    """ABSAudioBookBase."""
+
+    metadata: ABSAudioBookMetaDataMinified
+    num_tracks: Annotated[int, Alias("numTracks")]
+    num_audiofiles: Annotated[int, Alias("numAudioFiles")]
+    num_chapters: Annotated[int, Alias("numChapters")]
+    duration: float  # in s
+    size: int  # in bytes
+    # ebookFormat
+
+
+@dataclass
+class ABSAudioBookExpanded(ABSAudioBookBase):
+    """ABSAudioBookExpanded."""
+
+    library_item_id: Annotated[str, Alias("libraryItemId")]
+    metadata: ABSAudioBookMetaDataExpanded
+    chapters: list[ABSAudioBookChapter]
+    duration: float
+    size: int  # bytes
+    tracks: list[ABSAudioTrack]
+
+
+@dataclass
+class ABSLibraryItemBase(BaseModel):
+    """ABSLibraryItemBase."""
+
+    id_: Annotated[str, Alias("id")]
+    ino: str
+    library_id: Annotated[str, Alias("libraryId")]
+    folder_id: Annotated[str, Alias("folderId")]
+    path: str
+    relative_path: Annotated[str, Alias("relPath")]
+    is_file: Annotated[bool, Alias("isFile")]
+    last_modified_ms: Annotated[int, Alias("mtimeMs")]  # epoch
+    last_changed_ms: Annotated[int, Alias("ctimeMs")]  # epoch
+    birthtime_ms: Annotated[int, Alias("birthtimeMs")]  # epoch
+    added_at: Annotated[int, Alias("addedAt")]  # ms epoch
+    updated_at: Annotated[int, Alias("updatedAt")]  # ms epoch
+    is_missing: Annotated[bool, Alias("isMissing")]
+    is_invalid: Annotated[bool, Alias("isInvalid")]
+    media_type: Annotated[str, Alias("mediaType")]
+
+
+@dataclass
+class ABSLibraryItemNormal(ABSLibraryItemBase):
+    """ABSLibraryItemNormal."""
+
+    last_scan: Annotated[int | None, Alias("lastScan")]  # ms epoch
+    scan_version: Annotated[str | None, Alias("scanVersion")]
+    # libraryFiles
+
+
+@dataclass
+class ABSLibraryItemNormalBook(ABSLibraryItemNormal):
+    """ABSLibraryItemNormalBook."""
+
+    media: ABSAudioBookNormal
+
+
+@dataclass
+class ABSLibraryItemMinified(ABSLibraryItemBase):
+    """ABSLibraryItemMinified."""
+
+    num_files: Annotated[int, Alias("numFiles")]
+    size: int  # bytes
+
+
+@dataclass
+class ABSLibraryItemMinifiedBook(ABSLibraryItemMinified):
+    """ABSLibraryItemMinifiedBook."""
+
+    media: ABSAudioBookMinified
+
+
+@dataclass
+class ABSLibraryItemExpanded(ABSLibraryItemBase):
+    """ABSLibraryItemExpanded."""
+
+    size: int  # bytes
+
+
+@dataclass
+class ABSLibraryItemExpandedBook(ABSLibraryItemExpanded):
+    """ABSLibraryItemExpanded."""
+
+    media: ABSAudioBookExpanded
