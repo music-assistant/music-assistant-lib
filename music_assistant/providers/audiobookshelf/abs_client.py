@@ -409,7 +409,8 @@ class ABSClient:
 
     async def close_all_playback_sessions(self) -> None:
         """Cleanup all playback sessions opened by us."""
-        self.logger.debug("Closing our playback sessions")
+        if self.open_playback_session_ids:
+            self.logger.debug("Closing our playback sessions.")
         for session_id in self.open_playback_session_ids:
             try:
                 await self.close_playback_session(session_id)

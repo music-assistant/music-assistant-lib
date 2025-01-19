@@ -55,6 +55,8 @@ CONF_URL = "url"
 CONF_USERNAME = "username"
 CONF_PASSWORD = "password"
 CONF_VERIFY_SSL = "verify_ssl"
+CONF_USE_SESSION_AUDIOBOOK = "use_session_audiobook"
+CONF_USE_SESSION_PODCAST = "use_session_podcast"
 
 
 async def setup(
@@ -99,6 +101,24 @@ async def get_config_entries(
             label="Password",
             required=False,
             description="The password to authenticate to the remote server.",
+        ),
+        ConfigEntry(
+            key=CONF_USE_SESSION_AUDIOBOOK,
+            type=ConfigEntryType.BOOLEAN,
+            label="Use session/ HLS stream for audiobooks.",
+            required=False,
+            description="Opens a session at abs, enables support for multiple file audiobooks.",
+            category="advanced",
+            default_value=True,
+        ),
+        ConfigEntry(
+            key=CONF_USE_SESSION_PODCAST,
+            type=ConfigEntryType.BOOLEAN,
+            label="Use session/ HLS stream for podcasts.",
+            required=False,
+            description="Opens a session at abs for podcasts.",
+            category="advanced",
+            default_value=False,
         ),
         ConfigEntry(
             key=CONF_VERIFY_SSL,
@@ -420,18 +440,83 @@ class Audiobookshelf(MusicProvider):
         self, item_id: str, media_type: MediaType = MediaType.TRACK
     ) -> StreamDetails:
         """Get stream of item."""
+        # self.logger.debug(f"Streamdetails: {item_id}")
         if media_type == MediaType.PODCAST_EPISODE:
+            if not bool(self.config.get_value(CONF_USE_SESSION_PODCAST)):
+                return await self._get_stream_details_podcast_episode(item_id)
             abs_podcast_id, abs_episode_id = item_id.split(" ")
             session = await self._client.get_playback_session_podcast(
-                device_info=self.device_info, podcast_id=abs_podcast_id, episode_id=abs_episode_id
+                device_info=self.device_info,
+                podcast_id=abs_podcast_id,
+                episode_id=abs_episode_id,
             )
             return await self.get_streamdetails_from_playback_session(session)
         elif media_type == MediaType.AUDIOBOOK:
+            if not bool(self.config.get_value(CONF_USE_SESSION_AUDIOBOOK)):
+                return await self._get_stream_details_audiobook(item_id)
             session = await self._client.get_playback_session_audiobook(
                 device_info=self.device_info, audiobook_id=item_id
             )
             return await self.get_streamdetails_from_playback_session(session)
         raise MediaNotFoundError("Stream unknown")
+
+    async def _get_stream_details_audiobook(self, audiobook_id: str) -> StreamDetails:
+        """Only single audio file in audiobook."""
+        abs_audiobook = await self._client.get_audiobook(audiobook_id)
+        self.logger.debug(
+            f"Using direct playback for audiobook {abs_audiobook.media.metadata.title}"
+        )
+        tracks = abs_audiobook.media.tracks
+        if len(tracks) == 0:
+            raise MediaNotFoundError("Stream not found")
+        if len(tracks) > 1:
+            self.logger.warning(
+                "Music Assistant only supports single file based audiobooks. "
+                "Switch to HLS stream for multiple file audiobooks."
+            )
+        token = self._client.token
+        base_url = str(self.config.get_value(CONF_URL))
+        media_url = tracks[0].content_url
+        stream_url = f"{base_url}{media_url}?token={token}"
+        # audiobookshelf returns information of stream, so we should be able
+        # to lift unknown at some point.
+        return StreamDetails(
+            provider=self.lookup_key,
+            item_id=audiobook_id,
+            audio_format=AudioFormat(
+                content_type=ContentType.UNKNOWN,
+            ),
+            media_type=MediaType.AUDIOBOOK,
+            stream_type=StreamType.HTTP,
+            path=stream_url,
+        )
+
+    async def _get_stream_details_podcast_episode(self, podcast_id: str) -> StreamDetails:
+        """Stream of a Podcast."""
+        abs_podcast_id, abs_episode_id = podcast_id.split(" ")
+        abs_episode = None
+
+        abs_podcast = await self._client.get_podcast(abs_podcast_id)
+        for abs_episode in abs_podcast.media.episodes:
+            if abs_episode.id_ == abs_episode_id:
+                break
+        if abs_episode is None:
+            raise MediaNotFoundError("Stream not found")
+        self.logger.debug(f"Using direct playback for podcast episode {abs_episode.title}")
+        token = self._client.token
+        base_url = str(self.config.get_value(CONF_URL))
+        media_url = abs_episode.audio_track.content_url
+        full_url = f"{base_url}{media_url}?token={token}"
+        return StreamDetails(
+            provider=self.lookup_key,
+            item_id=podcast_id,
+            audio_format=AudioFormat(
+                content_type=ContentType.UNKNOWN,
+            ),
+            media_type=MediaType.PODCAST_EPISODE,
+            stream_type=StreamType.HTTP,
+            path=full_url,
+        )
 
     async def on_played(
         self, media_type: MediaType, item_id: str, fully_played: bool, position: int
@@ -443,6 +528,7 @@ class Audiobookshelf(MusicProvider):
             - PODCAST_EPISODE
             - AUDIOBOOK
         We ignore PODCAST (function is called on adding a podcast with position=None)
+
         """
         # self.logger.debug(f"on_played: {media_type=} {item_id=}, {fully_played=} {position=}")
         if media_type == MediaType.PODCAST_EPISODE:
