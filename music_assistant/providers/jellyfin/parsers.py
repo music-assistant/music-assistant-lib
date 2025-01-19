@@ -31,6 +31,7 @@ from .const import (
     ITEM_KEY_CAN_DOWNLOAD,
     ITEM_KEY_ID,
     ITEM_KEY_IMAGE_TAGS,
+    ITEM_KEY_MEDIA_CHANNELS,
     ITEM_KEY_MEDIA_CODEC,
     ITEM_KEY_MEDIA_STREAMS,
     ITEM_KEY_MUSICBRAINZ_ALBUM,
@@ -193,6 +194,10 @@ def parse_track(
                     content_type=(
                         ContentType.try_parse(content) if content else ContentType.UNKNOWN
                     ),
+                    channels=jellyfin_track[ITEM_KEY_MEDIA_STREAMS][0][ITEM_KEY_MEDIA_CHANNELS],
+                    sample_rate=jellyfin_track[ITEM_KEY_MEDIA_STREAMS][0]["SampleRate"],
+                    bit_rate=jellyfin_track[ITEM_KEY_MEDIA_STREAMS][0]["BitRate"],
+                    bit_depth=jellyfin_track[ITEM_KEY_MEDIA_STREAMS][0].get("BitDepth", 16),
                 ),
                 url=client.audio_url(jellyfin_track[ITEM_KEY_ID]),
             )

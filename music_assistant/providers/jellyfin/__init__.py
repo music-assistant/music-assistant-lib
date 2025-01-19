@@ -464,6 +464,9 @@ class JellyfinProvider(MusicProvider):
             audio_format=AudioFormat(
                 content_type=content_type,
                 channels=jellyfin_track[ITEM_KEY_MEDIA_STREAMS][0][ITEM_KEY_MEDIA_CHANNELS],
+                sample_rate=jellyfin_track[ITEM_KEY_MEDIA_STREAMS][0]["SampleRate"],
+                bit_rate=jellyfin_track[ITEM_KEY_MEDIA_STREAMS][0]["BitRate"],
+                bit_depth=jellyfin_track[ITEM_KEY_MEDIA_STREAMS][0].get("BitDepth", 16),
             ),
             stream_type=StreamType.HTTP,
             duration=int(
