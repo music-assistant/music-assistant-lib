@@ -5,7 +5,6 @@ Audiobookshelf is abbreviated ABS here.
 
 from __future__ import annotations
 
-import hashlib
 from collections.abc import AsyncGenerator, Sequence
 from typing import TYPE_CHECKING
 
@@ -143,20 +142,16 @@ class Audiobookshelf(MusicProvider):
             raise LoginFailed(f"Login to abs instance at {base_url} failed.")
         await self._client.sync()
 
-        # this is stolen from the Jellyfin provider, and gives an id surviving
-        # reboots/ provider removal+adds
-        self.device_id = hashlib.sha256(f"{self.instance_id}+{username}".encode()).hexdigest()
-
         # this will be provided when creating sessions or receive already opened sessions
         self.device_info = ABSDeviceInfo(
-            device_id=self.device_id,
+            device_id=self.instance_id,
             client_name="Music Assistant",
             client_version=self.mass.version,
             manufacturer="",
             model=self.mass.server_id,
         )
 
-        self.logger.debug(f"Our playback session device_id is {self.device_id=}")
+        self.logger.debug(f"Our playback session device_id is {self.instance_id}")
 
     async def unload(self, is_removed: bool = False) -> None:
         """
