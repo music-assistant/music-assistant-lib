@@ -145,7 +145,7 @@ class Audiobookshelf(MusicProvider):
 
         # this is stolen from the Jellyfin provider, and gives an id surviving
         # reboots/ provider removal+adds
-        self.device_id = hashlib.sha256(f"{self.mass.server_id}+{username}".encode()).hexdigest()
+        self.device_id = hashlib.sha256(f"{self.instance_id}+{username}".encode()).hexdigest()
 
         # this will be provided when creating sessions or receive already opened sessions
         self.device_info = ABSDeviceInfo(
