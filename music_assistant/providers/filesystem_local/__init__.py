@@ -105,6 +105,7 @@ TRACK_EXTENSIONS = (
     "wma",
     "dsf",
     "opus",
+    "aac",
 )
 PLAYLIST_EXTENSIONS = ("m3u", "pls", "m3u8")
 SUPPORTED_EXTENSIONS = TRACK_EXTENSIONS + PLAYLIST_EXTENSIONS

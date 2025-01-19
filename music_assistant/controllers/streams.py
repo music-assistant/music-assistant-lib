@@ -943,7 +943,8 @@ class StreamsController(CoreController):
             player.player_id, CONF_SAMPLE_RATES
         )
         supported_sample_rates: tuple[int] = tuple(x[0] for x in supported_rates_conf)
-        for sample_rate in (192000, 96000, DEFAULT_PCM_FORMAT.sample_rate):
+        output_sample_rate = DEFAULT_PCM_FORMAT.sample_rate
+        for sample_rate in (192000, 96000, 48000, 44100):
             if sample_rate in supported_sample_rates:
                 output_sample_rate = sample_rate
                 break
