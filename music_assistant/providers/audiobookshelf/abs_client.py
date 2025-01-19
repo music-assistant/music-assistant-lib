@@ -12,18 +12,20 @@ from aiohttp import ClientSession
 from music_assistant_models.media_items import UniqueList
 
 from music_assistant.providers.audiobookshelf.abs_schema import (
-    ABSAudioBook,
     ABSDeviceInfo,
-    ABSLibrariesItemsResponse,
+    ABSLibrariesItemsMinifiedBookResponse,
+    ABSLibrariesItemsMinifiedPodcastResponse,
     ABSLibrariesResponse,
     ABSLibrary,
-    ABSLibraryItem,
+    ABSLibraryItemExpandedBook,
+    ABSLibraryItemExpandedPodcast,
+    ABSLibraryItemMinifiedBook,
+    ABSLibraryItemMinifiedPodcast,
     ABSLoginResponse,
     ABSMediaProgress,
     ABSPlaybackSession,
     ABSPlaybackSessionExpanded,
     ABSPlayRequest,
-    ABSPodcast,
     ABSSessionsResponse,
     ABSSessionUpdate,
     ABSUser,
@@ -163,7 +165,7 @@ class ABSClient:
                     self.podcast_libraries.append(library)
         self.user = await self.get_authenticated_user()
 
-    async def get_all_podcasts(self) -> AsyncGenerator[ABSPodcast]:
+    async def get_all_podcasts(self) -> AsyncGenerator[ABSLibraryItemExpandedPodcast]:
         """Get all available podcasts."""
         for library in self.podcast_libraries:
             async for podcast in self.get_all_podcasts_by_library(library):
@@ -180,14 +182,18 @@ class ABSClient:
             page_cnt += 1
             yield data
 
-    async def get_all_podcasts_by_library(self, lib: ABSLibrary) -> AsyncGenerator[ABSPodcast]:
+    async def get_all_podcasts_by_library(
+        self, lib: ABSLibrary
+    ) -> AsyncGenerator[ABSLibraryItemExpandedPodcast]:
         """Get all podcasts in a library."""
         async for podcast_data in self._get_lib_items(lib):
-            podcast_list = ABSLibrariesItemsResponse.from_json(podcast_data).results
+            podcast_list = ABSLibrariesItemsMinifiedPodcastResponse.from_json(podcast_data).results
             if not podcast_list:  # [] if page exceeds
                 return
 
-            async def _get_id(plist: list[ABSLibraryItem] = podcast_list) -> AsyncGenerator[str]:
+            async def _get_id(
+                plist: list[ABSLibraryItemMinifiedPodcast] = podcast_list,
+            ) -> AsyncGenerator[str]:
                 for entry in plist:
                     yield entry.id_
 
@@ -195,11 +201,11 @@ class ABSClient:
                 podcast = await self.get_podcast(id_)
                 yield podcast
 
-    async def get_podcast(self, id_: str) -> ABSPodcast:
+    async def get_podcast(self, id_: str) -> ABSLibraryItemExpandedPodcast:
         """Get a single Podcast by ID."""
         # this endpoint gives more podcast extra data
         data = await self._get(f"items/{id_}?expanded=1")
-        return ABSPodcast.from_json(data)
+        return ABSLibraryItemExpandedPodcast.from_json(data)
 
     async def _get_progress_ms(
         self,
@@ -288,20 +294,24 @@ class ABSClient:
         endpoint = f"me/progress/{audiobook_id}"
         await self._update_progress(endpoint, progress_s, duration_s, is_finished)
 
-    async def get_all_audiobooks(self) -> AsyncGenerator[ABSAudioBook]:
+    async def get_all_audiobooks(self) -> AsyncGenerator[ABSLibraryItemExpandedBook]:
         """Get all audiobooks."""
         for library in self.audiobook_libraries:
             async for book in self.get_all_audiobooks_by_library(library):
                 yield book
 
-    async def get_all_audiobooks_by_library(self, lib: ABSLibrary) -> AsyncGenerator[ABSAudioBook]:
+    async def get_all_audiobooks_by_library(
+        self, lib: ABSLibrary
+    ) -> AsyncGenerator[ABSLibraryItemExpandedBook]:
         """Get all Audiobooks in a library."""
         async for audiobook_data in self._get_lib_items(lib):
-            audiobook_list = ABSLibrariesItemsResponse.from_json(audiobook_data).results
+            audiobook_list = ABSLibrariesItemsMinifiedBookResponse.from_json(audiobook_data).results
             if not audiobook_list:  # [] if page exceeds
                 return
 
-            async def _get_id(alist: list[ABSLibraryItem] = audiobook_list) -> AsyncGenerator[str]:
+            async def _get_id(
+                alist: list[ABSLibraryItemMinifiedBook] = audiobook_list,
+            ) -> AsyncGenerator[str]:
                 for entry in alist:
                     yield entry.id_
 
@@ -309,11 +319,11 @@ class ABSClient:
                 audiobook = await self.get_audiobook(id_)
                 yield audiobook
 
-    async def get_audiobook(self, id_: str) -> ABSAudioBook:
+    async def get_audiobook(self, id_: str) -> ABSLibraryItemExpandedBook:
         """Get a single Audiobook by ID."""
         # this endpoint gives more audiobook extra data
         audiobook = await self._get(f"items/{id_}?expanded=1")
-        return ABSAudioBook.from_json(audiobook)
+        return ABSLibraryItemExpandedBook.from_json(audiobook)
 
     async def get_playback_session_podcast(
         self, device_info: ABSDeviceInfo, podcast_id: str, episode_id: str
