@@ -36,11 +36,11 @@ from music_assistant_models.streamdetails import StreamDetails
 from music_assistant.models.music_provider import MusicProvider
 from music_assistant.providers.audiobookshelf.abs_client import ABSClient
 from music_assistant.providers.audiobookshelf.abs_schema import (
-    ABSAudioBook,
     ABSDeviceInfo,
     ABSLibrary,
+    ABSLibraryItemExpandedBook,
+    ABSLibraryItemExpandedPodcast,
     ABSPlaybackSessionExpanded,
-    ABSPodcast,
     ABSPodcastEpisodeExpanded,
 )
 
@@ -174,7 +174,7 @@ class Audiobookshelf(MusicProvider):
         await self._client.sync()
         await super().sync_library(media_types=media_types)
 
-    def _parse_podcast(self, abs_podcast: ABSPodcast) -> Podcast:
+    def _parse_podcast(self, abs_podcast: ABSLibraryItemExpandedPodcast) -> Podcast:
         """Translate ABSPodcast to MassPodcast."""
         title = abs_podcast.media.metadata.title
         # Per API doc title may be None.
@@ -185,7 +185,7 @@ class Audiobookshelf(MusicProvider):
             name=title,
             publisher=abs_podcast.media.metadata.author,
             provider=self.lookup_key,
-            total_episodes=abs_podcast.media.num_episodes,
+            total_episodes=len(abs_podcast.media.episodes),
             provider_mappings={
                 ProviderMapping(
                     item_id=abs_podcast.id_,
@@ -309,7 +309,7 @@ class Audiobookshelf(MusicProvider):
             episode_cnt += 1
         raise MediaNotFoundError("Episode not found")
 
-    async def _parse_audiobook(self, abs_audiobook: ABSAudioBook) -> Audiobook:
+    async def _parse_audiobook(self, abs_audiobook: ABSLibraryItemExpandedBook) -> Audiobook:
         mass_audiobook = Audiobook(
             item_id=abs_audiobook.id_,
             provider=self.lookup_key,
@@ -431,7 +431,9 @@ class Audiobookshelf(MusicProvider):
             return await self._get_stream_details_audiobook(abs_audiobook)
         raise MediaNotFoundError("Stream unknown")
 
-    async def _get_stream_details_audiobook(self, abs_audiobook: ABSAudioBook) -> StreamDetails:
+    async def _get_stream_details_audiobook(
+        self, abs_audiobook: ABSLibraryItemExpandedBook
+    ) -> StreamDetails:
         """Only single audio file in audiobook."""
         self.logger.debug(
             f"Using direct playback for audiobook {abs_audiobook.media.metadata.title}"
@@ -554,7 +556,9 @@ class Audiobookshelf(MusicProvider):
         if library is None:
             raise MediaNotFoundError("Lib missing.")
 
-        def get_item_mapping(item: ABSAudioBook | ABSPodcast) -> ItemMapping:
+        def get_item_mapping(
+            item: ABSLibraryItemExpandedBook | ABSLibraryItemExpandedPodcast,
+        ) -> ItemMapping:
             title = item.media.metadata.title
             if title is None:
                 title = "UNKNOWN"
