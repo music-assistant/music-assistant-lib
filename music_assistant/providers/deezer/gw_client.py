@@ -128,8 +128,18 @@ class GWClient:
     async def get_deezer_track_urls(self, track_id):
         """Get the URL for a given track id."""
         dz_license = await self._get_license()
-        song_data = await self.get_song_data(track_id)
-        track_token = song_data["results"]["TRACK_TOKEN"]
+
+        song_results = await self.get_song_data(track_id)
+
+        song_data = song_results["results"]
+        # If the song has been replaced by a newer version, the old track will
+        # not play anymore. The data for the newer song is contained in a
+        # "FALLBACK" entry in the song data. So if that is available, use that
+        # instead so we get the right track token.
+        if "FALLBACK" in song_data:
+            song_data = song_data["FALLBACK"]
+
+        track_token = song_data["TRACK_TOKEN"]
         url_data = {
             "license_token": dz_license,
             "media": [
@@ -151,7 +161,7 @@ class GWClient:
             msg = "Received an error from API"
             raise DeezerGWError(msg, error)
 
-        return result_json["data"][0]["media"][0], song_data["results"]
+        return result_json["data"][0]["media"][0], song_data
 
     async def log_listen(
         self, next_track: str | None = None, last_track: StreamDetails | None = None
