@@ -735,7 +735,7 @@ class MediaControllerBase(Generic[ItemCls, LibraryUpdate], metaclass=ABCMeta):
         query_parts = [x[5:] if x.lower().startswith("where ") else x for x in query_parts]
         # concetenate all join and/or where queries
         if join_parts:
-            sql_query += f' {" ".join(join_parts)} '
+            sql_query += f" {' '.join(join_parts)} "
         if query_parts:
             sql_query += " WHERE " + " AND ".join(query_parts)
         # build final query

@@ -58,7 +58,7 @@ async def get_config_entries(
             type=ConfigEntryType.STRING,
             label="Base URL",
             required=True,
-            description="Base URL for the server, e.g. " "https://subsonic.mydomain.tld",
+            description="Base URL for the server, e.g. https://subsonic.mydomain.tld",
         ),
         ConfigEntry(
             key=CONF_PORT,

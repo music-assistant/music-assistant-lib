@@ -170,7 +170,7 @@ async def get_config_entries(
     player_entities: list[ConfigValueOption] = []
     if hass_prov and hass_prov.hass.connected:
         async for state in _get_hass_media_players(hass_prov):
-            name = f'{state["attributes"]["friendly_name"]} ({state["entity_id"]})'
+            name = f"{state['attributes']['friendly_name']} ({state['entity_id']})"
             player_entities.append(ConfigValueOption(name, state["entity_id"]))
     return (
         ConfigEntry(

@@ -1076,7 +1076,7 @@ class MusicController(CoreController):
         self.logger.debug("Performing database cleanup...")
         # Remove playlog entries older than 90 days
         await self.database.delete_where_query(
-            DB_TABLE_PLAYLOG, f"timestamp < strftime('%s','now') - {3600 * 24  * 90}"
+            DB_TABLE_PLAYLOG, f"timestamp < strftime('%s','now') - {3600 * 24 * 90}"
         )
         # db tables cleanup
         for ctrl in (
@@ -1509,13 +1509,11 @@ class MusicController(CoreController):
             )
             # index on play_count
             await self.database.execute(
-                f"CREATE INDEX IF NOT EXISTS {db_table}_play_count_idx "
-                f"on {db_table}(play_count);"
+                f"CREATE INDEX IF NOT EXISTS {db_table}_play_count_idx on {db_table}(play_count);"
             )
             # index on last_played
             await self.database.execute(
-                f"CREATE INDEX IF NOT EXISTS {db_table}_last_played_idx "
-                f"on {db_table}(last_played);"
+                f"CREATE INDEX IF NOT EXISTS {db_table}_last_played_idx on {db_table}(last_played);"
             )
 
         # indexes on provider_mappings table

@@ -179,7 +179,7 @@ class TuneInProvider(MusicProvider):
                 name=name,
                 provider_mappings={
                     ProviderMapping(
-                        item_id=f'{details["preset_id"]}--{stream["media_type"]}',
+                        item_id=f"{details['preset_id']}--{stream['media_type']}",
                         provider_domain=self.domain,
                         provider_instance=self.instance_id,
                         audio_format=AudioFormat(

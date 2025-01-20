@@ -498,7 +498,7 @@ class QobuzProvider(MusicProvider):
                     item_id=str(artist_obj["id"]),
                     provider_domain=self.domain,
                     provider_instance=self.instance_id,
-                    url=f'https://open.qobuz.com/artist/{artist_obj["id"]}',
+                    url=f"https://open.qobuz.com/artist/{artist_obj['id']}",
                 )
             },
         )
@@ -540,7 +540,7 @@ class QobuzProvider(MusicProvider):
                         sample_rate=album_obj["maximum_sampling_rate"] * 1000,
                         bit_depth=album_obj["maximum_bit_depth"],
                     ),
-                    url=f'https://open.qobuz.com/album/{album_obj["id"]}',
+                    url=f"https://open.qobuz.com/album/{album_obj['id']}",
                 )
             },
         )
@@ -604,7 +604,7 @@ class QobuzProvider(MusicProvider):
                         sample_rate=track_obj["maximum_sampling_rate"] * 1000,
                         bit_depth=track_obj["maximum_bit_depth"],
                     ),
-                    url=f'https://open.qobuz.com/track/{track_obj["id"]}',
+                    url=f"https://open.qobuz.com/track/{track_obj['id']}",
                 )
             },
             disc_number=track_obj.get("media_number", 0),
@@ -684,7 +684,7 @@ class QobuzProvider(MusicProvider):
                     item_id=str(playlist_obj["id"]),
                     provider_domain=self.domain,
                     provider_instance=self.instance_id,
-                    url=f'https://open.qobuz.com/playlist/{playlist_obj["id"]}',
+                    url=f"https://open.qobuz.com/playlist/{playlist_obj['id']}",
                 )
             },
             is_editable=is_editable,

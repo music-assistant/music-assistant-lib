@@ -127,8 +127,7 @@ async def crossfade_pcm_parts(
         return crossfaded_audio
     # no crossfade_data, return original data instead
     LOGGER.debug(
-        "crossfade of pcm chunks failed: not enough data? "
-        "- fade_in_part: %s - fade_out_part: %s",
+        "crossfade of pcm chunks failed: not enough data? - fade_in_part: %s - fade_out_part: %s",
         len(fade_in_part),
         len(fade_out_part),
     )
