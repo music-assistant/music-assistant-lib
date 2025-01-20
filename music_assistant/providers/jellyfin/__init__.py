@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import hashlib
-import mimetypes
 import socket
 from asyncio import TaskGroup
 from collections.abc import AsyncGenerator
@@ -11,21 +10,13 @@ from typing import TYPE_CHECKING
 
 from aiojellyfin import MediaLibrary as JellyMediaLibrary
 from aiojellyfin import NotFound, authenticate_by_name
-from aiojellyfin import Track as JellyTrack
 from aiojellyfin.session import SessionConfiguration
 from music_assistant_models.config_entries import ConfigEntry, ConfigValueType, ProviderConfig
-from music_assistant_models.enums import (
-    ConfigEntryType,
-    ContentType,
-    MediaType,
-    ProviderFeature,
-    StreamType,
-)
+from music_assistant_models.enums import ConfigEntryType, MediaType, ProviderFeature, StreamType
 from music_assistant_models.errors import LoginFailed, MediaNotFoundError
 from music_assistant_models.media_items import (
     Album,
     Artist,
-    AudioFormat,
     Playlist,
     ProviderMapping,
     SearchResults,
@@ -38,6 +29,7 @@ from music_assistant.mass import MusicAssistant
 from music_assistant.models import ProviderInstanceType
 from music_assistant.models.music_provider import MusicProvider
 from music_assistant.providers.jellyfin.parsers import (
+    audio_format,
     parse_album,
     parse_artist,
     parse_playlist,
@@ -49,9 +41,6 @@ from .const import (
     ARTIST_FIELDS,
     ITEM_KEY_COLLECTION_TYPE,
     ITEM_KEY_ID,
-    ITEM_KEY_MEDIA_CHANNELS,
-    ITEM_KEY_MEDIA_CODEC,
-    ITEM_KEY_MEDIA_SOURCES,
     ITEM_KEY_MEDIA_STREAMS,
     ITEM_KEY_NAME,
     ITEM_KEY_RUNTIME_TICKS,
@@ -451,23 +440,11 @@ class JellyfinProvider(MusicProvider):
     ) -> StreamDetails:
         """Return the content details for the given track when it will be streamed."""
         jellyfin_track = await self._client.get_track(item_id)
-        mimetype = self._media_mime_type(jellyfin_track)
-        media_stream = jellyfin_track[ITEM_KEY_MEDIA_STREAMS][0]
         url = self._client.audio_url(jellyfin_track[ITEM_KEY_ID], SUPPORTED_CONTAINER_FORMATS)
-        if ITEM_KEY_MEDIA_CODEC in media_stream:
-            content_type = ContentType.try_parse(media_stream[ITEM_KEY_MEDIA_CODEC])
-        else:
-            content_type = ContentType.try_parse(mimetype) if mimetype else ContentType.UNKNOWN
         return StreamDetails(
             item_id=jellyfin_track[ITEM_KEY_ID],
             provider=self.lookup_key,
-            audio_format=AudioFormat(
-                content_type=content_type,
-                channels=jellyfin_track[ITEM_KEY_MEDIA_STREAMS][0][ITEM_KEY_MEDIA_CHANNELS],
-                sample_rate=jellyfin_track[ITEM_KEY_MEDIA_STREAMS][0].get("SampleRate", 44100),
-                bit_rate=jellyfin_track[ITEM_KEY_MEDIA_STREAMS][0].get("BitRate"),
-                bit_depth=jellyfin_track[ITEM_KEY_MEDIA_STREAMS][0].get("BitDepth", 16),
-            ),
+            audio_format=audio_format(jellyfin_track),
             stream_type=StreamType.HTTP,
             duration=int(
                 jellyfin_track[ITEM_KEY_RUNTIME_TICKS] / 10000000
@@ -507,18 +484,3 @@ class JellyfinProvider(MusicProvider):
             ):
                 result.append(library)
         return result
-
-    def _media_mime_type(self, media_item: JellyTrack) -> str | None:
-        """Return the mime type of a media item."""
-        if not media_item.get(ITEM_KEY_MEDIA_SOURCES):
-            return None
-
-        media_source = media_item[ITEM_KEY_MEDIA_SOURCES][0]
-
-        if "Path" not in media_source:
-            return None
-
-        path = media_source["Path"]
-        mime_type, _ = mimetypes.guess_type(path)
-
-        return mime_type

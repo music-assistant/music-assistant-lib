@@ -172,14 +172,25 @@ def parse_artist(
     return artist
 
 
+def audio_format(track: JellyTrack) -> AudioFormat:
+    """Build an AudioFormat model from a Jellyfin track."""
+    stream = track[ITEM_KEY_MEDIA_STREAMS][0]
+    codec = stream[ITEM_KEY_MEDIA_CODEC]
+    return AudioFormat(
+        content_type=(ContentType.try_parse(codec) if codec else ContentType.UNKNOWN),
+        channels=track[ITEM_KEY_MEDIA_STREAMS][0][ITEM_KEY_MEDIA_CHANNELS],
+        sample_rate=track[ITEM_KEY_MEDIA_STREAMS][0].get("SampleRate", 44100),
+        bit_rate=track[ITEM_KEY_MEDIA_STREAMS][0].get("BitRate"),
+        bit_depth=track[ITEM_KEY_MEDIA_STREAMS][0].get("BitDepth", 16),
+    )
+
+
 def parse_track(
     logger: Logger, instance_id: str, client: Connection, jellyfin_track: JellyTrack
 ) -> Track:
     """Parse a Jellyfin Track response to a Track model object."""
     available = False
-    content = None
     available = jellyfin_track[ITEM_KEY_CAN_DOWNLOAD]
-    content = jellyfin_track[ITEM_KEY_MEDIA_STREAMS][0][ITEM_KEY_MEDIA_CODEC]
     track = Track(
         item_id=jellyfin_track[ITEM_KEY_ID],
         provider=instance_id,
@@ -190,15 +201,7 @@ def parse_track(
                 provider_domain=DOMAIN,
                 provider_instance=instance_id,
                 available=available,
-                audio_format=AudioFormat(
-                    content_type=(
-                        ContentType.try_parse(content) if content else ContentType.UNKNOWN
-                    ),
-                    channels=jellyfin_track[ITEM_KEY_MEDIA_STREAMS][0][ITEM_KEY_MEDIA_CHANNELS],
-                    sample_rate=jellyfin_track[ITEM_KEY_MEDIA_STREAMS][0].get("SampleRate", 44100),
-                    bit_rate=jellyfin_track[ITEM_KEY_MEDIA_STREAMS][0].get("BitRate"),
-                    bit_depth=jellyfin_track[ITEM_KEY_MEDIA_STREAMS][0].get("BitDepth", 16),
-                ),
+                audio_format=audio_format(jellyfin_track),
                 url=client.audio_url(jellyfin_track[ITEM_KEY_ID]),
             )
         },
