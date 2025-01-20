@@ -440,7 +440,9 @@ class JellyfinProvider(MusicProvider):
     ) -> StreamDetails:
         """Return the content details for the given track when it will be streamed."""
         jellyfin_track = await self._client.get_track(item_id)
-        url = self._client.audio_url(jellyfin_track[ITEM_KEY_ID], SUPPORTED_CONTAINER_FORMATS)
+        url = self._client.audio_url(
+            jellyfin_track[ITEM_KEY_ID], container=SUPPORTED_CONTAINER_FORMATS
+        )
         return StreamDetails(
             item_id=jellyfin_track[ITEM_KEY_ID],
             provider=self.lookup_key,
