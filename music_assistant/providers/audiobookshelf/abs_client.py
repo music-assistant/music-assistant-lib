@@ -172,11 +172,18 @@ class ABSClient:
                 yield podcast
 
     async def _get_lib_items(self, lib: ABSLibrary) -> AsyncGenerator[bytes]:
-        """Get library items with pagination."""
+        """Get library items with pagination.
+
+        Note:
+           - minified=1 -> minified items. However, there appears to be
+             a bug in abs, so we always get minified items. Still there for
+             consistency
+           - collapseseries=0 -> even if books are part of a series, they will be single items
+        """
         page_cnt = 0
         while True:
             data = await self._get(
-                f"/libraries/{lib.id_}/items",
+                f"/libraries/{lib.id_}/items?minified=1&collapseseries=0",
                 params={"limit": LIMIT_ITEMS_PER_PAGE, "page": page_cnt},
             )
             page_cnt += 1
