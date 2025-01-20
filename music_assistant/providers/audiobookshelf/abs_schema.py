@@ -1,6 +1,15 @@
-"""Schema definition of Audiobookshelf.
+"""Schema definition of Audiobookshelf (ABS).
 
 https://api.audiobookshelf.org/
+
+Some schema definitions have variants. Take book as example:
+https://api.audiobookshelf.org/#book
+Naming Scheme in this file:
+    - the standard definition has nothing added
+    - minified/ expanded: here, 2 additional variants
+
+Sometimes these variants remove or change attributes in such a way, that
+it makes sense to define a base class for inheritance.
 """
 
 from dataclasses import dataclass, field
@@ -28,7 +37,7 @@ class BaseModel(DataClassJSONMixin):
 
 @dataclass
 class ABSAudioTrack(BaseModel):
-    """ABS audioTrack.
+    """ABS audioTrack. No variants.
 
     https://api.audiobookshelf.org/#audio-track
     """
@@ -43,14 +52,144 @@ class ABSAudioTrack(BaseModel):
 
 
 @dataclass
+class ABSBookChapter(BaseModel):
+    """
+    ABSBookChapter. No variants.
+
+    https://api.audiobookshelf.org/#book-chapter
+    """
+
+    id_: Annotated[int, Alias("id")]
+    start: float
+    end: float
+    title: str
+
+
+@dataclass
+class ABSAudioBookmark(BaseModel):
+    """ABSAudioBookmark. No variants.
+
+    https://api.audiobookshelf.org/#audio-bookmark
+    """
+
+    library_item_id: Annotated[str, Alias("libraryItemId")]
+    title: str
+    time: float  # seconds
+    created_at: Annotated[int, Alias("createdAt")]  # unix epoch ms
+
+
+@dataclass
+class ABSUserPermissions(BaseModel):
+    """ABSUserPermissions. No variants.
+
+    https://api.audiobookshelf.org/#user-permissions
+    """
+
+    download: bool
+    update: bool
+    delete: bool
+    upload: bool
+    access_all_libraries: Annotated[bool, Alias("accessAllLibraries")]
+    access_all_tags: Annotated[bool, Alias("accessAllTags")]
+    access_explicit_content: Annotated[bool, Alias("accessExplicitContent")]
+
+
+@dataclass
+class ABSLibrary(BaseModel):
+    """ABSLibrary. No variants.
+
+    https://api.audiobookshelf.org/#library
+    Only attributes we need
+    """
+
+    id_: Annotated[str, Alias("id")]
+    name: str
+    # folders
+    # displayOrder: Integer
+    # icon: String
+    media_type: Annotated[str, Alias("mediaType")]
+    provider: str
+    # settings
+    created_at: Annotated[int, Alias("createdAt")]
+    last_update: Annotated[int, Alias("lastUpdate")]
+
+
+@dataclass
+class ABSDeviceInfo(BaseModel):
+    """ABSDeviceInfo. No variants.
+
+    https://api.audiobookshelf.org/#device-info-parameters
+    https://api.audiobookshelf.org/#device-info
+    https://github.com/advplyr/audiobookshelf/blob/master/server/objects/DeviceInfo.js#L3
+    """
+
+    device_id: Annotated[str, Alias("deviceId")] = ""
+    client_name: Annotated[str, Alias("clientName")] = ""
+    client_version: Annotated[str, Alias("clientVersion")] = ""
+    manufacturer: str = ""
+    model: str = ""
+    # sdkVersion # meant for an Android client
+
+
+### Author: https://api.audiobookshelf.org/#author
+
+
+@dataclass
 class ABSAuthorMinified(BaseModel):
-    """ABSAuthor.
+    """ABSAuthorMinified.
 
     https://api.audiobookshelf.org/#author
     """
 
     id_: Annotated[str, Alias("id")]
     name: str
+
+
+@dataclass
+class ABSAuthor(ABSAuthorMinified):
+    """ABSAuthor."""
+
+    asin: str | None
+    description: str | None
+    image_path: Annotated[str | None, Alias("imagePath")]
+    added_at: Annotated[int, Alias("addedAt")]  # ms epoch
+    updated_at: Annotated[int, Alias("updatedAt")]  # ms epoch
+
+
+@dataclass
+class ABSAuthorExpanded(ABSAuthor):
+    """ABSAuthorExpanded."""
+
+    num_books: Annotated[int, Alias("numBooks")]
+
+
+### Series: https://api.audiobookshelf.org/#series
+
+
+@dataclass
+class _ABSSeriesBase(BaseModel):
+    """_ABSSeriesBase."""
+
+    id_: Annotated[str, Alias("id")]
+    name: str
+
+
+@dataclass
+class ABSSeries(_ABSSeriesBase):
+    """ABSSeries."""
+
+    description: str | None
+    added_at: Annotated[int, Alias("addedAt")]  # ms epoch
+    updated_at: Annotated[int, Alias("updatedAt")]  # ms epoch
+
+
+@dataclass
+class ABSSeriesNumBooks(_ABSSeriesBase):
+    """ABSSeriesNumBooks."""
+
+    name_ignore_prefix: Annotated[str, Alias("nameIgnorePrefix")]
+    library_item_ids: Annotated[list[str], Alias("libraryItemIds")]
+    num_books: Annotated[int, Alias("numBooks")]
 
 
 @dataclass
@@ -65,26 +204,15 @@ class ABSSeriesSequence(BaseModel):
     sequence: str | None
 
 
-@dataclass
-class ABSAudioBookChapter(BaseModel):
-    """
-    ABSAudioBookChapter.
+# another variant, ABSSeriesBooks is further down
 
-    https://api.audiobookshelf.org/#book-chapter
-    """
 
-    id_: Annotated[int, Alias("id")]
-    start: float
-    end: float
-    title: str
+###  https://api.audiobookshelf.org/#media-progress
 
 
 @dataclass
 class ABSMediaProgress(BaseModel):
-    """ABSMediaProgress.
-
-    https://api.audiobookshelf.org/#media-progress
-    """
+    """ABSMediaProgress."""
 
     id_: Annotated[str, Alias("id")]
     library_item_id: Annotated[str, Alias("libraryItemId")]
@@ -99,27 +227,7 @@ class ABSMediaProgress(BaseModel):
     finished_at: Annotated[int | None, Alias("finishedAt")]  # ms epoch
 
 
-@dataclass
-class ABSAudioBookmark(BaseModel):
-    """ABSAudioBookmark."""
-
-    library_item_id: Annotated[str, Alias("libraryItemId")]
-    title: str
-    time: float  # seconds
-    created_at: Annotated[int, Alias("createdAt")]  # unix epoch ms
-
-
-@dataclass
-class ABSUserPermissions(BaseModel):
-    """ABSUserPermissions."""
-
-    download: bool
-    update: bool
-    delete: bool
-    upload: bool
-    access_all_libraries: Annotated[bool, Alias("accessAllLibraries")]
-    access_all_tags: Annotated[bool, Alias("accessAllTags")]
-    access_explicit_content: Annotated[bool, Alias("accessExplicitContent")]
+# two additional progress variants, 'with media' book and podcast, further down.
 
 
 @dataclass
@@ -150,74 +258,7 @@ class ABSUser(BaseModel):
     # item_tags_accessible: Annotated[list[str], Alias("itemTagsAccessible")]
 
 
-@dataclass
-class ABSLoginResponse(BaseModel):
-    """ABSLoginResponse."""
-
-    user: ABSUser
-
-    # this seems to be missing
-    # user_default_library_id: Annotated[str, Alias("defaultLibraryId")]
-
-
-@dataclass
-class ABSLibrary(BaseModel):
-    """ABSLibrary.
-
-    Only attributes we need
-    """
-
-    id_: Annotated[str, Alias("id")]
-    name: str
-    # folders
-    # displayOrder: Integer
-    # icon: String
-    media_type: Annotated[str, Alias("mediaType")]
-    provider: str
-    # settings
-    created_at: Annotated[int, Alias("createdAt")]
-    last_update: Annotated[int, Alias("lastUpdate")]
-
-
-@dataclass
-class ABSLibrariesResponse(BaseModel):
-    """ABSLibrariesResponse."""
-
-    libraries: list[ABSLibrary]
-
-
-# Schema to enable sessions:
-@dataclass
-class ABSDeviceInfo(BaseModel):
-    """ABSDeviceInfo.
-
-    https://api.audiobookshelf.org/#device-info-parameters
-    https://api.audiobookshelf.org/#device-info
-    https://github.com/advplyr/audiobookshelf/blob/master/server/objects/DeviceInfo.js#L3
-    """
-
-    device_id: Annotated[str, Alias("deviceId")] = ""
-    client_name: Annotated[str, Alias("clientName")] = ""
-    client_version: Annotated[str, Alias("clientVersion")] = ""
-    manufacturer: str = ""
-    model: str = ""
-    # sdkVersion # meant for an Android client
-
-
-@dataclass
-class ABSPlayRequest(BaseModel):
-    """ABSPlayRequest.
-
-    https://api.audiobookshelf.org/#play-a-library-item-or-podcast-episode
-    """
-
-    device_info: Annotated[ABSDeviceInfo, Alias("deviceInfo")]
-    force_direct_play: Annotated[bool, Alias("forceDirectPlay")] = False
-    force_transcode: Annotated[bool, Alias("forceTranscode")] = False
-    supported_mime_types: Annotated[list[str], Alias("supportedMimeTypes")] = field(
-        default_factory=list
-    )
-    media_player: Annotated[str, Alias("mediaPlayer")] = "unknown"
+# two additional user variants do exist
 
 
 class ABSPlayMethod(Enum):
@@ -229,12 +270,12 @@ class ABSPlayMethod(Enum):
     LOCAL = 3
 
 
+### https://api.audiobookshelf.org/#playback-session
+
+
 @dataclass
 class ABSPlaybackSession(BaseModel):
-    """ABSPlaybackSessionExpanded.
-
-    https://api.audiobookshelf.org/#play-method
-    """
+    """ABSPlaybackSession."""
 
     id_: Annotated[str, Alias("id")]
     user_id: Annotated[str, Alias("userId")]
@@ -265,10 +306,7 @@ class ABSPlaybackSession(BaseModel):
 
 @dataclass
 class ABSPlaybackSessionExpanded(ABSPlaybackSession):
-    """ABSPlaybackSessionExpanded.
-
-    https://api.audiobookshelf.org/#play-method
-    """
+    """ABSPlaybackSessionExpanded."""
 
     audio_tracks: Annotated[list[ABSAudioTrack], Alias("audioTracks")]
 
@@ -276,34 +314,12 @@ class ABSPlaybackSessionExpanded(ABSPlaybackSession):
     # libraryItem:
 
 
-@dataclass
-class ABSSessionUpdate(BaseModel):
-    """
-    ABSSessionUpdate.
-
-    Can be used as optional data to sync or closing request.
-    unit is seconds
-    """
-
-    current_time: Annotated[float, Alias("currentTime")]
-    time_listened: Annotated[float, Alias("timeListened")]
-    duration: float
+### https://api.audiobookshelf.org/#podcast-metadata
 
 
 @dataclass
-class ABSSessionsResponse(BaseModel):
-    """Response to GET http://abs.example.com/api/me/listening-sessions."""
-
-    total: int
-    num_pages: Annotated[int, Alias("numPages")]
-    items_per_page: Annotated[int, Alias("itemsPerPage")]
-    sessions: list[ABSPlaybackSession]
-
-
-## REWORK
-@dataclass
-class ABSPodcastMetaDataNormal(BaseModel):
-    """ABSPodcastMetaDataNormal."""
+class ABSPodcastMetadata(BaseModel):
+    """ABSPodcastMetadata."""
 
     title: str | None
     author: str | None
@@ -321,18 +337,20 @@ class ABSPodcastMetaDataNormal(BaseModel):
 
 
 @dataclass
-class ABSPodcastMetaDataMinified(ABSPodcastMetaDataNormal):
-    """ABSPodcastMetaDataMinified."""
+class ABSPodcastMetadataMinified(ABSPodcastMetadata):
+    """ABSPodcastMetadataMinified."""
 
     title_ignore_prefix: Annotated[str, Alias("titleIgnorePrefix")]
 
 
-ABSPodcastMetaDataExpanded = ABSPodcastMetaDataMinified
+ABSPodcastMetaDataExpanded = ABSPodcastMetadataMinified
+
+### https://api.audiobookshelf.org/#podcast-episode
 
 
 @dataclass
-class ABSPodcastEpisodeNormal(BaseModel):
-    """ABSPodcastEpisodeNormal."""
+class ABSPodcastEpisode(BaseModel):
+    """ABSPodcastEpisode."""
 
     library_item_id: Annotated[str, Alias("libraryItemId")]
     id_: Annotated[str, Alias("id")]
@@ -383,33 +401,36 @@ class ABSPodcastEpisodeExpanded(BaseModel):
 
 
 @dataclass
-class ABSPodcastBase(BaseModel):
-    """ABSPodcastNormal."""
+class _ABSPodcastBase(BaseModel):
+    """_ABSPodcastBase."""
 
     cover_path: Annotated[str, Alias("coverPath")]
 
 
-@dataclass
-class ABSPodcastNormal(BaseModel):
-    """ABSPodcastNormal."""
+### https://api.audiobookshelf.org/#podcast
 
-    metadata: ABSPodcastMetaDataNormal
+
+@dataclass
+class ABSPodcast(_ABSPodcastBase):
+    """ABSPodcast."""
+
+    metadata: ABSPodcastMetadata
     library_item_id: Annotated[str, Alias("libraryItemId")]
     tags: list[str]
-    episodes: list[ABSPodcastEpisodeNormal]
+    episodes: list[ABSPodcastEpisode]
 
 
 @dataclass
-class ABSPodcastMinified(ABSPodcastBase):
+class ABSPodcastMinified(_ABSPodcastBase):
     """ABSPodcastMinified."""
 
-    metadata: ABSPodcastMetaDataMinified
+    metadata: ABSPodcastMetadataMinified
     size: int  # bytes
     num_episodes: Annotated[int, Alias("numEpisodes")] = 0
 
 
 @dataclass
-class ABSPodcastExpanded(ABSPodcastBase):
+class ABSPodcastExpanded(_ABSPodcastBase):
     """ABSPodcastEpisodeExpanded."""
 
     size: int  # bytes
@@ -417,9 +438,12 @@ class ABSPodcastExpanded(ABSPodcastBase):
     episodes: list[ABSPodcastEpisodeExpanded]
 
 
+### https://api.audiobookshelf.org/#book-metadata
+
+
 @dataclass
-class ABSAudioBookMetaDataBase(BaseModel):
-    """ABSAudioBookMetaDataMinified."""
+class _ABSBookMetadataBase(BaseModel):
+    """_ABSBookMetadataBase."""
 
     title: str
     subtitle: str
@@ -435,8 +459,8 @@ class ABSAudioBookMetaDataBase(BaseModel):
 
 
 @dataclass
-class ABSAudioBookMetaDataNormal(ABSAudioBookMetaDataBase):
-    """ABSAudioBookMetaDataNormal."""
+class ABSBookMetadata(_ABSBookMetadataBase):
+    """ABSBookMetadata."""
 
     authors: list[ABSAuthorMinified]
     narrators: list[str]
@@ -444,8 +468,8 @@ class ABSAudioBookMetaDataNormal(ABSAudioBookMetaDataBase):
 
 
 @dataclass
-class ABSAudioBookMetaDataMinified(ABSAudioBookMetaDataBase):
-    """ABSAudioBookMetaDataMinified."""
+class ABSBookMetadataMinified(_ABSBookMetadataBase):
+    """ABSBookMetadataMinified."""
 
     # these are normally there
     title_ignore_prefix: Annotated[str, Alias("titleIgnorePrefix")]
@@ -456,34 +480,37 @@ class ABSAudioBookMetaDataMinified(ABSAudioBookMetaDataBase):
 
 
 @dataclass
-class ABSAudioBookMetaDataExpanded(ABSAudioBookMetaDataNormal, ABSAudioBookMetaDataMinified):
+class ABSBookMetadataExpanded(ABSBookMetadata, ABSBookMetadataMinified):
     """ABSAudioBookMetaDataExpanded."""
 
 
+### https://api.audiobookshelf.org/#book
+
+
 @dataclass
-class ABSAudioBookBase(BaseModel):
-    """ABSAudioBookBase."""
+class _ABSBookBase(BaseModel):
+    """_ABSBookBase."""
 
     tags: list[str]
     cover_path: Annotated[str | None, Alias("coverPath")]
 
 
 @dataclass
-class ABSAudioBookNormal(ABSAudioBookBase):
-    """ABSAudioBookNormal."""
+class ABSBook(_ABSBookBase):
+    """ABSBook."""
 
     library_item_id: Annotated[str, Alias("libraryItemId")]
-    metadata: ABSAudioBookMetaDataNormal
+    metadata: ABSBookMetadata
     # audioFiles
-    chapters: list[ABSAudioBookChapter]
+    chapters: list[ABSBookChapter]
     # ebookFile
 
 
 @dataclass
-class ABSAudioBookMinified(ABSAudioBookBase):
-    """ABSAudioBookBase."""
+class ABSBookMinified(_ABSBookBase):
+    """ABSBookBase."""
 
-    metadata: ABSAudioBookMetaDataMinified
+    metadata: ABSBookMetadataMinified
     num_tracks: Annotated[int, Alias("numTracks")]
     num_audiofiles: Annotated[int, Alias("numAudioFiles")]
     num_chapters: Annotated[int, Alias("numChapters")]
@@ -493,20 +520,23 @@ class ABSAudioBookMinified(ABSAudioBookBase):
 
 
 @dataclass
-class ABSAudioBookExpanded(ABSAudioBookBase):
-    """ABSAudioBookExpanded."""
+class ABSBookExpanded(_ABSBookBase):
+    """ABSBookExpanded."""
 
     library_item_id: Annotated[str, Alias("libraryItemId")]
-    metadata: ABSAudioBookMetaDataExpanded
-    chapters: list[ABSAudioBookChapter]
+    metadata: ABSBookMetadataExpanded
+    chapters: list[ABSBookChapter]
     duration: float
     size: int  # bytes
     tracks: list[ABSAudioTrack]
 
 
+### https://api.audiobookshelf.org/#library-item
+
+
 @dataclass
-class ABSLibraryItemBase(BaseModel):
-    """ABSLibraryItemBase."""
+class _ABSLibraryItemBase(BaseModel):
+    """_ABSLibraryItemBase."""
 
     id_: Annotated[str, Alias("id")]
     ino: str
@@ -526,8 +556,8 @@ class ABSLibraryItemBase(BaseModel):
 
 
 @dataclass
-class ABSLibraryItemNormal(ABSLibraryItemBase):
-    """ABSLibraryItemNormal."""
+class _ABSLibraryItem(_ABSLibraryItemBase):
+    """ABSLibraryItem."""
 
     last_scan: Annotated[int | None, Alias("lastScan")]  # ms epoch
     scan_version: Annotated[str | None, Alias("scanVersion")]
@@ -535,21 +565,33 @@ class ABSLibraryItemNormal(ABSLibraryItemBase):
 
 
 @dataclass
-class ABSLibraryItemNormalBook(ABSLibraryItemNormal):
-    """ABSLibraryItemNormalBook."""
+class ABSLibraryItemBook(_ABSLibraryItem):
+    """ABSLibraryItemBook."""
 
-    media: ABSAudioBookNormal
-
-
-@dataclass
-class ABSLibraryItemNormalPodcast(ABSLibraryItemNormal):
-    """ABSLibraryItemNormalBook."""
-
-    media: ABSPodcastNormal
+    media: ABSBook
 
 
 @dataclass
-class ABSLibraryItemMinified(ABSLibraryItemBase):
+class ABSLibraryItemBookSeries(ABSLibraryItemBook):
+    """ABSLibraryItemNormalBookSeries.
+
+    Special class, when having the scheme of SeriesBooks, see
+    https://api.audiobookshelf.org/#series, it gets an extra
+    sequence key.
+    """
+
+    sequence: int
+
+
+@dataclass
+class ABSLibraryItemPodcast(_ABSLibraryItem):
+    """ABSLibraryItemPodcast."""
+
+    media: ABSPodcast
+
+
+@dataclass
+class _ABSLibraryItemMinified(_ABSLibraryItemBase):
     """ABSLibraryItemMinified."""
 
     num_files: Annotated[int, Alias("numFiles")]
@@ -557,38 +599,98 @@ class ABSLibraryItemMinified(ABSLibraryItemBase):
 
 
 @dataclass
-class ABSLibraryItemMinifiedBook(ABSLibraryItemMinified):
+class ABSLibraryItemMinifiedBook(_ABSLibraryItemMinified):
     """ABSLibraryItemMinifiedBook."""
 
-    media: ABSAudioBookMinified
+    media: ABSBookMinified
 
 
 @dataclass
-class ABSLibraryItemMinifiedPodcast(ABSLibraryItemMinified):
+class ABSLibraryItemMinifiedPodcast(_ABSLibraryItemMinified):
     """ABSLibraryItemMinifiedBook."""
 
     media: ABSPodcastMinified
 
 
 @dataclass
-class ABSLibraryItemExpanded(ABSLibraryItemBase):
+class _ABSLibraryItemExpanded(_ABSLibraryItemBase):
     """ABSLibraryItemExpanded."""
 
     size: int  # bytes
 
 
 @dataclass
-class ABSLibraryItemExpandedBook(ABSLibraryItemExpanded):
+class ABSLibraryItemExpandedBook(_ABSLibraryItemExpanded):
     """ABSLibraryItemExpanded."""
 
-    media: ABSAudioBookExpanded
+    media: ABSBookExpanded
 
 
 @dataclass
-class ABSLibraryItemExpandedPodcast(ABSLibraryItemExpanded):
+class ABSLibraryItemExpandedPodcast(_ABSLibraryItemExpanded):
     """ABSLibraryItemExpanded."""
 
     media: ABSPodcastExpanded
+
+
+# extra classes down here so they can make proper references
+
+
+@dataclass
+class ABSSeriesBooks(_ABSSeriesBase):
+    """ABSSeriesBooks."""
+
+    added_at: Annotated[int, Alias("addedAt")]  # ms epoch
+    name_ignore_prefix: Annotated[str, Alias("nameIgnorePrefix")]
+    name_ignore_prefix_sort: Annotated[str, Alias("nameIgnorePrefixSort")]
+    type_: Annotated[str, Alias("type")]
+    books: list[ABSLibraryItemBookSeries]
+    total_duration: Annotated[float, Alias("totalDuration")]  # s
+
+
+@dataclass
+class ABSMediaProgressWithMediaBook(ABSMediaProgress):
+    """ABSMediaProgressWithMediaBook."""
+
+    media: ABSBookExpanded
+
+
+@dataclass
+class ABSMediaProgressWithMediaPodcast(ABSMediaProgress):
+    """ABSMediaProgressWithMediaBook."""
+
+    media: ABSPodcastExpanded
+    episode: ABSPodcastEpisode
+
+
+### Response to API Requests
+
+
+@dataclass
+class ABSLoginResponse(BaseModel):
+    """ABSLoginResponse."""
+
+    user: ABSUser
+
+    # this seems to be missing
+    # user_default_library_id: Annotated[str, Alias("defaultLibraryId")]
+
+
+@dataclass
+class ABSLibrariesResponse(BaseModel):
+    """ABSLibrariesResponse."""
+
+    libraries: list[ABSLibrary]
+
+
+@dataclass
+class ABSSessionsResponse(BaseModel):
+    """Response to GET http://abs.example.com/api/me/listening-sessions."""
+
+    total: int
+    num_pages: Annotated[int, Alias("numPages")]
+    items_per_page: Annotated[int, Alias("itemsPerPage")]
+    sessions: list[ABSPlaybackSession]
 
 
 @dataclass
@@ -612,3 +714,36 @@ class ABSLibrariesItemsMinifiedPodcastResponse(BaseModel):
     """
 
     results: list[ABSLibraryItemMinifiedPodcast]
+
+
+### Requests to API we can make
+
+
+@dataclass
+class ABSPlayRequest(BaseModel):
+    """ABSPlayRequest.
+
+    https://api.audiobookshelf.org/#play-a-library-item-or-podcast-episode
+    """
+
+    device_info: Annotated[ABSDeviceInfo, Alias("deviceInfo")]
+    force_direct_play: Annotated[bool, Alias("forceDirectPlay")] = False
+    force_transcode: Annotated[bool, Alias("forceTranscode")] = False
+    supported_mime_types: Annotated[list[str], Alias("supportedMimeTypes")] = field(
+        default_factory=list
+    )
+    media_player: Annotated[str, Alias("mediaPlayer")] = "unknown"
+
+
+@dataclass
+class ABSSessionUpdate(BaseModel):
+    """
+    ABSSessionUpdate.
+
+    Can be used as optional data to sync or closing request.
+    unit is seconds
+    """
+
+    current_time: Annotated[float, Alias("currentTime")]
+    time_listened: Annotated[float, Alias("timeListened")]
+    duration: float
