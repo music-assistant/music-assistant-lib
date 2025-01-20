@@ -316,6 +316,97 @@
     'version': '',
   })
 # ---
+# name: test_parse_tracks[do_i_wanna_know]
+  dict({
+    'album': dict({
+      'available': True,
+      'external_ids': list([
+      ]),
+      'image': None,
+      'item_id': 'd42d74e134693184e7adc73106238e89',
+      'media_type': 'album',
+      'name': 'AM',
+      'provider': 'xx-instance-id-xx',
+      'sort_name': 'am',
+      'uri': 'xx-instance-id-xx://album/d42d74e134693184e7adc73106238e89',
+      'version': '',
+    }),
+    'artists': list([
+      dict({
+        'available': True,
+        'external_ids': list([
+        ]),
+        'image': None,
+        'item_id': 'cc940aeb8a99149f159fe9794f136071',
+        'media_type': 'artist',
+        'name': 'Arctic Monkeys',
+        'provider': 'xx-instance-id-xx',
+        'sort_name': 'arctic monkeys',
+        'uri': 'xx-instance-id-xx://artist/cc940aeb8a99149f159fe9794f136071',
+        'version': '',
+      }),
+    ]),
+    'disc_number': 1,
+    'duration': 272,
+    'external_ids': list([
+    ]),
+    'favorite': False,
+    'item_id': 'da9c458e425584680765ddc3a89cbc0c',
+    'media_type': 'track',
+    'metadata': dict({
+      'chapters': None,
+      'copyright': None,
+      'description': None,
+      'explicit': None,
+      'genres': None,
+      'images': list([
+        dict({
+          'path': 'http://localhost:1234/Items/da9c458e425584680765ddc3a89cbc0c/Images/Primary?api_key=ACCESS_TOKEN',
+          'provider': 'xx-instance-id-xx',
+          'remotely_accessible': False,
+          'type': 'thumb',
+        }),
+      ]),
+      'label': None,
+      'languages': None,
+      'last_refresh': None,
+      'links': None,
+      'lyrics': None,
+      'mood': None,
+      'performers': None,
+      'popularity': None,
+      'preview': None,
+      'release_date': None,
+      'review': None,
+      'style': None,
+    }),
+    'name': 'Do I Wanna Know?',
+    'position': 1,
+    'provider': 'xx-instance-id-xx',
+    'provider_mappings': list([
+      dict({
+        'audio_format': dict({
+          'bit_depth': 24,
+          'bit_rate': 1546,
+          'channels': 2,
+          'content_type': 'flac',
+          'output_format_str': 'flac',
+          'sample_rate': 44100,
+        }),
+        'available': True,
+        'details': None,
+        'item_id': 'da9c458e425584680765ddc3a89cbc0c',
+        'provider_domain': 'jellyfin',
+        'provider_instance': 'xx-instance-id-xx',
+        'url': 'http://localhost:1234/Audio/da9c458e425584680765ddc3a89cbc0c/universal?userId=USER_ID&deviceId=X&maxStreamingBitrate=140000000&api_key=ACCESS_TOKEN',
+      }),
+    ]),
+    'sort_name': 'do i wanna know?',
+    'track_number': 1,
+    'uri': 'xx-instance-id-xx://track/da9c458e425584680765ddc3a89cbc0c',
+    'version': '',
+  })
+# ---
 # name: test_parse_tracks[thrown_away]
   dict({
     'album': dict({
@@ -381,7 +472,7 @@
       dict({
         'audio_format': dict({
           'bit_depth': 16,
-          'bit_rate': 0,
+          'bit_rate': 156,
           'channels': 2,
           'content_type': 'mp3',
           'output_format_str': 'mp3',
@@ -392,7 +483,7 @@
         'item_id': 'b5319fb11cde39fca2023184fcfa9862',
         'provider_domain': 'jellyfin',
         'provider_instance': 'xx-instance-id-xx',
-        'url': 'http://localhost:1234/Audio/b5319fb11cde39fca2023184fcfa9862/universal?UserId=USER_ID&DeviceId=X&MaxStreamingBitrate=140000000&api_key=ACCESS_TOKEN',
+        'url': 'http://localhost:1234/Audio/b5319fb11cde39fca2023184fcfa9862/universal?userId=USER_ID&deviceId=X&maxStreamingBitrate=140000000&api_key=ACCESS_TOKEN',
       }),
     ]),
     'sort_name': '11 thrown away',
@@ -460,7 +551,7 @@
       dict({
         'audio_format': dict({
           'bit_depth': 16,
-          'bit_rate': 0,
+          'bit_rate': 278,
           'channels': 2,
           'content_type': 'aac',
           'output_format_str': 'aac',
@@ -471,7 +562,7 @@
         'item_id': '54918f75ee8f6c8b8dc5efd680644f29',
         'provider_domain': 'jellyfin',
         'provider_instance': 'xx-instance-id-xx',
-        'url': 'http://localhost:1234/Audio/54918f75ee8f6c8b8dc5efd680644f29/universal?UserId=USER_ID&DeviceId=X&MaxStreamingBitrate=140000000&api_key=ACCESS_TOKEN',
+        'url': 'http://localhost:1234/Audio/54918f75ee8f6c8b8dc5efd680644f29/universal?userId=USER_ID&deviceId=X&maxStreamingBitrate=140000000&api_key=ACCESS_TOKEN',
       }),
     ]),
     'sort_name': 'where the bands are (2018 version)',
@@ -568,7 +659,7 @@
       dict({
         'audio_format': dict({
           'bit_depth': 16,
-          'bit_rate': 0,
+          'bit_rate': 267,
           'channels': 2,
           'content_type': 'aac',
           'output_format_str': 'aac',
@@ -579,7 +670,7 @@
         'item_id': 'fb12a77f49616a9fc56a6fab2b94174c',
         'provider_domain': 'jellyfin',
         'provider_instance': 'xx-instance-id-xx',
-        'url': 'http://localhost:1234/Audio/fb12a77f49616a9fc56a6fab2b94174c/universal?UserId=USER_ID&DeviceId=X&MaxStreamingBitrate=140000000&api_key=ACCESS_TOKEN',
+        'url': 'http://localhost:1234/Audio/fb12a77f49616a9fc56a6fab2b94174c/universal?userId=USER_ID&deviceId=X&maxStreamingBitrate=140000000&api_key=ACCESS_TOKEN',
       }),
     ]),
     'sort_name': 'zombie christmas',
