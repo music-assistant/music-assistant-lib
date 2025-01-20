@@ -178,10 +178,10 @@ def audio_format(track: JellyTrack) -> AudioFormat:
     codec = stream[ITEM_KEY_MEDIA_CODEC]
     return AudioFormat(
         content_type=(ContentType.try_parse(codec) if codec else ContentType.UNKNOWN),
-        channels=track[ITEM_KEY_MEDIA_STREAMS][0][ITEM_KEY_MEDIA_CHANNELS],
-        sample_rate=track[ITEM_KEY_MEDIA_STREAMS][0].get("SampleRate", 44100),
-        bit_rate=track[ITEM_KEY_MEDIA_STREAMS][0].get("BitRate"),
-        bit_depth=track[ITEM_KEY_MEDIA_STREAMS][0].get("BitDepth", 16),
+        channels=stream[ITEM_KEY_MEDIA_CHANNELS],
+        sample_rate=stream.get("SampleRate", 44100),
+        bit_rate=stream.get("BitRate"),
+        bit_depth=stream.get("BitDepth", 16),
     )
 
 
