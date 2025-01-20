@@ -441,7 +441,10 @@ class DeezerProvider(MusicProvider):
             ),
             stream_type=StreamType.CUSTOM,
             duration=int(song_data["DURATION"]),
-            data={"url": url, "format": url_details["format"]},
+            # Due to track replacement, the track ID of the stream may be different from the ID
+            # that is stored. We need the proper track ID to decrypt the stream, so store it
+            # separately so we can use it later on.
+            data={"url": url, "format": url_details["format"], "track_id": song_data["SNG_ID"]},
             size=int(song_data[f"FILESIZE_{url_details['format']}"]),
         )
 
@@ -449,7 +452,7 @@ class DeezerProvider(MusicProvider):
         self, streamdetails: StreamDetails, seek_position: int = 0
     ) -> AsyncGenerator[bytes, None]:
         """Return the audio stream for the provider item."""
-        blowfish_key = self.get_blowfish_key(streamdetails.item_id)
+        blowfish_key = self.get_blowfish_key(streamdetails.data["track_id"])
         chunk_index = 0
         timeout = ClientTimeout(total=0, connect=30, sock_read=600)
         headers = {}
