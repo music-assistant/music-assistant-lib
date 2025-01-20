@@ -62,7 +62,7 @@ async def get_config_entries(
             "Invalid addresses may result in the Sonos provider "
             "becoming unresponsive and server crashes.\n"
             "Bidirectional unicast communication to and between all IPs is required.\n"
-            "NOT SUPPORTED, USE ON YOU'RE OWN RISK",
+            "NOT SUPPORTED, USE AT YOUR OWN RISK",
             category="advanced",
             default_value=None,
             required=False,
