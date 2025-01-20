@@ -42,7 +42,7 @@ class ABSAudioTrack(BaseModel):
     https://api.audiobookshelf.org/#audio-track
     """
 
-    index: int
+    index: int | None
     start_offset: Annotated[float, Alias("startOffset")] = 0.0
     duration: float = 0.0
     title: str = ""
