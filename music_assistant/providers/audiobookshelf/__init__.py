@@ -142,7 +142,6 @@ class Audiobookshelf(MusicProvider):
         except RuntimeError:
             # login details were not correct
             raise LoginFailed(f"Login to abs instance at {base_url} failed.")
-        await self._client.sync()
 
         # this will be provided when creating sessions or receive already opened sessions
         self.device_info = ABSDeviceInfo(
