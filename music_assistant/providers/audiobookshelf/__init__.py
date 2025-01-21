@@ -41,6 +41,7 @@ from music_assistant.providers.audiobookshelf.abs_schema import (
     ABSLibraryItemExpandedBook,
     ABSLibraryItemExpandedPodcast,
     ABSLibraryItemMinifiedBook,
+    ABSLibraryItemMinifiedPodcast,
     ABSPlaybackSessionExpanded,
     ABSPodcastEpisodeExpanded,
 )
@@ -175,7 +176,9 @@ class Audiobookshelf(MusicProvider):
         await self._client.sync()
         await super().sync_library(media_types=media_types)
 
-    def _parse_podcast(self, abs_podcast: ABSLibraryItemExpandedPodcast) -> Podcast:
+    def _parse_podcast(
+        self, abs_podcast: ABSLibraryItemExpandedPodcast | ABSLibraryItemMinifiedPodcast
+    ) -> Podcast:
         """Translate ABSPodcast to MassPodcast."""
         title = abs_podcast.media.metadata.title
         # Per API doc title may be None.
@@ -186,7 +189,6 @@ class Audiobookshelf(MusicProvider):
             name=title,
             publisher=abs_podcast.media.metadata.author,
             provider=self.lookup_key,
-            total_episodes=len(abs_podcast.media.episodes),
             provider_mappings={
                 ProviderMapping(
                     item_id=abs_podcast.id_,
@@ -210,6 +212,11 @@ class Audiobookshelf(MusicProvider):
             mass_podcast.metadata.genres = set(abs_podcast.media.metadata.genres)
         mass_podcast.metadata.release_date = abs_podcast.media.metadata.release_date
 
+        if isinstance(abs_podcast, ABSLibraryItemExpandedPodcast):
+            mass_podcast.total_episodes = len(abs_podcast.media.episodes)
+        elif isinstance(abs_podcast, ABSLibraryItemMinifiedPodcast):
+            mass_podcast.total_episodes = abs_podcast.media.num_episodes
+
         return mass_podcast
 
     async def _parse_podcast_episode(
@@ -217,6 +224,7 @@ class Audiobookshelf(MusicProvider):
         episode: ABSPodcastEpisodeExpanded,
         prov_podcast_id: str,
         fallback_episode_cnt: int | None = None,
+        add_progress: bool = False,  # progress only needed on playback, saves one api call
     ) -> PodcastEpisode:
         """Translate ABSPodcastEpisode to MassPodcastEpisode.
 
@@ -257,12 +265,13 @@ class Audiobookshelf(MusicProvider):
                 )
             },
         )
-        progress, finished = await self._client.get_podcast_progress_ms(
-            prov_podcast_id, episode.id_
-        )
-        if progress is not None:
-            mass_episode.resume_position_ms = progress
-            mass_episode.fully_played = finished
+        if add_progress:
+            progress, finished = await self._client.get_podcast_progress_ms(
+                prov_podcast_id, episode.id_
+            )
+            if progress is not None:
+                mass_episode.resume_position_ms = progress
+                mass_episode.fully_played = finished
 
         # cover image
         url_base = f"{self.config.get_value(CONF_URL)}"
@@ -305,7 +314,9 @@ class Audiobookshelf(MusicProvider):
         episode_cnt = 1
         for abs_episode in abs_podcast.media.episodes:
             if abs_episode.id_ == e_id:
-                return await self._parse_podcast_episode(abs_episode, prov_podcast_id, episode_cnt)
+                return await self._parse_podcast_episode(
+                    abs_episode, prov_podcast_id, episode_cnt, add_progress=True
+                )
 
             episode_cnt += 1
         raise MediaNotFoundError("Episode not found")
@@ -569,7 +580,8 @@ class Audiobookshelf(MusicProvider):
         def get_item_mapping(
             item: ABSLibraryItemExpandedBook
             | ABSLibraryItemMinifiedBook
-            | ABSLibraryItemExpandedPodcast,
+            | ABSLibraryItemExpandedPodcast
+            | ABSLibraryItemMinifiedPodcast,
         ) -> ItemMapping:
             title = item.media.metadata.title
             if title is None:

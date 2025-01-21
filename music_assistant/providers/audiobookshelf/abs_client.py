@@ -165,7 +165,7 @@ class ABSClient:
                     self.podcast_libraries.append(library)
         self.user = await self.get_authenticated_user()
 
-    async def get_all_podcasts(self) -> AsyncGenerator[ABSLibraryItemExpandedPodcast]:
+    async def get_all_podcasts(self) -> AsyncGenerator[ABSLibraryItemMinifiedPodcast]:
         """Get all available podcasts."""
         for library in self.podcast_libraries:
             async for podcast in self.get_all_podcasts_by_library(library):
@@ -191,21 +191,14 @@ class ABSClient:
 
     async def get_all_podcasts_by_library(
         self, lib: ABSLibrary
-    ) -> AsyncGenerator[ABSLibraryItemExpandedPodcast]:
+    ) -> AsyncGenerator[ABSLibraryItemMinifiedPodcast]:
         """Get all podcasts in a library."""
         async for podcast_data in self._get_lib_items(lib):
             podcast_list = ABSLibrariesItemsMinifiedPodcastResponse.from_json(podcast_data).results
             if not podcast_list:  # [] if page exceeds
                 return
 
-            async def _get_id(
-                plist: list[ABSLibraryItemMinifiedPodcast] = podcast_list,
-            ) -> AsyncGenerator[str]:
-                for entry in plist:
-                    yield entry.id_
-
-            async for id_ in _get_id():
-                podcast = await self.get_podcast(id_)
+            for podcast in podcast_list:
                 yield podcast
 
     async def get_podcast(self, id_: str) -> ABSLibraryItemExpandedPodcast:
