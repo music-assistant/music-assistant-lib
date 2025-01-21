@@ -674,7 +674,7 @@ class DeezerProvider(MusicProvider):
                 )
             },
             metadata=self.parse_metadata_track(track=track),
-            track_number=position,
+            track_number=getattr(track, "track_position", position),
             position=position,
             disc_number=getattr(track, "disk_number", 0),
         )
