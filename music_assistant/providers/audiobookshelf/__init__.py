@@ -224,7 +224,6 @@ class Audiobookshelf(MusicProvider):
         episode: ABSPodcastEpisodeExpanded,
         prov_podcast_id: str,
         fallback_episode_cnt: int | None = None,
-        add_progress: bool = False,  # progress only needed on playback, saves one api call
     ) -> PodcastEpisode:
         """Translate ABSPodcastEpisode to MassPodcastEpisode.
 
@@ -265,13 +264,12 @@ class Audiobookshelf(MusicProvider):
                 )
             },
         )
-        if add_progress:
-            progress, finished = await self._client.get_podcast_progress_ms(
-                prov_podcast_id, episode.id_
-            )
-            if progress is not None:
-                mass_episode.resume_position_ms = progress
-                mass_episode.fully_played = finished
+        progress, finished = await self._client.get_podcast_progress_ms(
+            prov_podcast_id, episode.id_
+        )
+        if progress is not None:
+            mass_episode.resume_position_ms = progress
+            mass_episode.fully_played = finished
 
         # cover image
         url_base = f"{self.config.get_value(CONF_URL)}"
@@ -314,9 +312,7 @@ class Audiobookshelf(MusicProvider):
         episode_cnt = 1
         for abs_episode in abs_podcast.media.episodes:
             if abs_episode.id_ == e_id:
-                return await self._parse_podcast_episode(
-                    abs_episode, prov_podcast_id, episode_cnt, add_progress=True
-                )
+                return await self._parse_podcast_episode(abs_episode, prov_podcast_id, episode_cnt)
 
             episode_cnt += 1
         raise MediaNotFoundError("Episode not found")
