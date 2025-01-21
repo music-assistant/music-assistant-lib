@@ -285,18 +285,18 @@ class Audiobookshelf(MusicProvider):
 
     async def get_library_podcasts(self) -> AsyncGenerator[Podcast, None]:
         """Retrieve library/subscribed podcasts from the provider."""
-        async for abs_podcast in self._client.get_all_podcasts():
+        async for abs_podcast in self._client.get_all_podcasts_minified():
             mass_podcast = self._parse_podcast(abs_podcast)
             yield mass_podcast
 
     async def get_podcast(self, prov_podcast_id: str) -> Podcast:
         """Get single podcast."""
-        abs_podcast = await self._client.get_podcast(prov_podcast_id)
+        abs_podcast = await self._client.get_podcast_expanded(prov_podcast_id)
         return self._parse_podcast(abs_podcast)
 
     async def get_podcast_episodes(self, prov_podcast_id: str) -> list[PodcastEpisode]:
         """Get all podcast episodes of podcast."""
-        abs_podcast = await self._client.get_podcast(prov_podcast_id)
+        abs_podcast = await self._client.get_podcast_expanded(prov_podcast_id)
         episode_list = []
         episode_cnt = 1
         for abs_episode in abs_podcast.media.episodes:
@@ -310,7 +310,7 @@ class Audiobookshelf(MusicProvider):
     async def get_podcast_episode(self, prov_episode_id: str) -> PodcastEpisode:
         """Get single podcast episode."""
         prov_podcast_id, e_id = prov_episode_id.split(" ")
-        abs_podcast = await self._client.get_podcast(prov_podcast_id)
+        abs_podcast = await self._client.get_podcast_expanded(prov_podcast_id)
         episode_cnt = 1
         for abs_episode in abs_podcast.media.episodes:
             if abs_episode.id_ == e_id:
@@ -391,7 +391,7 @@ class Audiobookshelf(MusicProvider):
 
     async def get_audiobook(self, prov_audiobook_id: str) -> Audiobook:
         """Get a single audiobook."""
-        abs_audiobook = await self._client.get_audiobook(prov_audiobook_id)
+        abs_audiobook = await self._client.get_audiobook_expanded(prov_audiobook_id)
         return await self._parse_audiobook(abs_audiobook)
 
     async def get_streamdetails_from_playback_session(
@@ -440,7 +440,7 @@ class Audiobookshelf(MusicProvider):
         if media_type == MediaType.PODCAST_EPISODE:
             return await self._get_stream_details_podcast_episode(item_id)
         elif media_type == MediaType.AUDIOBOOK:
-            abs_audiobook = await self._client.get_audiobook(item_id)
+            abs_audiobook = await self._client.get_audiobook_expanded(item_id)
             tracks = abs_audiobook.media.tracks
             if len(tracks) == 0:
                 raise MediaNotFoundError("Stream not found")
@@ -482,7 +482,7 @@ class Audiobookshelf(MusicProvider):
         abs_podcast_id, abs_episode_id = podcast_id.split(" ")
         abs_episode = None
 
-        abs_podcast = await self._client.get_podcast(abs_podcast_id)
+        abs_podcast = await self._client.get_podcast_expanded(abs_podcast_id)
         for abs_episode in abs_podcast.media.episodes:
             if abs_episode.id_ == abs_episode_id:
                 break
@@ -599,7 +599,7 @@ class Audiobookshelf(MusicProvider):
 
         items: list[MediaItemType | ItemMapping] = []
         if media_type == MediaType.PODCAST:
-            async for podcast in self._client.get_all_podcasts_by_library(library):
+            async for podcast in self._client.get_all_podcasts_by_library_minified(library):
                 items.append(get_item_mapping(podcast))
         elif media_type == MediaType.AUDIOBOOK:
             async for audiobook in self._client.get_all_audiobooks_by_library_minified(library):

@@ -165,10 +165,10 @@ class ABSClient:
                     self.podcast_libraries.append(library)
         self.user = await self.get_authenticated_user()
 
-    async def get_all_podcasts(self) -> AsyncGenerator[ABSLibraryItemMinifiedPodcast]:
+    async def get_all_podcasts_minified(self) -> AsyncGenerator[ABSLibraryItemMinifiedPodcast]:
         """Get all available podcasts."""
         for library in self.podcast_libraries:
-            async for podcast in self.get_all_podcasts_by_library(library):
+            async for podcast in self.get_all_podcasts_by_library_minified(library):
                 yield podcast
 
     async def _get_lib_items(self, lib: ABSLibrary) -> AsyncGenerator[bytes]:
@@ -189,7 +189,7 @@ class ABSClient:
             page_cnt += 1
             yield data
 
-    async def get_all_podcasts_by_library(
+    async def get_all_podcasts_by_library_minified(
         self, lib: ABSLibrary
     ) -> AsyncGenerator[ABSLibraryItemMinifiedPodcast]:
         """Get all podcasts in a library."""
@@ -201,7 +201,7 @@ class ABSClient:
             for podcast in podcast_list:
                 yield podcast
 
-    async def get_podcast(self, id_: str) -> ABSLibraryItemExpandedPodcast:
+    async def get_podcast_expanded(self, id_: str) -> ABSLibraryItemExpandedPodcast:
         """Get a single Podcast by ID."""
         # this endpoint gives more podcast extra data
         data = await self._get(f"items/{id_}?expanded=1")
@@ -312,7 +312,7 @@ class ABSClient:
             for audiobook in audiobook_list:
                 yield audiobook
 
-    async def get_audiobook(self, id_: str) -> ABSLibraryItemExpandedBook:
+    async def get_audiobook_expanded(self, id_: str) -> ABSLibraryItemExpandedBook:
         """Get a single Audiobook by ID."""
         # this endpoint gives more audiobook extra data
         audiobook = await self._get(f"items/{id_}?expanded=1")
