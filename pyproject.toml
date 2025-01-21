@@ -77,7 +77,7 @@ fix = true
 show-fixes = true
 
 line-length = 100
-target-version = "py311"
+target-version = "py312"
 
 [tool.ruff.lint.pydocstyle]
 # Use Google-style docstrings.
