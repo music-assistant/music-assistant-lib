@@ -148,7 +148,7 @@ class AirplayProvider(PlayerProvider):
         self._players = {}
         self.cliraop_bin: str | None = await get_cliraop_binary()
         dacp_port = await select_free_port(39831, 49831)
-        self.dacp_id = dacp_id = f"{randrange(2 ** 64):X}"
+        self.dacp_id = dacp_id = f"{randrange(2**64):X}"
         self.logger.debug("Starting DACP ActiveRemote %s on port %s", dacp_id, dacp_port)
         self._dacp_server = await asyncio.start_server(
             self._handle_dacp_request, "0.0.0.0", dacp_port

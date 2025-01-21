@@ -382,7 +382,7 @@ class SpotifyProvider(MusicProvider):
         liked_songs = Playlist(
             item_id=self._get_liked_songs_playlist_id(),
             provider=self.lookup_key,
-            name=f'Liked Songs {self._sp_user["display_name"]}',  # TODO to be translated
+            name=f"Liked Songs {self._sp_user['display_name']}",  # TODO to be translated
             owner=self._sp_user["display_name"],
             provider_mappings={
                 ProviderMapping(
@@ -529,7 +529,7 @@ class SpotifyProvider(MusicProvider):
             for item in spotify_result["items"]:
                 if not (item and item["track"] and item["track"]["id"]):
                     continue
-                track_uris.append({"uri": f'spotify:track:{item["track"]["id"]}'})
+                track_uris.append({"uri": f"spotify:track:{item['track']['id']}"})
         data = {"tracks": track_uris}
         await self._delete_data(f"playlists/{prov_playlist_id}/tracks", data=data)
 
@@ -906,7 +906,7 @@ class SpotifyProvider(MusicProvider):
         kwargs["country"] = "from_token"
         if not (auth_info := kwargs.pop("auth_info", None)):
             auth_info = await self.login()
-        headers = {"Authorization": f'Bearer {auth_info["access_token"]}'}
+        headers = {"Authorization": f"Bearer {auth_info['access_token']}"}
         locale = self.mass.metadata.locale.replace("_", "-")
         language = locale.split("-")[0]
         headers["Accept-Language"] = f"{locale}, {language};q=0.9, *;q=0.5"
@@ -942,7 +942,7 @@ class SpotifyProvider(MusicProvider):
         """Delete data from api."""
         url = f"https://api.spotify.com/v1/{endpoint}"
         auth_info = kwargs.pop("auth_info", await self.login())
-        headers = {"Authorization": f'Bearer {auth_info["access_token"]}'}
+        headers = {"Authorization": f"Bearer {auth_info['access_token']}"}
         async with self.mass.http_session.delete(
             url, headers=headers, params=kwargs, json=data, ssl=False
         ) as response:
@@ -967,7 +967,7 @@ class SpotifyProvider(MusicProvider):
         """Put data on api."""
         url = f"https://api.spotify.com/v1/{endpoint}"
         auth_info = kwargs.pop("auth_info", await self.login())
-        headers = {"Authorization": f'Bearer {auth_info["access_token"]}'}
+        headers = {"Authorization": f"Bearer {auth_info['access_token']}"}
         async with self.mass.http_session.put(
             url, headers=headers, params=kwargs, json=data, ssl=False
         ) as response:
@@ -993,7 +993,7 @@ class SpotifyProvider(MusicProvider):
         """Post data on api."""
         url = f"https://api.spotify.com/v1/{endpoint}"
         auth_info = kwargs.pop("auth_info", await self.login())
-        headers = {"Authorization": f'Bearer {auth_info["access_token"]}'}
+        headers = {"Authorization": f"Bearer {auth_info['access_token']}"}
         async with self.mass.http_session.post(
             url, headers=headers, params=kwargs, json=data, ssl=False
         ) as response:

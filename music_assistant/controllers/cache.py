@@ -288,8 +288,7 @@ class CacheController(CoreController):
             f"ON {DB_TABLE_CACHE}(base_key);"
         )
         await self.database.execute(
-            f"CREATE INDEX IF NOT EXISTS {DB_TABLE_CACHE}_sub_key_idx "
-            f"ON {DB_TABLE_CACHE}(sub_key);"
+            f"CREATE INDEX IF NOT EXISTS {DB_TABLE_CACHE}_sub_key_idx ON {DB_TABLE_CACHE}(sub_key);"
         )
         await self.database.execute(
             f"CREATE INDEX IF NOT EXISTS {DB_TABLE_CACHE}_category_base_key_idx "

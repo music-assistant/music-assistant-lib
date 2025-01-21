@@ -56,7 +56,7 @@ class WebserverController(CoreController):
     def __init__(self, *args, **kwargs) -> None:
         """Initialize instance."""
         super().__init__(*args, **kwargs)
-        self._server = Webserver(self.mass, self.logger, enable_dynamic_routes=False)
+        self._server = Webserver(self.logger, enable_dynamic_routes=False)
         self.clients: set[WebsocketClientHandler] = set()
         self.manifest.name = "Web Server (frontend and api)"
         self.manifest.description = (

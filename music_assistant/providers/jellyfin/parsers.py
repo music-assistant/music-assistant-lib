@@ -31,6 +31,7 @@ from .const import (
     ITEM_KEY_CAN_DOWNLOAD,
     ITEM_KEY_ID,
     ITEM_KEY_IMAGE_TAGS,
+    ITEM_KEY_MEDIA_CHANNELS,
     ITEM_KEY_MEDIA_CODEC,
     ITEM_KEY_MEDIA_STREAMS,
     ITEM_KEY_MUSICBRAINZ_ALBUM,
@@ -171,14 +172,25 @@ def parse_artist(
     return artist
 
 
+def audio_format(track: JellyTrack) -> AudioFormat:
+    """Build an AudioFormat model from a Jellyfin track."""
+    stream = track[ITEM_KEY_MEDIA_STREAMS][0]
+    codec = stream[ITEM_KEY_MEDIA_CODEC]
+    return AudioFormat(
+        content_type=(ContentType.try_parse(codec) if codec else ContentType.UNKNOWN),
+        channels=stream[ITEM_KEY_MEDIA_CHANNELS],
+        sample_rate=stream.get("SampleRate", 44100),
+        bit_rate=stream.get("BitRate"),
+        bit_depth=stream.get("BitDepth", 16),
+    )
+
+
 def parse_track(
     logger: Logger, instance_id: str, client: Connection, jellyfin_track: JellyTrack
 ) -> Track:
     """Parse a Jellyfin Track response to a Track model object."""
     available = False
-    content = None
     available = jellyfin_track[ITEM_KEY_CAN_DOWNLOAD]
-    content = jellyfin_track[ITEM_KEY_MEDIA_STREAMS][0][ITEM_KEY_MEDIA_CODEC]
     track = Track(
         item_id=jellyfin_track[ITEM_KEY_ID],
         provider=instance_id,
@@ -189,11 +201,7 @@ def parse_track(
                 provider_domain=DOMAIN,
                 provider_instance=instance_id,
                 available=available,
-                audio_format=AudioFormat(
-                    content_type=(
-                        ContentType.try_parse(content) if content else ContentType.UNKNOWN
-                    ),
-                ),
+                audio_format=audio_format(jellyfin_track),
                 url=client.audio_url(jellyfin_track[ITEM_KEY_ID]),
             )
         },

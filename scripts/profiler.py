@@ -57,7 +57,7 @@ def print_trace():
 
     print(
         "\n*** Trace for largest memory block - "
-        f"({largest.count} blocks, {largest.size/1024} Kb) ***"
+        f"({largest.count} blocks, {largest.size / 1024} Kb) ***"
     )
     for l in largest.traceback.format():
         print(l)

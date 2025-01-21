@@ -162,7 +162,7 @@ class SiriusXMProvider(MusicProvider):
         self._base_url = f"{bind_ip}:{bind_port}"
         http_handler = sxm.http.make_http_handler(self._client)
 
-        self._sxm_server = Webserver(self.mass, self.logger)
+        self._sxm_server = Webserver(self.logger)
 
         await self._sxm_server.setup(
             bind_ip=bind_ip,

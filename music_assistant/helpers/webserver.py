@@ -11,7 +11,6 @@ if TYPE_CHECKING:
     import logging
     from collections.abc import Awaitable, Callable
 
-    from music_assistant.mass import MusicAssistant
 
 MAX_CLIENT_SIZE: Final = 1024**2 * 16
 MAX_LINE_SIZE: Final = 24570
@@ -22,12 +21,10 @@ class Webserver:
 
     def __init__(
         self,
-        mass: MusicAssistant,
         logger: logging.Logger,
         enable_dynamic_routes: bool = False,
     ) -> None:
         """Initialize instance."""
-        self.mass = mass
         self.logger = logger
         # the below gets initialized in async setup
         self._apprunner: web.AppRunner | None = None
@@ -46,7 +43,7 @@ class Webserver:
         static_content: tuple[str, str, str] | None = None,
     ) -> None:
         """Async initialize of module."""
-        self._base_url = base_url[:-1] if base_url.endswith("/") else base_url
+        self._base_url = base_url.removesuffix("/")
         self._bind_port = bind_port
         self._static_routes = static_routes
         self._webapp = web.Application(
@@ -56,7 +53,6 @@ class Webserver:
                 "max_line_size": MAX_LINE_SIZE,
                 "max_field_size": MAX_LINE_SIZE,
             },
-            loop=self.mass.loop,
         )
         self.logger.info("Starting server on  %s:%s - base url: %s", bind_ip, bind_port, base_url)
         self._apprunner = web.AppRunner(self._webapp, access_log=None, shutdown_timeout=10)

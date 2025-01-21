@@ -170,8 +170,7 @@ class SMBFileSystemProvider(LocalFileSystemProvider):
             subfolder = subfolder.replace("\\", "/")
             if not subfolder.startswith("/"):
                 subfolder = "/" + subfolder
-            if subfolder.endswith("/"):
-                subfolder = subfolder[:-1]
+            subfolder = subfolder.removesuffix("/")
 
         env_vars = {
             **os.environ,

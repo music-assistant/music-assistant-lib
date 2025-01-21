@@ -118,9 +118,7 @@ class OpenSonicProvider(MusicProvider):
                 raise CredentialError
         except (AuthError, CredentialError) as e:
             msg = (
-                "Failed to connect to "
-                f"{self.config.get_value(CONF_BASE_URL)}"
-                ", check your settings."
+                f"Failed to connect to {self.config.get_value(CONF_BASE_URL)}, check your settings."
             )
             raise LoginFailed(msg) from e
         self._enable_podcasts = bool(self.config.get_value(CONF_ENABLE_PODCASTS))

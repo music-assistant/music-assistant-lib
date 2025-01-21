@@ -127,8 +127,7 @@ async def crossfade_pcm_parts(
         return crossfaded_audio
     # no crossfade_data, return original data instead
     LOGGER.debug(
-        "crossfade of pcm chunks failed: not enough data? "
-        "- fade_in_part: %s - fade_out_part: %s",
+        "crossfade of pcm chunks failed: not enough data? - fade_in_part: %s - fade_out_part: %s",
         len(fade_in_part),
         len(fade_out_part),
     )
@@ -967,7 +966,7 @@ def get_player_filter_params(
             # We can still apply the DSP of that single player.
             if player.group_childs:
                 child_player = mass.players.get(player.group_childs[0])
-                dsp = mass.config.get_player_dsp_config(mass, child_player)
+                dsp = mass.config.get_player_dsp_config(child_player)
             else:
                 # This should normally never happen, but if it does, we disable DSP.
                 dsp.enabled = False

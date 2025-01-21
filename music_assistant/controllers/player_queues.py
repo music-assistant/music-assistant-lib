@@ -124,7 +124,7 @@ class PlayerQueuesController(CoreController):
         self._prev_states: dict[str, CompareState] = {}
         self.manifest.name = "Player Queues controller"
         self.manifest.description = (
-            "Music Assistant's core controller " "which manages the queues for all players."
+            "Music Assistant's core controller which manages the queues for all players."
         )
         self.manifest.icon = "playlist-music"
 

@@ -80,8 +80,15 @@ class DatabaseConnection:
         """Perform async initialization."""
         self._db = await aiosqlite.connect(self.db_path)
         self._db.row_factory = aiosqlite.Row
+        # setup some default settings for more performance
         await self.execute("PRAGMA analysis_limit=10000;")
-        await self.execute("PRAGMA optimize;")
+        await self.execute("PRAGMA locking_mode=exclusive;")
+        await self.execute("PRAGMA journal_mode=WAL;")
+        await self.execute("PRAGMA journal_size_limit = 6144000;")
+        await self.execute("PRAGMA synchronous=normal;")
+        await self.execute("PRAGMA temp_store=memory;")
+        await self.execute("PRAGMA mmap_size = 30000000000;")
+        await self.execute("PRAGMA cache_size = -64000;")
         await self.commit()
 
     async def close(self) -> None:
@@ -172,10 +179,10 @@ class DatabaseConnection:
         """Insert data in given table."""
         keys = tuple(values.keys())
         if allow_replace:
-            sql_query = f'INSERT OR REPLACE INTO {table}({",".join(keys)})'
+            sql_query = f"INSERT OR REPLACE INTO {table}({','.join(keys)})"
         else:
-            sql_query = f'INSERT INTO {table}({",".join(keys)})'
-        sql_query += f' VALUES ({",".join(f":{x}" for x in keys)})'
+            sql_query = f"INSERT INTO {table}({','.join(keys)})"
+        sql_query += f" VALUES ({','.join(f':{x}' for x in keys)})"
         row_id = await self._db.execute_insert(sql_query, values)
         await self._db.commit()
         return row_id[0]
@@ -192,7 +199,7 @@ class DatabaseConnection:
     ) -> Mapping:
         """Update record."""
         keys = tuple(values.keys())
-        sql_query = f'UPDATE {table} SET {",".join(f"{x}=:{x}" for x in keys)} WHERE '
+        sql_query = f"UPDATE {table} SET {','.join(f'{x}=:{x}' for x in keys)} WHERE "
         sql_query += " AND ".join(f"{x} = :{x}" for x in match)
         await self.execute(sql_query, {**match, **values})
         await self._db.commit()

@@ -38,7 +38,7 @@ dependencies = [
 description = "Music Assistant"
 license = {text = "Apache-2.0"}
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 version = "0.0.0"
 
 [project.optional-dependencies]
@@ -53,7 +53,7 @@ test = [
   "pytest-cov==5.0.0",
   "syrupy==4.8.1",
   "tomli==2.2.1",
-  "ruff==0.8.6",
+  "ruff==0.9.2",
 ]
 
 [project.scripts]
@@ -77,7 +77,7 @@ fix = true
 show-fixes = true
 
 line-length = 100
-target-version = "py311"
+target-version = "py312"
 
 [tool.ruff.lint.pydocstyle]
 # Use Google-style docstrings.
@@ -127,7 +127,6 @@ exclude = [
   '^music_assistant/providers/chromecast/.*$',
   '^music_assistant/providers/deezer/.*$',
   '^music_assistant/providers/dlna/.*$',
-  '^music_assistant/providers/hass/.*$',
   '^music_assistant/providers/hass_players/.*$',
   '^music_assistant/providers/player_group/.*$',
   '^music_assistant/providers/podcastfeed/.*$',
@@ -252,6 +251,7 @@ ignore = [
   "PTH202",
   "ASYNC109",
   "ASYNC110",
+  "A005",
 ]
 
 select = ["ALL"]

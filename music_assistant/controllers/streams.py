@@ -96,7 +96,7 @@ class StreamsController(CoreController):
     def __init__(self, *args, **kwargs) -> None:
         """Initialize instance."""
         super().__init__(*args, **kwargs)
-        self._server = Webserver(self.mass, self.logger, enable_dynamic_routes=True)
+        self._server = Webserver(self.logger, enable_dynamic_routes=True)
         self.register_dynamic_route = self._server.register_dynamic_route
         self.unregister_dynamic_route = self._server.unregister_dynamic_route
         self.manifest.name = "Streamserver"

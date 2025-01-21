@@ -201,7 +201,7 @@ class ConfigController:
                 if prov.domain == raw_conf["domain"]:
                     break
             else:
-                msg = f'Unknown provider domain: {raw_conf["domain"]}'
+                msg = f"Unknown provider domain: {raw_conf['domain']}"
                 raise KeyError(msg)
             return ProviderConfig.parse(config_entries, raw_conf)
         msg = f"No config found for provider id {instance_id}"

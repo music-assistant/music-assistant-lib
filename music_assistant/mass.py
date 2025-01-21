@@ -135,7 +135,6 @@ class MusicAssistant:
             loop=self.loop,
             connector=TCPConnector(
                 ssl=False,
-                enable_cleanup_closed=True,
                 limit=4096,
                 limit_per_host=100,
             ),
