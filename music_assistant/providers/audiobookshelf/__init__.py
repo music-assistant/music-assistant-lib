@@ -40,6 +40,7 @@ from music_assistant.providers.audiobookshelf.abs_schema import (
     ABSLibrary,
     ABSLibraryItemExpandedBook,
     ABSLibraryItemExpandedPodcast,
+    ABSLibraryItemMinifiedBook,
     ABSPlaybackSessionExpanded,
     ABSPodcastEpisodeExpanded,
 )
@@ -309,7 +310,9 @@ class Audiobookshelf(MusicProvider):
             episode_cnt += 1
         raise MediaNotFoundError("Episode not found")
 
-    async def _parse_audiobook(self, abs_audiobook: ABSLibraryItemExpandedBook) -> Audiobook:
+    async def _parse_audiobook(
+        self, abs_audiobook: ABSLibraryItemExpandedBook | ABSLibraryItemMinifiedBook
+    ) -> Audiobook:
         mass_audiobook = Audiobook(
             item_id=abs_audiobook.id_,
             provider=self.lookup_key,
@@ -323,8 +326,6 @@ class Audiobookshelf(MusicProvider):
                 )
             },
             publisher=abs_audiobook.media.metadata.publisher,
-            authors=UniqueList([x.name for x in abs_audiobook.media.metadata.authors]),
-            narrators=UniqueList(abs_audiobook.media.metadata.narrators),
         )
         mass_audiobook.metadata.description = abs_audiobook.media.metadata.description
         if abs_audiobook.media.metadata.language is not None:
@@ -333,24 +334,7 @@ class Audiobookshelf(MusicProvider):
         if abs_audiobook.media.metadata.genres is not None:
             mass_audiobook.metadata.genres = set(abs_audiobook.media.metadata.genres)
 
-        # chapters
-        chapters = []
-        for idx, chapter in enumerate(abs_audiobook.media.chapters):
-            chapters.append(
-                MediaItemChapter(
-                    position=idx + 1,  # chapter starting at 1
-                    name=chapter.title,
-                    start=chapter.start,
-                    end=chapter.end,
-                )
-            )
-        mass_audiobook.metadata.chapters = chapters
-
         mass_audiobook.metadata.explicit = abs_audiobook.media.metadata.explicit
-        progress, finished = await self._client.get_audiobook_progress_ms(abs_audiobook.id_)
-        if progress is not None:
-            mass_audiobook.resume_position_ms = progress
-            mass_audiobook.fully_played = finished
 
         # cover
         base_url = f"{self.config.get_value(CONF_URL)}"
@@ -360,11 +344,37 @@ class Audiobookshelf(MusicProvider):
             [MediaItemImage(type=ImageType.THUMB, path=cover_url, provider=self.lookup_key)]
         )
 
+        # expanded version
+        if isinstance(abs_audiobook, ABSLibraryItemExpandedBook):
+            authors = UniqueList([x.name for x in abs_audiobook.media.metadata.authors])
+            narrators = UniqueList(abs_audiobook.media.metadata.narrators)
+            mass_audiobook.authors = authors
+            mass_audiobook.narrators = narrators
+            chapters = []
+            for idx, chapter in enumerate(abs_audiobook.media.chapters):
+                chapters.append(
+                    MediaItemChapter(
+                        position=idx + 1,  # chapter starting at 1
+                        name=chapter.title,
+                        start=chapter.start,
+                        end=chapter.end,
+                    )
+                )
+            mass_audiobook.metadata.chapters = chapters
+
+            progress, finished = await self._client.get_audiobook_progress_ms(abs_audiobook.id_)
+            if progress is not None:
+                mass_audiobook.resume_position_ms = progress
+                mass_audiobook.fully_played = finished
+        elif isinstance(abs_audiobook, ABSLibraryItemMinifiedBook):
+            mass_audiobook.authors = UniqueList([abs_audiobook.media.metadata.author_name])
+            mass_audiobook.narrators = UniqueList([abs_audiobook.media.metadata.narrator_name])
+
         return mass_audiobook
 
     async def get_library_audiobooks(self) -> AsyncGenerator[Audiobook, None]:
         """Get Audiobook libraries."""
-        async for abs_audiobook in self._client.get_all_audiobooks():
+        async for abs_audiobook in self._client.get_all_audiobooks_minified():
             mass_audiobook = await self._parse_audiobook(abs_audiobook)
             yield mass_audiobook
 
@@ -557,7 +567,9 @@ class Audiobookshelf(MusicProvider):
             raise MediaNotFoundError("Lib missing.")
 
         def get_item_mapping(
-            item: ABSLibraryItemExpandedBook | ABSLibraryItemExpandedPodcast,
+            item: ABSLibraryItemExpandedBook
+            | ABSLibraryItemMinifiedBook
+            | ABSLibraryItemExpandedPodcast,
         ) -> ItemMapping:
             title = item.media.metadata.title
             if title is None:
@@ -578,7 +590,7 @@ class Audiobookshelf(MusicProvider):
             async for podcast in self._client.get_all_podcasts_by_library(library):
                 items.append(get_item_mapping(podcast))
         elif media_type == MediaType.AUDIOBOOK:
-            async for audiobook in self._client.get_all_audiobooks_by_library(library):
+            async for audiobook in self._client.get_all_audiobooks_by_library_minified(library):
                 items.append(get_item_mapping(audiobook))
         else:
             raise RuntimeError(f"Media type must not be {media_type}")

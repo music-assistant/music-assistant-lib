@@ -301,29 +301,22 @@ class ABSClient:
         endpoint = f"me/progress/{audiobook_id}"
         await self._update_progress(endpoint, progress_s, duration_s, is_finished)
 
-    async def get_all_audiobooks(self) -> AsyncGenerator[ABSLibraryItemExpandedBook]:
+    async def get_all_audiobooks_minified(self) -> AsyncGenerator[ABSLibraryItemMinifiedBook]:
         """Get all audiobooks."""
         for library in self.audiobook_libraries:
-            async for book in self.get_all_audiobooks_by_library(library):
+            async for book in self.get_all_audiobooks_by_library_minified(library):
                 yield book
 
-    async def get_all_audiobooks_by_library(
+    async def get_all_audiobooks_by_library_minified(
         self, lib: ABSLibrary
-    ) -> AsyncGenerator[ABSLibraryItemExpandedBook]:
+    ) -> AsyncGenerator[ABSLibraryItemMinifiedBook]:
         """Get all Audiobooks in a library."""
         async for audiobook_data in self._get_lib_items(lib):
             audiobook_list = ABSLibrariesItemsMinifiedBookResponse.from_json(audiobook_data).results
             if not audiobook_list:  # [] if page exceeds
                 return
 
-            async def _get_id(
-                alist: list[ABSLibraryItemMinifiedBook] = audiobook_list,
-            ) -> AsyncGenerator[str]:
-                for entry in alist:
-                    yield entry.id_
-
-            async for id_ in _get_id():
-                audiobook = await self.get_audiobook(id_)
+            for audiobook in audiobook_list:
                 yield audiobook
 
     async def get_audiobook(self, id_: str) -> ABSLibraryItemExpandedBook:
