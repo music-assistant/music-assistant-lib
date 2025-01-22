@@ -751,7 +751,6 @@ class OpenSonicProvider(MusicProvider):
                 item.content_type,
             )
 
-            self.mass.create_task(self._report_playback_started(item_id))
         elif media_type == MediaType.PODCAST_EPISODE:
             item = await self._get_podcast_episode(item_id)
 
@@ -760,7 +759,6 @@ class OpenSonicProvider(MusicProvider):
                 item.id,
                 item.content_type,
             )
-            self.mass.create_task(self._report_playback_started(item.id))
         else:
             msg = f"Unsupported media type encountered '{media_type}'"
             raise UnsupportedFeaturedException(msg)
@@ -779,10 +777,6 @@ class OpenSonicProvider(MusicProvider):
             stream_type=StreamType.CUSTOM,
             duration=item.duration if item.duration else 0,
         )
-
-    async def _report_playback_started(self, item_id: str) -> None:
-        self.logger.debug("scrobble for now playing called for %s", item_id)
-        await self._run_async(self._conn.scrobble, sid=item_id, submission=False)
 
     async def on_played(
         self,
@@ -804,8 +798,8 @@ class OpenSonicProvider(MusicProvider):
         When fully_played is set to false and position is 0,
         the user marked the item as unplayed in the UI.
         """
-        self.logger.debug("scrobble for listen count called for %s", item_id)
-        await self._run_async(self._conn.scrobble, sid=item_id, submission=True)
+        # Leave this function as the place where we will create a bookmark for podcasts when they
+        # are stopped early and delete the bookmark when they are finished.
 
     async def get_audio_stream(
         self, streamdetails: StreamDetails, seek_position: int = 0
