@@ -5,6 +5,7 @@ We only implement the functions necessary for mass.
 
 import logging
 from collections.abc import AsyncGenerator
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
@@ -16,7 +17,6 @@ from music_assistant.providers.audiobookshelf.abs_schema import (
     ABSLibrariesItemsMinifiedBookResponse,
     ABSLibrariesItemsMinifiedPodcastResponse,
     ABSLibrariesResponse,
-    ABSLibrary,
     ABSLibraryItemExpandedBook,
     ABSLibraryItemExpandedPodcast,
     ABSLibraryItemMinifiedBook,
@@ -35,6 +35,15 @@ from music_assistant.providers.audiobookshelf.abs_schema import (
 LIMIT_ITEMS_PER_PAGE = 10
 
 
+@dataclass
+class LibraryWithItemIDs:
+    """Helper class to store ABSLibrary, and the ids of the items associated."""
+
+    id_: str
+    name: str = ""
+    item_ids: UniqueList[str] = field(default_factory=UniqueList[str])
+
+
 class ABSStatus(Enum):
     """ABS Status Enum."""
 
@@ -50,8 +59,8 @@ class ABSClient:
 
     def __init__(self) -> None:
         """Client authorization."""
-        self.podcast_libraries: list[ABSLibrary] = []
-        self.audiobook_libraries: list[ABSLibrary] = []
+        self.podcast_libraries: list[LibraryWithItemIDs] = []
+        self.audiobook_libraries: list[LibraryWithItemIDs] = []
         self.user: ABSUser
         self.check_ssl: bool
         # I would like to receive opened sessions via the API, however, it appears
@@ -159,10 +168,11 @@ class ABSClient:
         for library in libraries.libraries:
             media_type = library.media_type
             if library.id_ not in ids:
+                _library = LibraryWithItemIDs(library.id_, library.name)
                 if media_type == "book":
-                    self.audiobook_libraries.append(library)
+                    self.audiobook_libraries.append(_library)
                 elif media_type == "podcast":
-                    self.podcast_libraries.append(library)
+                    self.podcast_libraries.append(_library)
         self.user = await self.get_authenticated_user()
 
     async def get_all_podcasts_minified(self) -> AsyncGenerator[ABSLibraryItemMinifiedPodcast]:
@@ -171,7 +181,7 @@ class ABSClient:
             async for podcast in self.get_all_podcasts_by_library_minified(library):
                 yield podcast
 
-    async def _get_lib_items(self, lib: ABSLibrary) -> AsyncGenerator[bytes]:
+    async def _get_lib_items(self, lib: LibraryWithItemIDs) -> AsyncGenerator[bytes]:
         """Get library items with pagination.
 
         Note:
@@ -190,7 +200,7 @@ class ABSClient:
             yield data
 
     async def get_all_podcasts_by_library_minified(
-        self, lib: ABSLibrary
+        self, lib: LibraryWithItemIDs
     ) -> AsyncGenerator[ABSLibraryItemMinifiedPodcast]:
         """Get all podcasts in a library."""
         async for podcast_data in self._get_lib_items(lib):
@@ -199,6 +209,8 @@ class ABSClient:
                 return
 
             for podcast in podcast_list:
+                # store ids of library items for later use
+                lib.item_ids.append(podcast.id_)
                 yield podcast
 
     async def get_podcast_expanded(self, id_: str) -> ABSLibraryItemExpandedPodcast:
@@ -301,7 +313,7 @@ class ABSClient:
                 yield book
 
     async def get_all_audiobooks_by_library_minified(
-        self, lib: ABSLibrary
+        self, lib: LibraryWithItemIDs
     ) -> AsyncGenerator[ABSLibraryItemMinifiedBook]:
         """Get all Audiobooks in a library."""
         async for audiobook_data in self._get_lib_items(lib):
@@ -310,6 +322,8 @@ class ABSClient:
                 return
 
             for audiobook in audiobook_list:
+                # store ids of library items for later use
+                lib.item_ids.append(audiobook.id_)
                 yield audiobook
 
     async def get_audiobook_expanded(self, id_: str) -> ABSLibraryItemExpandedBook:

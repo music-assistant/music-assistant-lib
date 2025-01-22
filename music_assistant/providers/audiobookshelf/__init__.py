@@ -34,10 +34,9 @@ from music_assistant_models.media_items import (
 from music_assistant_models.streamdetails import StreamDetails
 
 from music_assistant.models.music_provider import MusicProvider
-from music_assistant.providers.audiobookshelf.abs_client import ABSClient
+from music_assistant.providers.audiobookshelf.abs_client import ABSClient, LibraryWithItemIDs
 from music_assistant.providers.audiobookshelf.abs_schema import (
     ABSDeviceInfo,
-    ABSLibrary,
     ABSLibraryItemExpandedBook,
     ABSLibraryItemExpandedPodcast,
     ABSLibraryItemMinifiedBook,
@@ -536,7 +535,7 @@ class Audiobookshelf(MusicProvider):
             )
 
     async def _browse_root(
-        self, library_list: list[ABSLibrary], item_path: str
+        self, library_list: list[LibraryWithItemIDs], item_path: str
     ) -> Sequence[MediaItemType | ItemMapping]:
         """Browse root folder in browse view.
 
@@ -558,7 +557,7 @@ class Audiobookshelf(MusicProvider):
     async def _browse_lib(
         self,
         library_id: str,
-        library_list: list[ABSLibrary],
+        library_list: list[LibraryWithItemIDs],
         media_type: MediaType,
     ) -> Sequence[MediaItemType | ItemMapping]:
         """Browse lib folder in browse view.
@@ -572,33 +571,16 @@ class Audiobookshelf(MusicProvider):
         if library is None:
             raise MediaNotFoundError("Lib missing.")
 
-        def get_item_mapping(
-            item: ABSLibraryItemExpandedBook
-            | ABSLibraryItemMinifiedBook
-            | ABSLibraryItemExpandedPodcast
-            | ABSLibraryItemMinifiedPodcast,
-        ) -> ItemMapping:
-            title = item.media.metadata.title
-            if title is None:
-                title = "UNKNOWN"
-            token = self._client.token
-            url = f"{self.config.get_value(CONF_URL)}/api/items/{item.id_}/cover?token={token}"
-            image = MediaItemImage(type=ImageType.THUMB, path=url, provider=self.lookup_key)
-            return ItemMapping(
-                media_type=media_type,
-                item_id=item.id_,
-                provider=self.lookup_key,
-                name=title,
-                image=image,
-            )
-
         items: list[MediaItemType | ItemMapping] = []
-        if media_type == MediaType.PODCAST:
-            async for podcast in self._client.get_all_podcasts_by_library_minified(library):
-                items.append(get_item_mapping(podcast))
-        elif media_type == MediaType.AUDIOBOOK:
-            async for audiobook in self._client.get_all_audiobooks_by_library_minified(library):
-                items.append(get_item_mapping(audiobook))
+        if media_type in [MediaType.PODCAST, MediaType.AUDIOBOOK]:
+            for item_id in library.item_ids:
+                mass_item = await self.mass.music.get_library_item_by_prov_id(
+                    media_type=media_type,
+                    item_id=item_id,
+                    provider_instance_id_or_domain=self.instance_id,
+                )
+                if mass_item is not None:
+                    items.append(mass_item)
         else:
             raise RuntimeError(f"Media type must not be {media_type}")
         return items
