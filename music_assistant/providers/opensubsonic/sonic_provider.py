@@ -764,7 +764,15 @@ class OpenSonicProvider(MusicProvider):
             raise UnsupportedFeaturedException(msg)
 
         mime_type = item.content_type
-        if mime_type.endswith("mpeg"):
+        # For mp4 or m4a files, better to let ffmpeg detect the codec in use so mark them unknown
+        if mime_type.endswith("mp4"):
+            self.logger.warning(
+                "Due to the streaming method used by the subsonic API, M4A files "
+                "may fail. See provider documentation for more information."
+            )
+            mime_type = "?"
+        # For mp3 files, ffmpeg wants to be told 'mp3' instead of 'audio/mpeg'
+        elif mime_type.endswith("mpeg"):
             mime_type = item.suffix
 
         return StreamDetails(
@@ -823,7 +831,7 @@ class OpenSonicProvider(MusicProvider):
                     timeOffset=seek_position,
                     estimateContentLength=True,
                 ) as stream:
-                    for chunk in stream.iter_content(chunk_size=40960):
+                    for chunk in stream.iter_content(chunk_size=4096):
                         asyncio.run_coroutine_threadsafe(
                             audio_buffer.put(chunk), self.mass.loop
                         ).result()
