@@ -417,7 +417,7 @@ class ABSClient:
             page_cnt += 1
 
             sessions = ABSSessionsResponse.from_json(data).sessions
-            self.logger.debug([session.device_info for session in sessions])
+            # self.logger.debug([session.device_info for session in sessions])
             if sessions:
                 for session in sessions:
                     yield session

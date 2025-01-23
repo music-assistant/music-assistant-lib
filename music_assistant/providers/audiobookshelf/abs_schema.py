@@ -42,10 +42,10 @@ class ABSAudioTrack(BaseModel):
     https://api.audiobookshelf.org/#audio-track
     """
 
-    index: int | None
-    start_offset: Annotated[float, Alias("startOffset")] = 0.0
-    duration: float = 0.0
-    title: str = ""
+    # index: int | None
+    # start_offset: Annotated[float, Alias("startOffset")] = 0.0
+    # duration: float = 0.0
+    # title: str = ""
     content_url: Annotated[str, Alias("contentUrl")] = ""
     mime_type: str = ""
     # metadata: # not needed for mass application
@@ -85,13 +85,13 @@ class ABSUserPermissions(BaseModel):
     https://api.audiobookshelf.org/#user-permissions
     """
 
-    download: bool
-    update: bool
-    delete: bool
-    upload: bool
-    access_all_libraries: Annotated[bool, Alias("accessAllLibraries")]
-    access_all_tags: Annotated[bool, Alias("accessAllTags")]
-    access_explicit_content: Annotated[bool, Alias("accessExplicitContent")]
+    # download: bool
+    # update: bool
+    # delete: bool
+    # upload: bool
+    # access_all_libraries: Annotated[bool, Alias("accessAllLibraries")]
+    # access_all_tags: Annotated[bool, Alias("accessAllTags")]
+    # access_explicit_content: Annotated[bool, Alias("accessExplicitContent")]
 
 
 @dataclass
@@ -108,10 +108,10 @@ class ABSLibrary(BaseModel):
     # displayOrder: Integer
     # icon: String
     media_type: Annotated[str, Alias("mediaType")]
-    provider: str
+    # provider: str
     # settings
-    created_at: Annotated[int, Alias("createdAt")]
-    last_update: Annotated[int, Alias("lastUpdate")]
+    # created_at: Annotated[int, Alias("createdAt")]
+    # last_update: Annotated[int, Alias("lastUpdate")]
 
 
 @dataclass
@@ -149,11 +149,11 @@ class ABSAuthorMinified(BaseModel):
 class ABSAuthor(ABSAuthorMinified):
     """ABSAuthor."""
 
-    asin: str | None
+    # asin: str | None
     description: str | None
-    image_path: Annotated[str | None, Alias("imagePath")]
-    added_at: Annotated[int, Alias("addedAt")]  # ms epoch
-    updated_at: Annotated[int, Alias("updatedAt")]  # ms epoch
+    # image_path: Annotated[str | None, Alias("imagePath")]
+    # added_at: Annotated[int, Alias("addedAt")]  # ms epoch
+    # updated_at: Annotated[int, Alias("updatedAt")]  # ms epoch
 
 
 @dataclass
@@ -179,8 +179,8 @@ class ABSSeries(_ABSSeriesBase):
     """ABSSeries."""
 
     description: str | None
-    added_at: Annotated[int, Alias("addedAt")]  # ms epoch
-    updated_at: Annotated[int, Alias("updatedAt")]  # ms epoch
+    # added_at: Annotated[int, Alias("addedAt")]  # ms epoch
+    # updated_at: Annotated[int, Alias("updatedAt")]  # ms epoch
 
 
 @dataclass
@@ -221,10 +221,10 @@ class ABSMediaProgress(BaseModel):
     progress: float  # percent 0->1
     current_time: Annotated[float, Alias("currentTime")]  # seconds
     is_finished: Annotated[bool, Alias("isFinished")]
-    hide_from_continue_listening: Annotated[bool, Alias("hideFromContinueListening")]
-    last_update: Annotated[int, Alias("lastUpdate")]  # ms epoch
-    started_at: Annotated[int, Alias("startedAt")]  # ms epoch
-    finished_at: Annotated[int | None, Alias("finishedAt")]  # ms epoch
+    # hide_from_continue_listening: Annotated[bool, Alias("hideFromContinueListening")]
+    # last_update: Annotated[int, Alias("lastUpdate")]  # ms epoch
+    # started_at: Annotated[int, Alias("startedAt")]  # ms epoch
+    # finished_at: Annotated[int | None, Alias("finishedAt")]  # ms epoch
 
 
 # two additional progress variants, 'with media' book and podcast, further down.
@@ -243,15 +243,15 @@ class ABSUser(BaseModel):
     type_: Annotated[str, Alias("type")]
     token: str
     media_progress: Annotated[list[ABSMediaProgress], Alias("mediaProgress")]
-    series_hide_from_continue_listening: Annotated[
-        list[str], Alias("seriesHideFromContinueListening")
-    ]
-    bookmarks: list[ABSAudioBookmark]
-    is_active: Annotated[bool, Alias("isActive")]
-    is_locked: Annotated[bool, Alias("isLocked")]
-    last_seen: Annotated[int | None, Alias("lastSeen")]
-    created_at: Annotated[int, Alias("createdAt")]
-    permissions: ABSUserPermissions
+    # series_hide_from_continue_listening: Annotated[
+    #     list[str], Alias("seriesHideFromContinueListening")
+    # ]
+    # bookmarks: list[ABSAudioBookmark]
+    # is_active: Annotated[bool, Alias("isActive")]
+    # is_locked: Annotated[bool, Alias("isLocked")]
+    # last_seen: Annotated[int | None, Alias("lastSeen")]
+    # created_at: Annotated[int, Alias("createdAt")]
+    # permissions: ABSUserPermissions
     libraries_accessible: Annotated[list[str], Alias("librariesAccessible")]
 
     # this seems to be missing
@@ -278,30 +278,30 @@ class ABSPlaybackSession(BaseModel):
     """ABSPlaybackSession."""
 
     id_: Annotated[str, Alias("id")]
-    user_id: Annotated[str, Alias("userId")]
-    library_id: Annotated[str, Alias("libraryId")]
+    # user_id: Annotated[str, Alias("userId")]
+    # library_id: Annotated[str, Alias("libraryId")]
     library_item_id: Annotated[str, Alias("libraryItemId")]
     episode_id: Annotated[str | None, Alias("episodeId")]
     media_type: Annotated[str, Alias("mediaType")]
     # media_metadata: Annotated[ABSPodcastMetaData | ABSAudioBookMetaData, Alias("mediaMetadata")]
     # chapters: list[ABSAudioBookChapter]
     display_title: Annotated[str, Alias("displayTitle")]
-    display_author: Annotated[str, Alias("displayAuthor")]
-    cover_path: Annotated[str, Alias("coverPath")]
-    duration: float
+    # display_author: Annotated[str, Alias("displayAuthor")]
+    # cover_path: Annotated[str, Alias("coverPath")]
+    # duration: float
     # 0: direct play, 1: direct stream, 2: transcode, 3: local
-    play_method: Annotated[ABSPlayMethod, Alias("playMethod")]
-    media_player: Annotated[str, Alias("mediaPlayer")]
-    device_info: Annotated[ABSDeviceInfo, Alias("deviceInfo")]
-    server_version: Annotated[str, Alias("serverVersion")]
+    # play_method: Annotated[ABSPlayMethod, Alias("playMethod")]
+    # media_player: Annotated[str, Alias("mediaPlayer")]
+    # device_info: Annotated[ABSDeviceInfo, Alias("deviceInfo")]
+    # server_version: Annotated[str, Alias("serverVersion")]
     # YYYY-MM-DD
-    date: str
-    day_of_week: Annotated[str, Alias("dayOfWeek")]
-    time_listening: Annotated[float, Alias("timeListening")]  # s
-    start_time: Annotated[float, Alias("startTime")]  # s
-    current_time: Annotated[float, Alias("currentTime")]  # s
-    started_at: Annotated[int, Alias("startedAt")]  # ms since Unix Epoch
-    updated_at: Annotated[int, Alias("updatedAt")]  # ms since Unix Epoch
+    # date: str
+    # day_of_week: Annotated[str, Alias("dayOfWeek")]
+    # time_listening: Annotated[float, Alias("timeListening")]  # s
+    # start_time: Annotated[float, Alias("startTime")]  # s
+    # current_time: Annotated[float, Alias("currentTime")]  # s
+    # started_at: Annotated[int, Alias("startedAt")]  # ms since Unix Epoch
+    # updated_at: Annotated[int, Alias("updatedAt")]  # ms since Unix Epoch
 
 
 @dataclass
@@ -326,21 +326,21 @@ class ABSPodcastMetadata(BaseModel):
     description: str | None
     release_date: Annotated[str | None, Alias("releaseDate")]
     genres: list[str] | None
-    feed_url: Annotated[str | None, Alias("feedUrl")]
-    image_url: Annotated[str | None, Alias("imageUrl")]
-    itunes_page_url: Annotated[str | None, Alias("itunesPageUrl")]
-    itunes_id: Annotated[int | None, Alias("itunesId")]
-    itunes_artist_id: Annotated[int | None, Alias("itunesArtistId")]
+    # feed_url: Annotated[str | None, Alias("feedUrl")]
+    # image_url: Annotated[str | None, Alias("imageUrl")]
+    # itunes_page_url: Annotated[str | None, Alias("itunesPageUrl")]
+    # itunes_id: Annotated[int | None, Alias("itunesId")]
+    # itunes_artist_id: Annotated[int | None, Alias("itunesArtistId")]
     explicit: bool
     language: str | None
-    type_: Annotated[str | None, Alias("type")]
+    # type_: Annotated[str | None, Alias("type")]
 
 
 @dataclass
 class ABSPodcastMetadataMinified(ABSPodcastMetadata):
     """ABSPodcastMetadataMinified."""
 
-    title_ignore_prefix: Annotated[str, Alias("titleIgnorePrefix")]
+    # title_ignore_prefix: Annotated[str, Alias("titleIgnorePrefix")]
 
 
 ABSPodcastMetaDataExpanded = ABSPodcastMetadataMinified
@@ -359,15 +359,15 @@ class ABSPodcastEpisode(BaseModel):
     published_at: Annotated[int | None, Alias("publishedAt")]  # ms posix epoch
     added_at: Annotated[int | None, Alias("addedAt")]  # ms posix epoch
     updated_at: Annotated[int | None, Alias("updatedAt")]  # ms posix epoch
-    season: str = ""
+    # season: str = ""
     episode: str = ""
-    episode_type: Annotated[str, Alias("episodeType")] = ""
+    # episode_type: Annotated[str, Alias("episodeType")] = ""
     title: str = ""
     subtitle: str = ""
     description: str = ""
-    enclosure: str = ""
+    # enclosure: str = ""
     pub_date: Annotated[str, Alias("pubDate")] = ""
-    guid: str = ""
+    # guid: str = ""
     # chapters
 
 
@@ -384,18 +384,18 @@ class ABSPodcastEpisodeExpanded(BaseModel):
     # audio_file: # not needed for mass application
     published_at: Annotated[int | None, Alias("publishedAt")]  # ms posix epoch
     added_at: Annotated[int | None, Alias("addedAt")]  # ms posix epoch
-    updated_at: Annotated[int | None, Alias("updatedAt")]  # ms posix epoch
+    # updated_at: Annotated[int | None, Alias("updatedAt")]  # ms posix epoch
     audio_track: Annotated[ABSAudioTrack, Alias("audioTrack")]
-    size: int  # in bytes
-    season: str = ""
+    # size: int  # in bytes
+    # season: str = ""
     episode: str = ""
-    episode_type: Annotated[str, Alias("episodeType")] = ""
+    # episode_type: Annotated[str, Alias("episodeType")] = ""
     title: str = ""
     subtitle: str = ""
     description: str = ""
-    enclosure: str = ""
-    pub_date: Annotated[str, Alias("pubDate")] = ""
-    guid: str = ""
+    # enclosure: str = ""
+    # pub_date: Annotated[str, Alias("pubDate")] = ""
+    # guid: str = ""
     # chapters
     duration: float = 0.0
 
@@ -425,7 +425,7 @@ class ABSPodcastMinified(_ABSPodcastBase):
     """ABSPodcastMinified."""
 
     metadata: ABSPodcastMetadataMinified
-    size: int  # bytes
+    # size: int  # bytes
     num_episodes: Annotated[int, Alias("numEpisodes")] = 0
 
 
@@ -452,8 +452,8 @@ class _ABSBookMetadataBase(BaseModel):
     published_date: Annotated[str | None, Alias("publishedDate")]
     publisher: str | None
     description: str | None
-    isbn: str | None
-    asin: str | None
+    # isbn: str | None
+    # asin: str | None
     language: str | None
     explicit: bool
 
@@ -472,9 +472,9 @@ class ABSBookMetadataMinified(_ABSBookMetadataBase):
     """ABSBookMetadataMinified."""
 
     # these are normally there
-    title_ignore_prefix: Annotated[str, Alias("titleIgnorePrefix")]
+    # title_ignore_prefix: Annotated[str, Alias("titleIgnorePrefix")]
     author_name: Annotated[str, Alias("authorName")]
-    author_name_lf: Annotated[str, Alias("authorNameLF")]
+    # author_name_lf: Annotated[str, Alias("authorNameLF")]
     narrator_name: Annotated[str, Alias("narratorName")]
     series_name: Annotated[str, Alias("seriesName")]
 
@@ -511,11 +511,11 @@ class ABSBookMinified(_ABSBookBase):
     """ABSBookBase."""
 
     metadata: ABSBookMetadataMinified
-    num_tracks: Annotated[int, Alias("numTracks")]
-    num_audiofiles: Annotated[int, Alias("numAudioFiles")]
+    # num_tracks: Annotated[int, Alias("numTracks")]
+    # num_audiofiles: Annotated[int, Alias("numAudioFiles")]
     num_chapters: Annotated[int, Alias("numChapters")]
     duration: float  # in s
-    size: int  # in bytes
+    # size: int  # in bytes
     # ebookFormat
 
 
@@ -539,19 +539,19 @@ class _ABSLibraryItemBase(BaseModel):
     """_ABSLibraryItemBase."""
 
     id_: Annotated[str, Alias("id")]
-    ino: str
-    library_id: Annotated[str, Alias("libraryId")]
-    folder_id: Annotated[str, Alias("folderId")]
-    path: str
-    relative_path: Annotated[str, Alias("relPath")]
-    is_file: Annotated[bool, Alias("isFile")]
-    last_modified_ms: Annotated[int, Alias("mtimeMs")]  # epoch
-    last_changed_ms: Annotated[int, Alias("ctimeMs")]  # epoch
-    birthtime_ms: Annotated[int, Alias("birthtimeMs")]  # epoch
-    added_at: Annotated[int, Alias("addedAt")]  # ms epoch
-    updated_at: Annotated[int, Alias("updatedAt")]  # ms epoch
-    is_missing: Annotated[bool, Alias("isMissing")]
-    is_invalid: Annotated[bool, Alias("isInvalid")]
+    # ino: str
+    # library_id: Annotated[str, Alias("libraryId")]
+    # folder_id: Annotated[str, Alias("folderId")]
+    # path: str
+    # relative_path: Annotated[str, Alias("relPath")]
+    # is_file: Annotated[bool, Alias("isFile")]
+    # last_modified_ms: Annotated[int, Alias("mtimeMs")]  # epoch
+    # last_changed_ms: Annotated[int, Alias("ctimeMs")]  # epoch
+    # birthtime_ms: Annotated[int, Alias("birthtimeMs")]  # epoch
+    # added_at: Annotated[int, Alias("addedAt")]  # ms epoch
+    # updated_at: Annotated[int, Alias("updatedAt")]  # ms epoch
+    # is_missing: Annotated[bool, Alias("isMissing")]
+    # is_invalid: Annotated[bool, Alias("isInvalid")]
     media_type: Annotated[str, Alias("mediaType")]
 
 
@@ -559,8 +559,8 @@ class _ABSLibraryItemBase(BaseModel):
 class _ABSLibraryItem(_ABSLibraryItemBase):
     """ABSLibraryItem."""
 
-    last_scan: Annotated[int | None, Alias("lastScan")]  # ms epoch
-    scan_version: Annotated[str | None, Alias("scanVersion")]
+    # last_scan: Annotated[int | None, Alias("lastScan")]  # ms epoch
+    # scan_version: Annotated[str | None, Alias("scanVersion")]
     # libraryFiles
 
 
@@ -641,9 +641,9 @@ class ABSSeriesBooks(_ABSSeriesBase):
     """ABSSeriesBooks."""
 
     added_at: Annotated[int, Alias("addedAt")]  # ms epoch
-    name_ignore_prefix: Annotated[str, Alias("nameIgnorePrefix")]
-    name_ignore_prefix_sort: Annotated[str, Alias("nameIgnorePrefixSort")]
-    type_: Annotated[str, Alias("type")]
+    # name_ignore_prefix: Annotated[str, Alias("nameIgnorePrefix")]
+    # name_ignore_prefix_sort: Annotated[str, Alias("nameIgnorePrefixSort")]
+    # type_: Annotated[str, Alias("type")]
     books: list[ABSLibraryItemBookSeries]
     total_duration: Annotated[float, Alias("totalDuration")]  # s
 
