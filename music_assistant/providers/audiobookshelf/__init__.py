@@ -5,6 +5,7 @@ Audiobookshelf is abbreviated ABS here.
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import AsyncGenerator, Sequence
 from typing import TYPE_CHECKING
 
@@ -458,6 +459,8 @@ class Audiobookshelf(MusicProvider):
                 session = await self._client.get_playback_session_audiobook(
                     device_info=self.device_info, audiobook_id=item_id
                 )
+                # small delay, allow abs to launch ffmpeg process
+                await asyncio.sleep(1)
                 return await self.get_streamdetails_from_playback_session(session)
             return await self._get_stream_details_audiobook(abs_audiobook)
         raise MediaNotFoundError("Stream unknown")
