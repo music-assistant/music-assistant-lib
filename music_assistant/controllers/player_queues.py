@@ -924,25 +924,24 @@ class PlayerQueuesController(CoreController):
             # return early if the queue is not active and we have no previous state
             return
 
-        # update current item from player report
-        if player.state == PlayerState.PLAYING:
+        # update current item/index from player report
+        if queue.active and queue.state == PlayerState.PLAYING:
+            # NOTE: If the queue is not playing (yet) we will not update the current index
+            # to ensure we keep the previously known the current index
             if queue.flow_mode:
                 # flow mode active, the player is playing one long stream
                 # so we need to calculate the current index and elapsed time
                 queue.current_index, queue.elapsed_time = self._get_flow_queue_stream_index(
                     queue, player
                 )
-            else:
+            elif item_id := self._parse_player_current_item_id(queue_id, player):
                 # normal mode, the player itself will report the current item
                 queue.elapsed_time = int(player.corrected_elapsed_time or 0)
-                if item_id := self._parse_player_current_item_id(queue_id, player):
-                    queue.current_index = self.index_by_id(queue_id, item_id)
-                else:
-                    queue.current_index = None
-            # generic attributes we update when player is playing
-            queue.state = PlayerState.PLAYING
+                queue.current_index = self.index_by_id(queue_id, item_id)
             queue.elapsed_time_last_updated = time.time()
+            queue.state = player.state or PlayerState.IDLE
         else:
+            # queue is not active (or not playing)
             queue.state = player.state or PlayerState.IDLE
 
         # set current item and next item from the current index
@@ -1716,7 +1715,7 @@ class PlayerQueuesController(CoreController):
     ) -> tuple[int | None, int]:
         """Calculate current queue index and current track elapsed time when flow mode is active."""
         elapsed_time_queue_total = player.corrected_elapsed_time or 0
-        if queue.current_index is None:
+        if queue.current_index is None and not queue.flow_mode_stream_log:
             return None, elapsed_time_queue_total
 
         # For each track that has been streamed/buffered to the player,
@@ -1757,15 +1756,32 @@ class PlayerQueuesController(CoreController):
         """Parse QueueItem ID from Player's current url."""
         if not player.current_media:
             return None
-        if player.current_media.queue_id and player.current_media.queue_id != queue_id:
-            return None
-        if player.current_media.queue_item_id:
+        # prefer queue_id and queue_item_id within the current media
+        if player.current_media.queue_id == queue_id and player.current_media.queue_item_id:
             return player.current_media.queue_item_id
-        if not player.current_media.uri:
-            return None
-        if queue_id in player.current_media.uri:
-            # try to extract the item id from either a url or queue_id/item_id combi
+        # special case for sonos players
+        if (
+            player.current_media.uri == f"mass:queue:{queue_id}"
+            and player.current_media.queue_item_id
+        ):
+            return player.current_media.queue_item_id
+        # try to extract the item id from a mass stream url
+        if (
+            player.current_media.uri
+            and queue_id in player.current_media.uri
+            and self.mass.streams.base_url in player.current_media.uri
+        ):
             current_item_id = player.current_media.uri.rsplit("/")[-1].split(".")[0]
             if self.get_item(queue_id, current_item_id):
                 return current_item_id
+        # try to extract the item id from a queue_id/item_id combi
+        if (
+            player.current_media.uri
+            and queue_id in player.current_media.uri
+            and "/" in player.current_media.uri
+        ):
+            current_item_id = player.current_media.uri.split("/")[1]
+            if self.get_item(queue_id, current_item_id):
+                return current_item_id
+
         return None
