@@ -573,7 +573,7 @@ class DeezerProvider(MusicProvider):
     def parse_album(self, album: deezer.Album) -> Album:
         """Parse the deezer-python album to a Music Assistant album."""
         return Album(
-            album_type=AlbumType(album.type),
+            album_type=self.get_album_type(album),
             item_id=str(album.id),
             provider=self.lookup_key,
             name=album.title,
@@ -687,6 +687,23 @@ class DeezerProvider(MusicProvider):
         if hasattr(track, "title_short"):
             return track.title_short
         return track.title
+
+    def get_album_type(self, album: deezer.Album):
+        """Read and convert the Deezer album type."""
+        if not hasattr(album, "record_type"):
+            return AlbumType.UNKNOWN
+
+        match album.record_type:
+            case "album":
+                return AlbumType.ALBUM
+            case "single":
+                return AlbumType.SINGLE
+            case "ep":
+                return AlbumType.EP
+            case "compile":
+                return AlbumType.COMPILATION
+            case _:
+                return AlbumType.UNKNOWN
 
     ### SEARCH AND PARSE FUNCTIONS ###
     async def search_and_parse_tracks(
