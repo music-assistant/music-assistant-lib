@@ -164,7 +164,7 @@ class ABSClient:
         try:
             libraries = ABSLibrariesResponse.from_json(data)
         except (MissingField, InvalidFieldValue) as exc:
-            self.logger.warning(exc)
+            self.logger.error(exc)
             return
         ids = [x.id_ for x in self.audiobook_libraries]
         ids.extend([x.id_ for x in self.podcast_libraries])
@@ -212,7 +212,7 @@ class ABSClient:
                     podcast_data
                 ).results
             except (MissingField, InvalidFieldValue) as exc:
-                self.logger.warning(exc)
+                self.logger.error(exc)
                 return
             if not podcast_list:  # [] if page exceeds
                 return
@@ -229,7 +229,7 @@ class ABSClient:
         try:
             abs_podcast = ABSLibraryItemExpandedPodcast.from_json(data)
         except (MissingField, InvalidFieldValue) as exc:
-            self.logger.warning(exc)
+            self.logger.error(exc)
             raise RuntimeError from exc
         return abs_podcast
 
@@ -244,7 +244,7 @@ class ABSClient:
         try:
             abs_media_progress = ABSMediaProgress.from_json(data)
         except (MissingField, InvalidFieldValue) as exc:
-            self.logger.warning(exc)
+            self.logger.error(exc)
             return None, False
 
         return (
@@ -340,7 +340,7 @@ class ABSClient:
                     audiobook_data
                 ).results
             except (MissingField, InvalidFieldValue) as exc:
-                self.logger.warning(exc)
+                self.logger.error(exc)
                 return
             if not audiobook_list:  # [] if page exceeds
                 return
@@ -357,7 +357,7 @@ class ABSClient:
         try:
             abs_book = ABSLibraryItemExpandedBook.from_json(audiobook)
         except (MissingField, InvalidFieldValue) as exc:
-            self.logger.warning(exc)
+            self.logger.error(exc)
             raise RuntimeError from exc
         return abs_book
 
@@ -407,7 +407,7 @@ class ABSClient:
         try:
             session = ABSPlaybackSessionExpanded.from_json(data)
         except (MissingField, InvalidFieldValue) as exc:
-            self.logger.warning(exc)
+            self.logger.error(exc)
             raise RuntimeError from exc
 
         self.logger.debug(
