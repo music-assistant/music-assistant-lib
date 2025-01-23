@@ -688,7 +688,7 @@ class DeezerProvider(MusicProvider):
             return track.title_short
         return track.title
 
-    def get_album_type(self, album: deezer.Album):
+    def get_album_type(self, album: deezer.Album) -> AlbumType:
         """Read and convert the Deezer album type."""
         if not hasattr(album, "record_type"):
             return AlbumType.UNKNOWN
