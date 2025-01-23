@@ -829,7 +829,7 @@ class OpenSonicProvider(MusicProvider):
                     timeOffset=seek_position,
                     estimateContentLength=True,
                 ) as stream:
-                    for chunk in stream.iter_content(chunk_size=4096):
+                    for chunk in stream.iter_content(chunk_size=40960):
                         asyncio.run_coroutine_threadsafe(
                             audio_buffer.put(chunk), self.mass.loop
                         ).result()
