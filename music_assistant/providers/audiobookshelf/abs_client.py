@@ -10,6 +10,7 @@ from enum import Enum
 from typing import Any
 
 from aiohttp import ClientSession
+from mashumaro.exceptions import InvalidFieldValue, MissingField
 from music_assistant_models.media_items import UniqueList
 
 from music_assistant.providers.audiobookshelf.abs_schema import (
@@ -23,10 +24,8 @@ from music_assistant.providers.audiobookshelf.abs_schema import (
     ABSLibraryItemMinifiedPodcast,
     ABSLoginResponse,
     ABSMediaProgress,
-    ABSPlaybackSession,
     ABSPlaybackSessionExpanded,
     ABSPlayRequest,
-    ABSSessionsResponse,
     ABSSessionUpdate,
     ABSUser,
 )
@@ -162,7 +161,11 @@ class ABSClient:
     async def sync(self) -> None:
         """Update available book and podcast libraries."""
         data = await self._get("libraries")
-        libraries = ABSLibrariesResponse.from_json(data)
+        try:
+            libraries = ABSLibrariesResponse.from_json(data)
+        except (MissingField, InvalidFieldValue) as exc:
+            self.logger.warning(exc)
+            return
         ids = [x.id_ for x in self.audiobook_libraries]
         ids.extend([x.id_ for x in self.podcast_libraries])
         for library in libraries.libraries:
@@ -204,7 +207,13 @@ class ABSClient:
     ) -> AsyncGenerator[ABSLibraryItemMinifiedPodcast]:
         """Get all podcasts in a library."""
         async for podcast_data in self._get_lib_items(lib):
-            podcast_list = ABSLibrariesItemsMinifiedPodcastResponse.from_json(podcast_data).results
+            try:
+                podcast_list = ABSLibrariesItemsMinifiedPodcastResponse.from_json(
+                    podcast_data
+                ).results
+            except (MissingField, InvalidFieldValue) as exc:
+                self.logger.warning(exc)
+                return
             if not podcast_list:  # [] if page exceeds
                 return
 
@@ -217,7 +226,12 @@ class ABSClient:
         """Get a single Podcast by ID."""
         # this endpoint gives more podcast extra data
         data = await self._get(f"items/{id_}?expanded=1")
-        return ABSLibraryItemExpandedPodcast.from_json(data)
+        try:
+            abs_podcast = ABSLibraryItemExpandedPodcast.from_json(data)
+        except (MissingField, InvalidFieldValue) as exc:
+            self.logger.warning(exc)
+            raise RuntimeError from exc
+        return abs_podcast
 
     async def _get_progress_ms(
         self,
@@ -227,7 +241,11 @@ class ABSClient:
         if not data:
             # entry doesn't exist, so it wasn't played yet
             return 0, False
-        abs_media_progress = ABSMediaProgress.from_json(data)
+        try:
+            abs_media_progress = ABSMediaProgress.from_json(data)
+        except (MissingField, InvalidFieldValue) as exc:
+            self.logger.warning(exc)
+            return None, False
 
         return (
             int(abs_media_progress.current_time * 1000),
@@ -317,7 +335,13 @@ class ABSClient:
     ) -> AsyncGenerator[ABSLibraryItemMinifiedBook]:
         """Get all Audiobooks in a library."""
         async for audiobook_data in self._get_lib_items(lib):
-            audiobook_list = ABSLibrariesItemsMinifiedBookResponse.from_json(audiobook_data).results
+            try:
+                audiobook_list = ABSLibrariesItemsMinifiedBookResponse.from_json(
+                    audiobook_data
+                ).results
+            except (MissingField, InvalidFieldValue) as exc:
+                self.logger.warning(exc)
+                return
             if not audiobook_list:  # [] if page exceeds
                 return
 
@@ -330,7 +354,12 @@ class ABSClient:
         """Get a single Audiobook by ID."""
         # this endpoint gives more audiobook extra data
         audiobook = await self._get(f"items/{id_}?expanded=1")
-        return ABSLibraryItemExpandedBook.from_json(audiobook)
+        try:
+            abs_book = ABSLibraryItemExpandedBook.from_json(audiobook)
+        except (MissingField, InvalidFieldValue) as exc:
+            self.logger.warning(exc)
+            raise RuntimeError from exc
+        return abs_book
 
     async def get_playback_session_podcast(
         self, device_info: ABSDeviceInfo, podcast_id: str, episode_id: str
@@ -359,14 +388,6 @@ class ABSClient:
         device_info.device_id += f"/{audiobook_id}"
         return await self._get_playback_session(endpoint, device_info=device_info)
 
-    async def get_open_playback_session(self, session_id: str) -> ABSPlaybackSessionExpanded | None:
-        """Return open playback session."""
-        data = await self._get(f"session/{session_id}")
-        if data:
-            return ABSPlaybackSessionExpanded.from_json(data)
-        else:
-            return None
-
     async def _get_playback_session(
         self, endpoint: str, device_info: ABSDeviceInfo
     ) -> ABSPlaybackSessionExpanded:
@@ -383,7 +404,12 @@ class ABSClient:
             supported_mime_types=[],
         )
         data = await self._post(endpoint, data=play_request.to_dict())
-        session = ABSPlaybackSessionExpanded.from_json(data)
+        try:
+            session = ABSPlaybackSessionExpanded.from_json(data)
+        except (MissingField, InvalidFieldValue) as exc:
+            self.logger.warning(exc)
+            raise RuntimeError from exc
+
         self.logger.debug(
             f"Got playback session {session.id_} "
             f"for {session.media_type} named {session.display_title}"
@@ -403,26 +429,26 @@ class ABSClient:
         """Sync an open playback session."""
         await self._post(f"session/{playback_session_id}/sync", data=update.to_dict())
 
-    async def get_all_closed_playback_sessions(self) -> AsyncGenerator[ABSPlaybackSession]:
-        """Get library items with pagination.
-
-        This returns only sessions, which are already closed.
-        """
-        page_cnt = 0
-        while True:
-            data = await self._get(
-                "me/listening-sessions",
-                params={"itemsPerPage": LIMIT_ITEMS_PER_PAGE, "page": page_cnt},
-            )
-            page_cnt += 1
-
-            sessions = ABSSessionsResponse.from_json(data).sessions
-            # self.logger.debug([session.device_info for session in sessions])
-            if sessions:
-                for session in sessions:
-                    yield session
-            else:
-                return
+    # async def get_all_closed_playback_sessions(self) -> AsyncGenerator[ABSPlaybackSession]:
+    #     """Get library items with pagination.
+    #
+    #     This returns only sessions, which are already closed.
+    #     """
+    #     page_cnt = 0
+    #     while True:
+    #         data = await self._get(
+    #             "me/listening-sessions",
+    #             params={"itemsPerPage": LIMIT_ITEMS_PER_PAGE, "page": page_cnt},
+    #         )
+    #         page_cnt += 1
+    #
+    #         sessions = ABSSessionsResponse.from_json(data).sessions
+    #         # self.logger.debug([session.device_info for session in sessions])
+    #         if sessions:
+    #             for session in sessions:
+    #                 yield session
+    #         else:
+    #             return
 
     async def close_all_playback_sessions(self) -> None:
         """Cleanup all playback sessions opened by us."""
