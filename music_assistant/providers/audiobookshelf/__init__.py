@@ -55,6 +55,8 @@ CONF_URL = "url"
 CONF_USERNAME = "username"
 CONF_PASSWORD = "password"
 CONF_VERIFY_SSL = "verify_ssl"
+# optionally hide podcasts with no episodes
+CONF_HIDE_EMPTY_PODCASTS = "hide_empty_podcasts"
 
 
 async def setup(
@@ -108,6 +110,15 @@ async def get_config_entries(
             description="Whether or not to verify the certificate of SSL/TLS connections.",
             category="advanced",
             default_value=True,
+        ),
+        ConfigEntry(
+            key=CONF_HIDE_EMPTY_PODCASTS,
+            type=ConfigEntryType.BOOLEAN,
+            label="Hide empty podcasts.",
+            required=False,
+            description="This will skip podcasts with no episodes associated.",
+            category="advanced",
+            default_value=False,
         ),
     )
 
@@ -283,6 +294,11 @@ class Audiobookshelf(MusicProvider):
         """Retrieve library/subscribed podcasts from the provider."""
         async for abs_podcast in self._client.get_all_podcasts_minified():
             mass_podcast = self._parse_podcast(abs_podcast)
+            if (
+                bool(self.config.get_value(CONF_HIDE_EMPTY_PODCASTS))
+                and mass_podcast.total_episodes == 0
+            ):
+                continue
             yield mass_podcast
 
     async def get_podcast(self, prov_podcast_id: str) -> Podcast:
