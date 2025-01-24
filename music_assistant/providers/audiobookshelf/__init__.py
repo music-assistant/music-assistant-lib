@@ -138,7 +138,7 @@ class Audiobookshelf(MusicProvider):
 
     async def handle_async_init(self) -> None:
         """Pass config values to client and initialize."""
-        self._client = ABSClient()
+        self._client = ABSClient(mass=self.mass)
         base_url = str(self.config.get_value(CONF_URL))
         username = str(self.config.get_value(CONF_USERNAME))
         try:
@@ -147,6 +147,7 @@ class Audiobookshelf(MusicProvider):
                 base_url=base_url,
                 username=username,
                 password=str(self.config.get_value(CONF_PASSWORD)),
+                instance_id=self.instance_id,
                 logger=self.logger,
                 check_ssl=bool(self.config.get_value(CONF_VERIFY_SSL)),
             )
@@ -612,19 +613,19 @@ class Audiobookshelf(MusicProvider):
 
         # HANDLE ROOT PATH
         if item_path == "audiobooks":
-            library_list = self._client.audiobook_libraries
+            library_list = self._client.libraries.audiobook_libraries
             return await self._browse_root(library_list, item_path)
         elif item_path == "podcasts":
-            library_list = self._client.podcast_libraries
+            library_list = self._client.libraries.podcast_libraries
             return await self._browse_root(library_list, item_path)
 
         # HANDLE WITHIN LIBRARY
         library_type, library_id = item_path.split("/")
         if library_type == "audiobooks":
-            library_list = self._client.audiobook_libraries
+            library_list = self._client.libraries.podcast_libraries
             media_type = MediaType.AUDIOBOOK
         elif library_type == "podcasts":
-            library_list = self._client.podcast_libraries
+            library_list = self._client.libraries.podcast_libraries
             media_type = MediaType.PODCAST
         else:
             raise MediaNotFoundError("Specified Lib Type unknown")
