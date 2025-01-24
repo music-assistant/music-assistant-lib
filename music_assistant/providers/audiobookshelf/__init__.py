@@ -36,8 +36,8 @@ from music_assistant_models.streamdetails import StreamDetails
 
 from music_assistant.models.music_provider import MusicProvider
 from music_assistant.providers.audiobookshelf.abs_cache_helpers import (
-    AudiobookLibrary,
-    PodcastLibrary,
+    CacheAudiobookLibrary,
+    CachePodcastLibrary,
 )
 from music_assistant.providers.audiobookshelf.abs_client import ABSClient
 from music_assistant.providers.audiobookshelf.abs_schema import (
@@ -560,7 +560,9 @@ class Audiobookshelf(MusicProvider):
             )
 
     async def _browse_root(
-        self, library_dict: dict[str, PodcastLibrary] | dict[str, AudiobookLibrary], item_path: str
+        self,
+        library_dict: dict[str, CachePodcastLibrary] | dict[str, CacheAudiobookLibrary],
+        item_path: str,
     ) -> Sequence[MediaItemType | ItemMapping]:
         """Browse root folder in browse view.
 
@@ -582,7 +584,7 @@ class Audiobookshelf(MusicProvider):
     async def _browse_lib(
         self,
         library_id: str,
-        library_dict: dict[str, PodcastLibrary] | dict[str, AudiobookLibrary],
+        library_dict: dict[str, CachePodcastLibrary] | dict[str, CacheAudiobookLibrary],
         media_type: MediaType,
     ) -> Sequence[MediaItemType | ItemMapping]:
         """Browse lib folder in browse view.

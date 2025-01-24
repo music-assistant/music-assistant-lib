@@ -663,6 +663,20 @@ class ABSMediaProgressWithMediaPodcast(ABSMediaProgress):
     episode: ABSPodcastEpisode
 
 
+## https://api.audiobookshelf.org/#collection
+@dataclass
+class ABSCollection(BaseModel):
+    """ABSCollectionMinified.
+
+    https://api.audiobookshelf.org/#get-a-library-39-s-collections
+    """
+
+    id_: Annotated[str, Alias("id")]
+    name: str
+    description: str | None
+    books: list[ABSLibraryItemBook]
+
+
 ### Response to API Requests
 
 
@@ -732,6 +746,13 @@ class ABSLibrariesItemsMinifiedBookResponse(BaseModel):
     """
 
     results: list[ABSLibraryItemMinifiedBook]
+
+
+@dataclass
+class ABSLibrariesItemsMinifiedCollectionResponse(BaseModel):
+    """ABSLibrariesItemsResponse."""
+
+    results: list[ABSCollection]
 
 
 @dataclass

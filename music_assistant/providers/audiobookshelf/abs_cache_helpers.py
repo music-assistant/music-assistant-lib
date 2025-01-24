@@ -11,16 +11,24 @@ from music_assistant_models.media_items import UniqueList
 
 
 @dataclass
-class Series(DataClassDictMixin):
-    """Series."""
-
+class _SCBase(DataClassDictMixin):
     id_: str
     name: str = ""
     books: UniqueList[str] = field(default_factory=UniqueList[str])
 
 
 @dataclass
-class Author(DataClassDictMixin):
+class CacheSeries(_SCBase):
+    """Series."""
+
+
+@dataclass
+class CacheCollection(_SCBase):
+    """collections."""
+
+
+@dataclass
+class CacheAuthor(DataClassDictMixin):
     """Author."""
 
     id_: str
@@ -39,28 +47,29 @@ class _Library(DataClassDictMixin):
 
 
 @dataclass
-class PodcastLibrary(_Library):
+class CachePodcastLibrary(_Library):
     """PodcastLibrary."""
 
 
 @dataclass
-class AudiobookLibrary(_Library):
+class CacheAudiobookLibrary(_Library):
     """AudiobookLibrary."""
 
-    authors: dict[str, Author] = field(default_factory=dict)
-    series: dict[str, Series] = field(default_factory=dict)
+    authors: dict[str, CacheAuthor] = field(default_factory=dict)
+    series: dict[str, CacheSeries] = field(default_factory=dict)
+    collections: dict[str, CacheCollection] = field(default_factory=dict)
 
 
 @dataclass
-class CacheablePodcastLibraries(DataClassDictMixin):
+class CachePodcastLibraries(DataClassDictMixin):
     """PodcastLibraries."""
 
     # id: PodcastLibrary
-    libraries: dict[str, PodcastLibrary] = field(default_factory=dict)
+    libraries: dict[str, CachePodcastLibrary] = field(default_factory=dict)
 
 
 @dataclass
-class CacheableAudiobookLibraries(DataClassDictMixin):
+class CacheAudiobookLibraries(DataClassDictMixin):
     """AudiobookLibraries."""
 
-    libraries: dict[str, AudiobookLibrary] = field(default_factory=dict)
+    libraries: dict[str, CacheAudiobookLibrary] = field(default_factory=dict)

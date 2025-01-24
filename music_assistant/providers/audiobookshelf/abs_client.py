@@ -14,12 +14,13 @@ from music_assistant_models.media_items import UniqueList
 
 from music_assistant.mass import MusicAssistant
 from music_assistant.providers.audiobookshelf.abs_cache_helpers import (
-    AudiobookLibrary,
-    Author,
-    CacheableAudiobookLibraries,
-    CacheablePodcastLibraries,
-    PodcastLibrary,
-    Series,
+    CacheAudiobookLibraries,
+    CacheAudiobookLibrary,
+    CacheAuthor,
+    CacheCollection,
+    CachePodcastLibraries,
+    CachePodcastLibrary,
+    CacheSeries,
 )
 from music_assistant.providers.audiobookshelf.abs_schema import (
     ABSAuthorExpanded,
@@ -27,6 +28,7 @@ from music_assistant.providers.audiobookshelf.abs_schema import (
     ABSAuthorsResponse,
     ABSDeviceInfo,
     ABSLibrariesItemsMinifiedBookResponse,
+    ABSLibrariesItemsMinifiedCollectionResponse,
     ABSLibrariesItemsMinifiedPodcastResponse,
     ABSLibrariesResponse,
     ABSLibraryItemExpandedBook,
@@ -66,8 +68,8 @@ class ABSClient:
     def __init__(self, mass: MusicAssistant | None = None) -> None:
         """Client authorization."""
         self.mass = mass
-        self.audiobook_libraries = CacheableAudiobookLibraries()
-        self.podcast_libraries = CacheablePodcastLibraries()
+        self.audiobook_libraries = CacheAudiobookLibraries()
+        self.podcast_libraries = CachePodcastLibraries()
         self.user: ABSUser
         self.check_ssl: bool
         # I would like to receive opened sessions via the API, however, it appears
@@ -112,7 +114,7 @@ class ABSClient:
                 default=None,
             )
             if data is not None:
-                self.podcast_libraries = CacheablePodcastLibraries.from_dict(data)
+                self.podcast_libraries = CachePodcastLibraries.from_dict(data)
 
             data = await self.mass.cache.get(
                 key=CACHE_KEY_AUDIOBOOK_LIBRARIES,
@@ -121,7 +123,7 @@ class ABSClient:
                 default=None,
             )
             if data is not None:
-                self.audiobook_libraries = CacheableAudiobookLibraries.from_dict(data)
+                self.audiobook_libraries = CacheAudiobookLibraries.from_dict(data)
         self.logger.debug(self.audiobook_libraries.to_dict())
         self.logger.debug(self.podcast_libraries.to_dict())
 
@@ -205,14 +207,15 @@ class ABSClient:
             media_type = library.media_type
             if library.id_ not in ids:
                 if media_type == "book":
-                    alib = AudiobookLibrary(id_=library.id_, name=library.name)
+                    alib = CacheAudiobookLibrary(id_=library.id_, name=library.name)
                     self.audiobook_libraries.libraries[library.id_] = alib
                 elif media_type == "podcast":
-                    plib = PodcastLibrary(id_=library.id_, name=library.name)
+                    plib = CachePodcastLibrary(id_=library.id_, name=library.name)
                     self.podcast_libraries.libraries[library.id_] = plib
         self.user = await self.get_authenticated_user()
 
         await self._sync_authors_series()
+        await self._sync_collections()
 
     async def get_all_podcasts_minified(self) -> AsyncGenerator[ABSLibraryItemMinifiedPodcast]:
         """Get all available podcasts."""
@@ -220,7 +223,9 @@ class ABSClient:
             async for podcast in self.get_all_podcasts_by_library_minified(library):
                 yield podcast
 
-    async def _get_lib_items(self, lib: AudiobookLibrary | PodcastLibrary) -> AsyncGenerator[bytes]:
+    async def _get_lib_items(
+        self, lib: CacheAudiobookLibrary | CachePodcastLibrary
+    ) -> AsyncGenerator[bytes]:
         """Get library items with pagination.
 
         Note:
@@ -239,7 +244,7 @@ class ABSClient:
             yield data
 
     async def get_all_podcasts_by_library_minified(
-        self, lib: PodcastLibrary
+        self, lib: CachePodcastLibrary
     ) -> AsyncGenerator[ABSLibraryItemMinifiedPodcast]:
         """Get all podcasts in a library."""
         async for podcast_data in self._get_lib_items(lib):
@@ -255,7 +260,8 @@ class ABSClient:
 
             for podcast in podcast_list:
                 # store ids of library items for later use
-                lib.item_ids.append(podcast.id_)
+                if podcast.id_ not in lib.item_ids:
+                    lib.item_ids.append(podcast.id_)
                 yield podcast
 
     async def get_podcast_expanded(self, id_: str) -> ABSLibraryItemExpandedPodcast:
@@ -367,7 +373,7 @@ class ABSClient:
                 yield book
 
     async def get_all_audiobooks_by_library_minified(
-        self, lib: AudiobookLibrary
+        self, lib: CacheAudiobookLibrary
     ) -> AsyncGenerator[ABSLibraryItemMinifiedBook]:
         """Get all Audiobooks in a library."""
         async for audiobook_data in self._get_lib_items(lib):
@@ -383,7 +389,8 @@ class ABSClient:
 
             for audiobook in audiobook_list:
                 # store ids of library items for later use
-                lib.item_ids.append(audiobook.id_)
+                if audiobook.id_ not in lib.item_ids:
+                    lib.item_ids.append(audiobook.id_)
                 yield audiobook
 
     async def get_audiobook_expanded(self, id_: str) -> ABSLibraryItemExpandedBook:
@@ -542,15 +549,49 @@ class ABSClient:
                 except (MissingField, InvalidFieldValue) as exc:
                     self.logger.error(exc)
                     continue
-                _author = Author(id_=author.id_, name=author.name)
+                _author = CacheAuthor(id_=author.id_, name=author.name)
                 _author.books = UniqueList([x.id_ for x in response.library_items])
                 _author.series = UniqueList([x.id_ for x in response.series])
                 lib.authors[_author.id_] = _author
 
                 for series in response.series:
-                    _series = Series(
+                    _series = CacheSeries(
                         id_=series.id_,
                         name=series.name,
                         books=UniqueList([x.id_ for x in series.items]),
                     )
                     lib.series[_series.id_] = _series
+
+    async def _sync_collections(self) -> None:
+        """Sync collections."""
+
+        async def _get_col_items(lib: CacheAudiobookLibrary) -> AsyncGenerator[bytes]:
+            page_cnt = 0
+            while True:
+                data = await self._get(
+                    # endpoint ignores minified=1
+                    f"/libraries/{lib.id_}/collections",
+                    params={"limit": LIMIT_ITEMS_PER_PAGE, "page": page_cnt},
+                )
+                page_cnt += 1
+                yield data
+
+        for lib in self.audiobook_libraries.libraries.values():
+            async for collection_data in _get_col_items(lib):
+                try:
+                    collection_list = ABSLibrariesItemsMinifiedCollectionResponse.from_json(
+                        collection_data
+                    ).results
+                except (MissingField, InvalidFieldValue) as exc:
+                    self.logger.error(exc)
+                    return
+                if not collection_list:  # [] if page exceeds
+                    break
+
+                for collection in collection_list:
+                    _collection = CacheCollection(
+                        id_=collection.id_,
+                        name=collection.name,
+                        books=UniqueList([x.id_ for x in collection.books]),
+                    )
+                    lib.collections[collection.id_] = _collection
