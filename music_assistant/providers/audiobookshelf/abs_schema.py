@@ -701,6 +701,27 @@ class ABSAuthorsResponse(BaseModel):
 
 
 @dataclass
+class ABSAuthorSeries(BaseModel):
+    """ABSAuthorSeries.
+
+    When acquiring an author including series items.
+    Data are series attributes, not author.
+    """
+
+    id_: Annotated[str, Alias("id")]
+    name: str
+    items: list[ABSLibraryItemMinifiedBook]
+
+
+@dataclass
+class ABSAuthorResponse(BaseModel):
+    """If series _and_ items included."""
+
+    library_items: Annotated[list[ABSLibraryItemMinifiedBook], Alias("libraryItems")]
+    series: list[ABSAuthorSeries]
+
+
+@dataclass
 class ABSLibrariesItemsMinifiedBookResponse(BaseModel):
     """ABSLibrariesItemsResponse.
 

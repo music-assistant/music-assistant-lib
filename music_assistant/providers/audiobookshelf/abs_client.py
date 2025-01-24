@@ -15,12 +15,15 @@ from music_assistant_models.media_items import UniqueList
 from music_assistant.mass import MusicAssistant
 from music_assistant.providers.audiobookshelf.abs_cache_helpers import (
     AudiobookLibrary,
+    Author,
     CacheableAudiobookLibraries,
     CacheablePodcastLibraries,
     PodcastLibrary,
+    Series,
 )
 from music_assistant.providers.audiobookshelf.abs_schema import (
     ABSAuthorExpanded,
+    ABSAuthorResponse,
     ABSAuthorsResponse,
     ABSDeviceInfo,
     ABSLibrariesItemsMinifiedBookResponse,
@@ -196,24 +199,24 @@ class ABSClient:
         except (MissingField, InvalidFieldValue) as exc:
             self.logger.error(exc)
             return
-        ids = [x.id_ for x in self.audiobook_libraries.libraries]
-        ids.extend([x.id_ for x in self.podcast_libraries.libraries])
+        ids = [x.id_ for x in self.audiobook_libraries.libraries.values()]
+        ids.extend([x.id_ for x in self.podcast_libraries.libraries.values()])
         for library in libraries.libraries:
             media_type = library.media_type
             if library.id_ not in ids:
                 if media_type == "book":
-                    self.audiobook_libraries.libraries.append(
-                        AudiobookLibrary(id_=library.id_, name=library.name)
-                    )
+                    alib = AudiobookLibrary(id_=library.id_, name=library.name)
+                    self.audiobook_libraries.libraries[library.id_] = alib
                 elif media_type == "podcast":
-                    self.podcast_libraries.libraries.append(
-                        PodcastLibrary(id_=library.id_, name=library.name)
-                    )
+                    plib = PodcastLibrary(id_=library.id_, name=library.name)
+                    self.podcast_libraries.libraries[library.id_] = plib
         self.user = await self.get_authenticated_user()
+
+        await self._sync_authors_series()
 
     async def get_all_podcasts_minified(self) -> AsyncGenerator[ABSLibraryItemMinifiedPodcast]:
         """Get all available podcasts."""
-        for library in self.podcast_libraries.libraries:
+        for library in self.podcast_libraries.libraries.values():
             async for podcast in self.get_all_podcasts_by_library_minified(library):
                 yield podcast
 
@@ -359,7 +362,7 @@ class ABSClient:
 
     async def get_all_audiobooks_minified(self) -> AsyncGenerator[ABSLibraryItemMinifiedBook]:
         """Get all audiobooks."""
-        for library in self.audiobook_libraries.libraries:
+        for library in self.audiobook_libraries.libraries.values():
             async for book in self.get_all_audiobooks_by_library_minified(library):
                 yield book
 
@@ -493,22 +496,6 @@ class ABSClient:
             except RuntimeError:
                 self.logger.debug(f"Was unable to close session {session_id}")
 
-    # for browsing
-    async def get_all_authors_by_library_expanded(
-        self, library_id: str
-    ) -> AsyncGenerator[ABSAuthorExpanded]:
-        """Get all authors in ABS library."""
-        data = await self._get(
-            f"/libraries/{library_id}/authors",
-        )
-        try:
-            abs_authors = ABSAuthorsResponse.from_json(data)
-        except (MissingField, InvalidFieldValue) as exc:
-            self.logger.error(exc)
-            raise RuntimeError from exc
-        for author in abs_authors.authors:
-            yield author
-
     async def update_cache(self) -> None:
         """Update cache."""
         if self.mass is None:
@@ -526,3 +513,44 @@ class ABSClient:
             category=CACHE_CATEGORY_ABS_CLIENT,
             data=self.audiobook_libraries,
         )
+
+    # for browsing
+    async def _get_all_authors_by_library_expanded(
+        self, library_id: str
+    ) -> AsyncGenerator[ABSAuthorExpanded]:
+        """Get all authors in ABS library."""
+        data = await self._get(
+            f"/libraries/{library_id}/authors",
+        )
+        try:
+            abs_authors = ABSAuthorsResponse.from_json(data)
+        except (MissingField, InvalidFieldValue) as exc:
+            self.logger.error(exc)
+            raise RuntimeError from exc
+        for author in abs_authors.authors:
+            yield author
+
+    async def _sync_authors_series(self) -> None:
+        """Sync Authors and series."""
+        for lib in self.audiobook_libraries.libraries.values():
+            async for author in self._get_all_authors_by_library_expanded(lib.id_):
+                data = await self._get(
+                    f"/authors/{author.id_}?include=items,series",
+                )
+                try:
+                    response = ABSAuthorResponse.from_json(data)
+                except (MissingField, InvalidFieldValue) as exc:
+                    self.logger.error(exc)
+                    continue
+                _author = Author(id_=author.id_, name=author.name)
+                _author.books = UniqueList([x.id_ for x in response.library_items])
+                _author.series = UniqueList([x.id_ for x in response.series])
+                lib.authors[_author.id_] = _author
+
+                for series in response.series:
+                    _series = Series(
+                        id_=series.id_,
+                        name=series.name,
+                        books=UniqueList([x.id_ for x in series.items]),
+                    )
+                    lib.series[_series.id_] = _series

@@ -560,7 +560,7 @@ class Audiobookshelf(MusicProvider):
             )
 
     async def _browse_root(
-        self, library_list: list[PodcastLibrary] | list[AudiobookLibrary], item_path: str
+        self, library_dict: dict[str, PodcastLibrary] | dict[str, AudiobookLibrary], item_path: str
     ) -> Sequence[MediaItemType | ItemMapping]:
         """Browse root folder in browse view.
 
@@ -568,7 +568,7 @@ class Audiobookshelf(MusicProvider):
         of both podcasts and audiobooks.
         """
         items: list[MediaItemType | ItemMapping] = []
-        for library in library_list:
+        for library in library_dict.values():
             items.append(
                 BrowseFolder(
                     item_id=library.id_,
@@ -582,17 +582,14 @@ class Audiobookshelf(MusicProvider):
     async def _browse_lib(
         self,
         library_id: str,
-        library_list: list[PodcastLibrary] | list[AudiobookLibrary],
+        library_dict: dict[str, PodcastLibrary] | dict[str, AudiobookLibrary],
         media_type: MediaType,
     ) -> Sequence[MediaItemType | ItemMapping]:
         """Browse lib folder in browse view.
 
         Helper functions. Shows the items which are part of an ABS library.
         """
-        library = None
-        for library in library_list:
-            if library_id == library.id_:
-                break
+        library = library_dict.get(library_id, None)
         if library is None:
             raise MediaNotFoundError("Lib missing.")
 
@@ -618,21 +615,21 @@ class Audiobookshelf(MusicProvider):
 
         # HANDLE ROOT PATH
         if item_path == "audiobooks":
-            book_list = self._client.audiobook_libraries.libraries
-            return await self._browse_root(book_list, item_path)
+            book_dict = self._client.audiobook_libraries.libraries
+            return await self._browse_root(book_dict, item_path)
         elif item_path == "podcasts":
-            podcast_list = self._client.podcast_libraries.libraries
-            return await self._browse_root(podcast_list, item_path)
+            podcast_dict = self._client.podcast_libraries.libraries
+            return await self._browse_root(podcast_dict, item_path)
 
         # HANDLE WITHIN LIBRARY
         library_type, library_id = item_path.split("/")
         if library_type == "audiobooks":
-            audiobook_list = self._client.audiobook_libraries.libraries
+            audiobook_dict = self._client.audiobook_libraries.libraries
             media_type = MediaType.AUDIOBOOK
-            return await self._browse_lib(library_id, audiobook_list, media_type)
+            return await self._browse_lib(library_id, audiobook_dict, media_type)
         elif library_type == "podcasts":
-            podcast_list = self._client.podcast_libraries.libraries
+            podcast_dict = self._client.podcast_libraries.libraries
             media_type = MediaType.PODCAST
-            return await self._browse_lib(library_id, podcast_list, media_type)
+            return await self._browse_lib(library_id, podcast_dict, media_type)
         else:
             raise MediaNotFoundError("Specified Lib Type unknown")
