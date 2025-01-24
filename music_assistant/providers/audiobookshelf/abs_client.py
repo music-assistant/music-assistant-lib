@@ -5,17 +5,23 @@ We only implement the functions necessary for mass.
 
 import logging
 from collections.abc import AsyncGenerator
-from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
 from aiohttp import ClientSession
 from mashumaro.exceptions import InvalidFieldValue, MissingField
-from mashumaro.mixins.json import DataClassJSONMixin
 from music_assistant_models.media_items import UniqueList
 
 from music_assistant.mass import MusicAssistant
+from music_assistant.providers.audiobookshelf.abs_cache_helpers import (
+    AudiobookLibrary,
+    CacheableAudiobookLibraries,
+    CacheablePodcastLibraries,
+    PodcastLibrary,
+)
 from music_assistant.providers.audiobookshelf.abs_schema import (
+    ABSAuthorExpanded,
+    ABSAuthorsResponse,
     ABSDeviceInfo,
     ABSLibrariesItemsMinifiedBookResponse,
     ABSLibrariesItemsMinifiedPodcastResponse,
@@ -37,28 +43,8 @@ LIMIT_ITEMS_PER_PAGE = 10
 
 CACHE_BASE_KEY_PREFIX = "audiobookshelf"
 CACHE_CATEGORY_ABS_CLIENT = 0
-CACHE_KEY_ABS_CLIENT_LIBRARIES = "absclient_libraries"
-
-
-@dataclass
-class LibraryWithItemIDs(DataClassJSONMixin):
-    """Helper class to store ABSLibrary, and the ids of the items associated."""
-
-    id_: str
-    name: str = ""
-    item_ids: UniqueList[str] = field(default_factory=UniqueList[str])
-
-
-@dataclass
-class Libraries(DataClassJSONMixin):
-    """Helper class to allow caching."""
-
-    audiobook_libraries: UniqueList[LibraryWithItemIDs] = field(
-        default_factory=UniqueList[LibraryWithItemIDs]
-    )
-    podcast_libraries: UniqueList[LibraryWithItemIDs] = field(
-        default_factory=UniqueList[LibraryWithItemIDs]
-    )
+CACHE_KEY_PODCAST_LIBRARIES = "absclient_podcast_libraries"
+CACHE_KEY_AUDIOBOOK_LIBRARIES = "absclient_audiobook_libraries"
 
 
 class ABSStatus(Enum):
@@ -77,7 +63,8 @@ class ABSClient:
     def __init__(self, mass: MusicAssistant | None = None) -> None:
         """Client authorization."""
         self.mass = mass
-        self.libraries = Libraries()
+        self.audiobook_libraries = CacheableAudiobookLibraries()
+        self.podcast_libraries = CacheablePodcastLibraries()
         self.user: ABSUser
         self.check_ssl: bool
         # I would like to receive opened sessions via the API, however, it appears
@@ -116,13 +103,24 @@ class ABSClient:
         if self.mass is not None:
             # try obtaining cached library items
             data = await self.mass.cache.get(
-                key=CACHE_KEY_ABS_CLIENT_LIBRARIES,
+                key=CACHE_KEY_PODCAST_LIBRARIES,
                 base_key=self.cache_base_key,
                 category=CACHE_CATEGORY_ABS_CLIENT,
                 default=None,
             )
             if data is not None:
-                self.libraries = Libraries.from_dict(data)
+                self.podcast_libraries = CacheablePodcastLibraries.from_dict(data)
+
+            data = await self.mass.cache.get(
+                key=CACHE_KEY_AUDIOBOOK_LIBRARIES,
+                base_key=self.cache_base_key,
+                category=CACHE_CATEGORY_ABS_CLIENT,
+                default=None,
+            )
+            if data is not None:
+                self.audiobook_libraries = CacheableAudiobookLibraries.from_dict(data)
+        self.logger.debug(self.audiobook_libraries.to_dict())
+        self.logger.debug(self.podcast_libraries.to_dict())
 
     async def _post(
         self,
@@ -198,36 +196,28 @@ class ABSClient:
         except (MissingField, InvalidFieldValue) as exc:
             self.logger.error(exc)
             return
-        ids = [x.id_ for x in self.libraries.audiobook_libraries]
-        ids.extend([x.id_ for x in self.libraries.podcast_libraries])
+        ids = [x.id_ for x in self.audiobook_libraries.libraries]
+        ids.extend([x.id_ for x in self.podcast_libraries.libraries])
         for library in libraries.libraries:
             media_type = library.media_type
             if library.id_ not in ids:
-                _library = LibraryWithItemIDs(library.id_, library.name)
                 if media_type == "book":
-                    self.libraries.audiobook_libraries.append(_library)
+                    self.audiobook_libraries.libraries.append(
+                        AudiobookLibrary(id_=library.id_, name=library.name)
+                    )
                 elif media_type == "podcast":
-                    self.libraries.podcast_libraries.append(_library)
+                    self.podcast_libraries.libraries.append(
+                        PodcastLibrary(id_=library.id_, name=library.name)
+                    )
         self.user = await self.get_authenticated_user()
 
     async def get_all_podcasts_minified(self) -> AsyncGenerator[ABSLibraryItemMinifiedPodcast]:
         """Get all available podcasts."""
-        for library in self.libraries.podcast_libraries:
+        for library in self.podcast_libraries.libraries:
             async for podcast in self.get_all_podcasts_by_library_minified(library):
                 yield podcast
 
-        # This function is called on provider sync, and fills the item ids
-        # in self.podcast_libraries. So we cache here.
-
-        if self.mass is not None:
-            await self.mass.cache.set(
-                key=CACHE_KEY_ABS_CLIENT_LIBRARIES,
-                base_key=self.cache_base_key,
-                category=CACHE_CATEGORY_ABS_CLIENT,
-                data=self.libraries,
-            )
-
-    async def _get_lib_items(self, lib: LibraryWithItemIDs) -> AsyncGenerator[bytes]:
+    async def _get_lib_items(self, lib: AudiobookLibrary | PodcastLibrary) -> AsyncGenerator[bytes]:
         """Get library items with pagination.
 
         Note:
@@ -246,7 +236,7 @@ class ABSClient:
             yield data
 
     async def get_all_podcasts_by_library_minified(
-        self, lib: LibraryWithItemIDs
+        self, lib: PodcastLibrary
     ) -> AsyncGenerator[ABSLibraryItemMinifiedPodcast]:
         """Get all podcasts in a library."""
         async for podcast_data in self._get_lib_items(lib):
@@ -369,22 +359,12 @@ class ABSClient:
 
     async def get_all_audiobooks_minified(self) -> AsyncGenerator[ABSLibraryItemMinifiedBook]:
         """Get all audiobooks."""
-        for library in self.libraries.audiobook_libraries:
+        for library in self.audiobook_libraries.libraries:
             async for book in self.get_all_audiobooks_by_library_minified(library):
                 yield book
 
-        # This function is called on provider sync, and fills the item ids
-        # in self.audiobook_libraries. So we cache here.
-        if self.mass is not None:
-            await self.mass.cache.set(
-                key=CACHE_KEY_ABS_CLIENT_LIBRARIES,
-                base_key=self.cache_base_key,
-                category=CACHE_CATEGORY_ABS_CLIENT,
-                data=self.libraries,
-            )
-
     async def get_all_audiobooks_by_library_minified(
-        self, lib: LibraryWithItemIDs
+        self, lib: AudiobookLibrary
     ) -> AsyncGenerator[ABSLibraryItemMinifiedBook]:
         """Get all Audiobooks in a library."""
         async for audiobook_data in self._get_lib_items(lib):
@@ -512,3 +492,37 @@ class ABSClient:
                 await self.close_playback_session(session_id)
             except RuntimeError:
                 self.logger.debug(f"Was unable to close session {session_id}")
+
+    # for browsing
+    async def get_all_authors_by_library_expanded(
+        self, library_id: str
+    ) -> AsyncGenerator[ABSAuthorExpanded]:
+        """Get all authors in ABS library."""
+        data = await self._get(
+            f"/libraries/{library_id}/authors",
+        )
+        try:
+            abs_authors = ABSAuthorsResponse.from_json(data)
+        except (MissingField, InvalidFieldValue) as exc:
+            self.logger.error(exc)
+            raise RuntimeError from exc
+        for author in abs_authors.authors:
+            yield author
+
+    async def update_cache(self) -> None:
+        """Update cache."""
+        if self.mass is None:
+            self.logger.debug("No mass object available, caching not possible.")
+            return
+        await self.mass.cache.set(
+            key=CACHE_KEY_PODCAST_LIBRARIES,
+            base_key=self.cache_base_key,
+            category=CACHE_CATEGORY_ABS_CLIENT,
+            data=self.podcast_libraries,
+        )
+        await self.mass.cache.set(
+            key=CACHE_KEY_AUDIOBOOK_LIBRARIES,
+            base_key=self.cache_base_key,
+            category=CACHE_CATEGORY_ABS_CLIENT,
+            data=self.audiobook_libraries,
+        )

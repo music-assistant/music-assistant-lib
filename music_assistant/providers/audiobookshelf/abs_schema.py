@@ -694,6 +694,13 @@ class ABSSessionsResponse(BaseModel):
 
 
 @dataclass
+class ABSAuthorsResponse(BaseModel):
+    """ABSAuthorsResponse."""
+
+    authors: list[ABSAuthorExpanded]
+
+
+@dataclass
 class ABSLibrariesItemsMinifiedBookResponse(BaseModel):
     """ABSLibrariesItemsResponse.
 
