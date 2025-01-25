@@ -706,8 +706,37 @@ class Audiobookshelf(MusicProvider):
                     )
                 )
             return items
-        elif isinstance(target, CacheAuthor | CacheCollection | CacheSeries):
+        elif isinstance(target, CacheCollection | CacheSeries):
             for book_id in target.audiobooks:
+                mass_item = await self.mass.music.get_library_item_by_prov_id(
+                    media_type=MediaType.AUDIOBOOK,
+                    item_id=book_id,
+                    provider_instance_id_or_domain=self.lookup_key,
+                )
+                if mass_item is not None:
+                    items.append(mass_item)
+        elif isinstance(target, CacheAuthor):
+            series = target.series
+            books = target.audiobooks
+            books_in_series: list[str] = []
+            for series_id in series:
+                _series = self._client.audiobook_libraries.series.get(series_id, None)
+                if _series is None:
+                    continue
+                books_in_series.extend(_series.audiobooks)
+                series_name = _series.name
+                _path_prefix, _path = full_path.split("://", 1)
+                _path = _path_prefix + "://" + "".join(_path.split("/")[:-2])  # remove authors/id
+                items.append(
+                    BrowseFolder(
+                        item_id=series_id,
+                        name=f"{series_name} (Series)",
+                        provider=self.lookup_key,
+                        path=f"{_path}/{BrowseExtendedKeys.SERIES.value.lower()}/{series_id}",
+                    )
+                )
+            books_without_series = set(books).difference(books_in_series)
+            for book_id in books_without_series:
                 mass_item = await self.mass.music.get_library_item_by_prov_id(
                     media_type=MediaType.AUDIOBOOK,
                     item_id=book_id,
