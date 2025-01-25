@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   viewBox="0 0 20 13"
+   fill="none"
+   version="1.1"
+   id="svg4"
+   sodipodi:docname="icon_monochrome.svg"
+   width="20"
+   height="13"
+   inkscape:version="1.3.2 (091e20e, 2023-11-25, custom)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <defs
+     id="defs4" />
+  <sodipodi:namedview
+     id="namedview4"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:zoom="35.64"
+     inkscape:cx="11.994949"
+     inkscape:cy="12.5"
+     inkscape:window-width="1920"
+     inkscape:window-height="1129"
+     inkscape:window-x="-8"
+     inkscape:window-y="-8"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="svg4" />
+  <g
+     id="g4"
+     transform="translate(-2,-6.5)">
+    <path
+       d="M 2,9.75 5.33333,6.5 8.66667,9.75 5.33333,13 Z"
+       fill="#ffffff"
+       id="path1" />
+    <path
+       d="M 8.66667,9.75 12,6.5 15.3333,9.75 12,13 Z"
+       fill="#ffffff"
+       id="path2" />
+    <path
+       d="M 15.3333,9.75 18.6667,6.5 22,9.75 18.6667,13 Z"
+       fill="#ffffff"
+       id="path3" />
+    <path
+       d="M 8.66667,16.25 12,13 15.3333,16.25 12,19.5 Z"
+       fill="#ffffff"
+       id="path4" />
+  </g>
+</svg>
