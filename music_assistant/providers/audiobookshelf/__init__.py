@@ -36,8 +36,12 @@ from music_assistant_models.streamdetails import StreamDetails
 
 from music_assistant.models.music_provider import MusicProvider
 from music_assistant.providers.audiobookshelf.abs_cache_helpers import (
+    BrowseExtendedKeys,
     CacheAudiobookLibrary,
+    CacheAuthor,
+    CacheCollection,
     CachePodcastLibrary,
+    CacheSeries,
 )
 from music_assistant.providers.audiobookshelf.abs_client import ABSClient
 from music_assistant.providers.audiobookshelf.abs_schema import (
@@ -62,6 +66,8 @@ CONF_PASSWORD = "password"
 CONF_VERIFY_SSL = "verify_ssl"
 # optionally hide podcasts with no episodes
 CONF_HIDE_EMPTY_PODCASTS = "hide_empty_podcasts"
+# make extended browse optional
+CONF_EXTENDED_BROWSE = "extended_browse"
 
 
 async def setup(
@@ -106,6 +112,15 @@ async def get_config_entries(
             label="Password",
             required=False,
             description="The password to authenticate to the remote server.",
+        ),
+        ConfigEntry(
+            key=CONF_EXTENDED_BROWSE,
+            type=ConfigEntryType.BOOLEAN,
+            label="Extended browse",
+            required=False,
+            description="Browse by author, collection and series in the browse function"
+            "at the cost of a little longer sync times.",
+            default_value=False,
         ),
         ConfigEntry(
             key=CONF_VERIFY_SSL,
@@ -170,6 +185,10 @@ class Audiobookshelf(MusicProvider):
 
         self.logger.debug(f"Our playback session device_id is {self.instance_id}")
 
+    async def loaded_in_mass(self) -> None:
+        """Call when provider loaded."""
+        await self._client._loaded_in_mass()
+
     async def unload(self, is_removed: bool = False) -> None:
         """
         Handle unload/close of the provider.
@@ -177,6 +196,7 @@ class Audiobookshelf(MusicProvider):
         Called when provider is deregistered (e.g. MA exiting or config reloading).
         is_removed will be set to True when the provider is removed from the configuration.
         """
+        await self._client.update_cache()
         await self._client.close_all_playback_sessions()
         await self._client.logout()
 
@@ -189,6 +209,8 @@ class Audiobookshelf(MusicProvider):
     async def sync_library(self, media_types: tuple[MediaType, ...]) -> None:
         """Run library sync for this provider."""
         await self._client.sync()
+        if bool(self.config.get_value(CONF_EXTENDED_BROWSE)):
+            await self._client.sync_extended()
         await super().sync_library(media_types=media_types)
         await self._client.update_cache()
 
@@ -559,7 +581,7 @@ class Audiobookshelf(MusicProvider):
                 is_finished=fully_played,
             )
 
-    async def _browse_root(
+    async def _browse_simple_root(
         self,
         library_dict: dict[str, CachePodcastLibrary] | dict[str, CacheAudiobookLibrary],
         item_path: str,
@@ -581,7 +603,7 @@ class Audiobookshelf(MusicProvider):
             )
         return items
 
-    async def _browse_lib(
+    async def _browse_simple_lib(
         self,
         library_id: str,
         library_dict: dict[str, CachePodcastLibrary] | dict[str, CacheAudiobookLibrary],
@@ -597,7 +619,13 @@ class Audiobookshelf(MusicProvider):
 
         items: list[MediaItemType | ItemMapping] = []
         if media_type in [MediaType.PODCAST, MediaType.AUDIOBOOK]:
-            for item_id in library.item_ids:
+            _attr = None
+            if media_type == MediaType.PODCAST:
+                _attr = "podcasts"
+            elif media_type == MediaType.AUDIOBOOK:
+                _attr = "audiobooks"
+            assert _attr is not None
+            for item_id in getattr(library, _attr):
                 mass_item = await self.mass.music.get_library_item_by_prov_id(
                     media_type=media_type,
                     item_id=item_id,
@@ -609,8 +637,11 @@ class Audiobookshelf(MusicProvider):
             raise RuntimeError(f"Media type must not be {media_type}")
         return items
 
-    async def browse(self, path: str) -> Sequence[MediaItemType | ItemMapping]:
-        """Browse features shows libraries names."""
+    async def _browse_simple(self, path: str) -> Sequence[MediaItemType | ItemMapping]:
+        """Browse simple.
+
+        Browse shows Library name in media within (initial implementation).
+        """
         item_path = path.split("://", 1)[1]
         if not item_path:  # root
             return await super().browse(path)
@@ -618,20 +649,187 @@ class Audiobookshelf(MusicProvider):
         # HANDLE ROOT PATH
         if item_path == "audiobooks":
             book_dict = self._client.audiobook_libraries.libraries
-            return await self._browse_root(book_dict, item_path)
+            return await self._browse_simple_root(book_dict, item_path)
         elif item_path == "podcasts":
             podcast_dict = self._client.podcast_libraries.libraries
-            return await self._browse_root(podcast_dict, item_path)
+            return await self._browse_simple_root(podcast_dict, item_path)
 
         # HANDLE WITHIN LIBRARY
         library_type, library_id = item_path.split("/")
         if library_type == "audiobooks":
             audiobook_dict = self._client.audiobook_libraries.libraries
             media_type = MediaType.AUDIOBOOK
-            return await self._browse_lib(library_id, audiobook_dict, media_type)
+            return await self._browse_simple_lib(library_id, audiobook_dict, media_type)
         elif library_type == "podcasts":
             podcast_dict = self._client.podcast_libraries.libraries
             media_type = MediaType.PODCAST
-            return await self._browse_lib(library_id, podcast_dict, media_type)
+            return await self._browse_simple_lib(library_id, podcast_dict, media_type)
         else:
             raise MediaNotFoundError("Specified Lib Type unknown")
+
+    async def browse(self, path: str) -> Sequence[MediaItemType | ItemMapping]:
+        """Browse features shows libraries names."""
+        if bool(self.config.get_value(CONF_EXTENDED_BROWSE)):
+            return await self._browse_expanded(path)
+        else:
+            return await self._browse_simple(path)
+
+    async def _browse_expanded_audiobooks(
+        self, full_path: str, sub_paths: list[str]
+    ) -> list[MediaItemType | ItemMapping]:
+        items: list[MediaItemType | ItemMapping] = []
+        if not sub_paths:
+            for folder_name in BrowseExtendedKeys:
+                if folder_name == BrowseExtendedKeys.PODCASTS.value:
+                    continue
+                items.append(
+                    BrowseFolder(
+                        item_id=folder_name.lower(),
+                        name=f"All {folder_name}",
+                        provider=self.lookup_key,
+                        path=f"{full_path}/{folder_name.lower()}",
+                    )
+                )
+            return items
+
+        client_lib = self._client.audiobook_libraries
+        target = None
+        for sub_path in sub_paths:
+            target = (
+                client_lib.get(sub_path)
+                if isinstance(client_lib, dict)
+                else getattr(client_lib, sub_path)
+            )
+        if target is None:
+            raise RuntimeError("Unable to browse.")
+        if isinstance(target, dict):
+            for id_, params in target.items():
+                items.append(
+                    BrowseFolder(
+                        item_id=id_,
+                        name=params.name,
+                        provider=self.lookup_key,
+                        path=f"{full_path}/{id_}",
+                    )
+                )
+        elif isinstance(target, CacheAuthor | CacheCollection | CacheSeries):
+            for book_id in target.audiobooks:
+                mass_item = await self.mass.music.get_library_item_by_prov_id(
+                    media_type=MediaType.AUDIOBOOK,
+                    item_id=book_id,
+                    provider_instance_id_or_domain=self.lookup_key,
+                )
+                if mass_item is not None:
+                    items.append(mass_item)
+        elif isinstance(target, CacheAudiobookLibrary):
+            for folder_name in BrowseExtendedKeys:
+                if folder_name in [
+                    BrowseExtendedKeys.PODCASTS.value,
+                    BrowseExtendedKeys.LIBRARIES.value,
+                ]:
+                    continue
+                items.append(
+                    BrowseFolder(
+                        item_id=folder_name.lower(),
+                        name=folder_name,
+                        provider=self.lookup_key,
+                        path=f"{full_path}/{folder_name.lower()}",
+                    )
+                )
+        elif isinstance(target, list | UniqueList):
+            # only media items are in a list:
+            for item_id in target:
+                mass_item = await self.mass.music.get_library_item_by_prov_id(
+                    media_type=MediaType.AUDIOBOOK,
+                    item_id=item_id,
+                    provider_instance_id_or_domain=self.lookup_key,
+                )
+                if mass_item is not None:
+                    items.append(mass_item)
+        return items
+
+    async def _browse_expanded_podcasts(
+        self, full_path: str, sub_paths: list[str]
+    ) -> list[MediaItemType | ItemMapping]:
+        """Podcasts are either by themselves or in playlists."""
+        items: list[MediaItemType | ItemMapping] = []
+        if not sub_paths:
+            folder_names = [BrowseExtendedKeys.PODCASTS.value, BrowseExtendedKeys.LIBRARIES.value]
+            for folder_name in folder_names:
+                items.append(
+                    BrowseFolder(
+                        item_id=folder_name.lower(),
+                        name=f"All {folder_name}",
+                        provider=self.lookup_key,
+                        path=f"{full_path}/{folder_name.lower()}",
+                    )
+                )
+            return items
+
+        client_lib = self._client.podcast_libraries
+        target = None
+        for sub_path in sub_paths:
+            target = (
+                client_lib.get(sub_path)
+                if isinstance(client_lib, dict)
+                else getattr(client_lib, sub_path)
+            )
+        if target is None:
+            raise RuntimeError("Unable to browse.")
+
+        if isinstance(target, dict):
+            for id_, params in target.items():
+                items.append(
+                    BrowseFolder(
+                        item_id=id_,
+                        name=params.name,
+                        provider=self.lookup_key,
+                        path=f"{full_path}/{id_}",
+                    )
+                )
+        elif isinstance(target, list | UniqueList):
+            for item_id in target:
+                mass_item = await self.mass.music.get_library_item_by_prov_id(
+                    media_type=MediaType.PODCAST,
+                    item_id=item_id,
+                    provider_instance_id_or_domain=self.lookup_key,
+                )
+                if mass_item is not None:
+                    items.append(mass_item)
+        elif isinstance(target, CachePodcastLibrary):
+            for podcast_id in target.podcasts:
+                mass_item = await self.mass.music.get_library_item_by_prov_id(
+                    media_type=MediaType.PODCAST,
+                    item_id=podcast_id,
+                    provider_instance_id_or_domain=self.lookup_key,
+                )
+                if mass_item is not None:
+                    items.append(mass_item)
+        return items
+
+    async def _browse_expanded(self, path: str) -> Sequence[MediaItemType | ItemMapping]:
+        """Browse expanded."""
+        items: list[MediaItemType | ItemMapping] = []
+        item_path = path.split("://", 1)[1]
+        if not item_path:  # root
+            # Podcast and Audiobook libraries cannot overlap
+            # in ABS, so we offer the choice here
+            for key in (BrowseExtendedKeys.PODCASTS.value, BrowseExtendedKeys.AUDIOBOOKS.value):
+                items.append(
+                    BrowseFolder(
+                        item_id=key,
+                        name=key,
+                        provider=self.lookup_key,
+                        path=f"{self.lookup_key}://{key.lower()}",
+                    )
+                )
+        else:
+            sub_paths = item_path.split("/")
+            if sub_paths[0] == BrowseExtendedKeys.PODCASTS.value.lower():
+                return await self._browse_expanded_podcasts(full_path=path, sub_paths=sub_paths[1:])
+            else:
+                return await self._browse_expanded_audiobooks(
+                    full_path=path, sub_paths=sub_paths[1:]
+                )
+
+        return items

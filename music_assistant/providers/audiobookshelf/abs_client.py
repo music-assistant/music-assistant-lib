@@ -105,6 +105,7 @@ class ABSClient:
 
         self.cache_base_key = f"{CACHE_BASE_KEY_PREFIX}_{instance_id}"
 
+    async def _loaded_in_mass(self) -> None:
         if self.mass is not None:
             # try obtaining cached library items
             data = await self.mass.cache.get(
@@ -113,7 +114,7 @@ class ABSClient:
                 category=CACHE_CATEGORY_ABS_CLIENT,
                 default=None,
             )
-            if data is not None:
+            if data is not None and isinstance(data, dict):
                 self.podcast_libraries = CachePodcastLibraries.from_dict(data)
 
             data = await self.mass.cache.get(
@@ -122,10 +123,8 @@ class ABSClient:
                 category=CACHE_CATEGORY_ABS_CLIENT,
                 default=None,
             )
-            if data is not None:
+            if data is not None and isinstance(data, dict):
                 self.audiobook_libraries = CacheAudiobookLibraries.from_dict(data)
-        self.logger.debug(self.audiobook_libraries.to_dict())
-        self.logger.debug(self.podcast_libraries.to_dict())
 
     async def _post(
         self,
@@ -214,6 +213,8 @@ class ABSClient:
                     self.podcast_libraries.libraries[library.id_] = plib
         self.user = await self.get_authenticated_user()
 
+    async def sync_extended(self) -> None:
+        """Sync for extended browse."""
         await self._sync_authors_series()
         await self._sync_collections()
 
@@ -260,8 +261,11 @@ class ABSClient:
 
             for podcast in podcast_list:
                 # store ids of library items for later use
-                if podcast.id_ not in lib.item_ids:
-                    lib.item_ids.append(podcast.id_)
+                if podcast.id_ not in lib.podcasts:
+                    lib.podcasts.append(podcast.id_)
+                # all record
+                if podcast.id_ not in self.podcast_libraries.podcasts:
+                    self.podcast_libraries.podcasts.append(podcast.id_)
                 yield podcast
 
     async def get_podcast_expanded(self, id_: str) -> ABSLibraryItemExpandedPodcast:
@@ -389,8 +393,11 @@ class ABSClient:
 
             for audiobook in audiobook_list:
                 # store ids of library items for later use
-                if audiobook.id_ not in lib.item_ids:
-                    lib.item_ids.append(audiobook.id_)
+                if audiobook.id_ not in lib.audiobooks:
+                    lib.audiobooks.append(audiobook.id_)
+                # all record
+                if audiobook.id_ not in self.audiobook_libraries.audiobooks:
+                    self.audiobook_libraries.audiobooks.append(audiobook.id_)
                 yield audiobook
 
     async def get_audiobook_expanded(self, id_: str) -> ABSLibraryItemExpandedBook:
@@ -550,17 +557,23 @@ class ABSClient:
                     self.logger.error(exc)
                     continue
                 _author = CacheAuthor(id_=author.id_, name=author.name)
-                _author.books = UniqueList([x.id_ for x in response.library_items])
+                _author.audiobooks = UniqueList([x.id_ for x in response.library_items])
                 _author.series = UniqueList([x.id_ for x in response.series])
                 lib.authors[_author.id_] = _author
+
+                # keep also an "all record"
+                self.audiobook_libraries.authors[_author.id_] = _author
 
                 for series in response.series:
                     _series = CacheSeries(
                         id_=series.id_,
                         name=series.name,
-                        books=UniqueList([x.id_ for x in series.items]),
+                        audiobooks=UniqueList([x.id_ for x in series.items]),
                     )
                     lib.series[_series.id_] = _series
+
+                    # keep also an "all record"
+                    self.audiobook_libraries.series[_series.id_] = _series
 
     async def _sync_collections(self) -> None:
         """Sync collections."""
@@ -592,6 +605,9 @@ class ABSClient:
                     _collection = CacheCollection(
                         id_=collection.id_,
                         name=collection.name,
-                        books=UniqueList([x.id_ for x in collection.books]),
+                        audiobooks=UniqueList([x.id_ for x in collection.books]),
                     )
                     lib.collections[collection.id_] = _collection
+
+                    # keep also an "all record"
+                    self.audiobook_libraries.collections[collection.id_] = _collection
