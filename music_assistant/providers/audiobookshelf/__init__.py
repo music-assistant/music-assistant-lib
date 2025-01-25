@@ -166,7 +166,7 @@ class Audiobookshelf(MusicProvider):
                 base_url=base_url,
                 username=username,
                 password=str(self.config.get_value(CONF_PASSWORD)),
-                instance_id=self.instance_id,
+                lookup_key=self.lookup_key,
                 logger=self.logger,
                 check_ssl=bool(self.config.get_value(CONF_VERIFY_SSL)),
             )
@@ -176,14 +176,14 @@ class Audiobookshelf(MusicProvider):
 
         # this will be provided when creating sessions or receive already opened sessions
         self.device_info = ABSDeviceInfo(
-            device_id=self.instance_id,
+            device_id=self.lookup_key,
             client_name="Music Assistant",
             client_version=self.mass.version,
             manufacturer="",
             model=self.mass.server_id,
         )
 
-        self.logger.debug(f"Our playback session device_id is {self.instance_id}")
+        self.logger.debug(f"Our playback session device_id is {self.lookup_key}")
 
     async def loaded_in_mass(self) -> None:
         """Call when provider loaded."""
@@ -231,7 +231,7 @@ class Audiobookshelf(MusicProvider):
                 ProviderMapping(
                     item_id=abs_podcast.id_,
                     provider_domain=self.domain,
-                    provider_instance=self.instance_id,
+                    provider_instance=self.lookup_key,
                 )
             },
         )
@@ -294,7 +294,7 @@ class Audiobookshelf(MusicProvider):
                 ProviderMapping(
                     item_id=episode_id,
                     provider_domain=self.domain,
-                    provider_instance=self.instance_id,
+                    provider_instance=self.lookup_key,
                     audio_format=AudioFormat(
                         content_type=ContentType.UNKNOWN,
                     ),
@@ -372,7 +372,7 @@ class Audiobookshelf(MusicProvider):
                 ProviderMapping(
                     item_id=abs_audiobook.id_,
                     provider_domain=self.domain,
-                    provider_instance=self.instance_id,
+                    provider_instance=self.lookup_key,
                 )
             },
             publisher=abs_audiobook.media.metadata.publisher,
@@ -461,7 +461,7 @@ class Audiobookshelf(MusicProvider):
         media_url = track.content_url
         stream_url = f"{base_url}{media_url}?token={token}"
         return StreamDetails(
-            provider=self.instance_id,
+            provider=self.lookup_key,
             item_id=item_id,
             audio_format=AudioFormat(
                 content_type=ContentType.UNKNOWN,
@@ -598,7 +598,7 @@ class Audiobookshelf(MusicProvider):
                     item_id=library.id_,
                     name=library.name,
                     provider=self.lookup_key,
-                    path=f"{self.instance_id}://{item_path}/{library.id_}",
+                    path=f"{self.lookup_key}://{item_path}/{library.id_}",
                 )
             )
         return items
@@ -629,7 +629,7 @@ class Audiobookshelf(MusicProvider):
                 mass_item = await self.mass.music.get_library_item_by_prov_id(
                     media_type=media_type,
                     item_id=item_id,
-                    provider_instance_id_or_domain=self.instance_id,
+                    provider_instance_id_or_domain=self.lookup_key,
                 )
                 if mass_item is not None:
                     items.append(mass_item)

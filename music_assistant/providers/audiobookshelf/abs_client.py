@@ -83,7 +83,7 @@ class ABSClient:
         base_url: str,
         username: str,
         password: str,
-        instance_id: str,
+        lookup_key: str,
         logger: logging.Logger | None = None,
         check_ssl: bool = True,
     ) -> None:
@@ -103,7 +103,7 @@ class ABSClient:
         self.token: str = self.user.token
         self.session_headers = {"Authorization": f"Bearer {self.token}"}
 
-        self.cache_base_key = f"{CACHE_BASE_KEY_PREFIX}_{instance_id}"
+        self.cache_base_key = f"{CACHE_BASE_KEY_PREFIX}_{lookup_key}"
 
     async def _loaded_in_mass(self) -> None:
         if self.mass is not None:
