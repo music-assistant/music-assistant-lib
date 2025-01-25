@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncGenerator, Sequence
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from music_assistant_models.config_entries import ConfigEntry, ConfigValueType, ProviderConfig
 from music_assistant_models.enums import (
@@ -692,16 +692,9 @@ class Audiobookshelf(MusicProvider):
                 )
             return items
 
-        client_lib = self._client.audiobook_libraries
-        target = None
+        target: Any | CacheAudiobookLibrary = self._client.audiobook_libraries
         for sub_path in sub_paths:
-            target = (
-                client_lib.get(sub_path)
-                if isinstance(client_lib, dict)
-                else getattr(client_lib, sub_path)
-            )
-        if target is None:
-            raise RuntimeError("Unable to browse.")
+            target = target.get(sub_path) if isinstance(target, dict) else getattr(target, sub_path)
         if isinstance(target, dict):
             for id_, params in target.items():
                 items.append(
@@ -712,6 +705,7 @@ class Audiobookshelf(MusicProvider):
                         path=f"{full_path}/{id_}",
                     )
                 )
+            return items
         elif isinstance(target, CacheAuthor | CacheCollection | CacheSeries):
             for book_id in target.audiobooks:
                 mass_item = await self.mass.music.get_library_item_by_prov_id(
@@ -766,16 +760,9 @@ class Audiobookshelf(MusicProvider):
                 )
             return items
 
-        client_lib = self._client.podcast_libraries
-        target = None
+        target: Any | CachePodcastLibrary = self._client.podcast_libraries
         for sub_path in sub_paths:
-            target = (
-                client_lib.get(sub_path)
-                if isinstance(client_lib, dict)
-                else getattr(client_lib, sub_path)
-            )
-        if target is None:
-            raise RuntimeError("Unable to browse.")
+            target = target.get(sub_path) if isinstance(target, dict) else getattr(target, sub_path)
 
         if isinstance(target, dict):
             for id_, params in target.items():
