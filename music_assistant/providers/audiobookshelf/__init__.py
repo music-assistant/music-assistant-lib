@@ -581,98 +581,93 @@ class Audiobookshelf(MusicProvider):
                 is_finished=fully_played,
             )
 
-    async def _browse_simple_root(
-        self,
-        library_dict: dict[str, CachePodcastLibrary] | dict[str, CacheAudiobookLibrary],
-        item_path: str,
-    ) -> Sequence[MediaItemType | ItemMapping]:
-        """Browse root folder in browse view.
-
-        Helper functions. Shows the library name, ABS supports multiple libraries
-        of both podcasts and audiobooks.
-        """
-        items: list[MediaItemType | ItemMapping] = []
-        for library in library_dict.values():
-            items.append(
-                BrowseFolder(
-                    item_id=library.id_,
-                    name=library.name,
-                    provider=self.lookup_key,
-                    path=f"{self.lookup_key}://{item_path}/{library.id_}",
-                )
-            )
-        return items
-
-    async def _browse_simple_lib(
-        self,
-        library_id: str,
-        library_dict: dict[str, CachePodcastLibrary] | dict[str, CacheAudiobookLibrary],
-        media_type: MediaType,
-    ) -> Sequence[MediaItemType | ItemMapping]:
-        """Browse lib folder in browse view.
-
-        Helper functions. Shows the items which are part of an ABS library.
-        """
-        library = library_dict.get(library_id, None)
-        if library is None:
-            raise MediaNotFoundError("Lib missing.")
-
-        items: list[MediaItemType | ItemMapping] = []
-        if media_type in [MediaType.PODCAST, MediaType.AUDIOBOOK]:
-            _attr = None
-            if media_type == MediaType.PODCAST:
-                _attr = "podcasts"
-            elif media_type == MediaType.AUDIOBOOK:
-                _attr = "audiobooks"
-            assert _attr is not None
-            for item_id in getattr(library, _attr):
-                mass_item = await self.mass.music.get_library_item_by_prov_id(
-                    media_type=media_type,
-                    item_id=item_id,
-                    provider_instance_id_or_domain=self.lookup_key,
-                )
-                if mass_item is not None:
-                    items.append(mass_item)
-        else:
-            raise RuntimeError(f"Media type must not be {media_type}")
-        return items
-
-    async def _browse_simple(self, path: str) -> Sequence[MediaItemType | ItemMapping]:
-        """Browse simple.
-
-        Browse shows Library name in media within (initial implementation).
-        """
-        item_path = path.split("://", 1)[1]
-        if not item_path:  # root
-            return await super().browse(path)
-
-        # HANDLE ROOT PATH
-        if item_path == "audiobooks":
-            book_dict = self._client.audiobook_libraries.libraries
-            return await self._browse_simple_root(book_dict, item_path)
-        elif item_path == "podcasts":
-            podcast_dict = self._client.podcast_libraries.libraries
-            return await self._browse_simple_root(podcast_dict, item_path)
-
-        # HANDLE WITHIN LIBRARY
-        library_type, library_id = item_path.split("/")
-        if library_type == "audiobooks":
-            audiobook_dict = self._client.audiobook_libraries.libraries
-            media_type = MediaType.AUDIOBOOK
-            return await self._browse_simple_lib(library_id, audiobook_dict, media_type)
-        elif library_type == "podcasts":
-            podcast_dict = self._client.podcast_libraries.libraries
-            media_type = MediaType.PODCAST
-            return await self._browse_simple_lib(library_id, podcast_dict, media_type)
-        else:
-            raise MediaNotFoundError("Specified Lib Type unknown")
-
     async def browse(self, path: str) -> Sequence[MediaItemType | ItemMapping]:
         """Browse features shows libraries names."""
         if bool(self.config.get_value(CONF_EXTENDED_BROWSE)):
             return await self._browse_expanded(path)
         else:
             return await self._browse_simple(path)
+
+    async def _browse_root_level(self) -> Sequence[MediaItemType | ItemMapping]:
+        """Root level view, used for simple and expanded browse."""
+        items: list[MediaItemType | ItemMapping] = []
+        for (
+            audiobook_library_id,
+            audiobook_library,
+        ) in self._client.audiobook_libraries.libraries.items():
+            items.append(
+                BrowseFolder(
+                    item_id=audiobook_library_id,
+                    name=f"{audiobook_library.name} ({BrowseExtendedKeys.AUDIOBOOKS.value})",
+                    provider=self.lookup_key,
+                    path=f"{self.lookup_key}://{audiobook_library_id}",
+                )
+            )
+        for (
+            podcast_library_id,
+            podcast_library,
+        ) in self._client.podcast_libraries.libraries.items():
+            items.append(
+                BrowseFolder(
+                    item_id=podcast_library_id,
+                    name=f"{podcast_library.name} ({BrowseExtendedKeys.PODCASTS.value})",
+                    provider=self.lookup_key,
+                    path=f"{self.lookup_key}://{podcast_library_id}",
+                )
+            )
+        return items
+
+    async def _browse_simple(self, path: str) -> Sequence[MediaItemType | ItemMapping]:
+        """Browse simple.
+
+        Immediately lists media items when entering library
+        """
+        item_path = path.split("://", 1)[1]
+        if not item_path:  # root
+            return await self._browse_root_level()
+
+        items: list[MediaItemType | ItemMapping] = []
+        library_id = item_path.split("/")[0]
+        podcast_library = self._client.podcast_libraries.libraries.get(library_id, None)
+        audiobook_library = self._client.audiobook_libraries.libraries.get(library_id, None)
+        _media_items_to_iterate: UniqueList[str] | list[str] | set[str] | None = None
+        _media_type: MediaType | None = None
+        if podcast_library is not None:
+            _media_items_to_iterate = podcast_library.podcasts
+            _media_type = MediaType.PODCAST
+        if audiobook_library is not None:
+            _media_items_to_iterate = audiobook_library.audiobooks
+            _media_type = MediaType.AUDIOBOOK
+        if _media_items_to_iterate is None or _media_type is None:
+            return items
+        for item_id in _media_items_to_iterate:
+            mass_item = await self.mass.music.get_library_item_by_prov_id(
+                media_type=_media_type,
+                item_id=item_id,
+                provider_instance_id_or_domain=self.lookup_key,
+            )
+            if mass_item is not None:
+                items.append(mass_item)
+
+        return items
+
+    async def _browse_expanded(self, path: str) -> Sequence[MediaItemType | ItemMapping]:
+        """Browse expanded."""
+        item_path = path.split("://", 1)[1]
+        if not item_path:  # root
+            return await self._browse_root_level()
+        else:
+            sub_paths = item_path.split("/")
+            library_id = sub_paths[0]
+            sub_paths = [BrowseExtendedKeys.LIBRARIES.value.lower(), *sub_paths]
+            if self._client.podcast_libraries.libraries.get(library_id, None) is not None:
+                return await self._browse_expanded_paths(
+                    full_path=path, sub_paths=sub_paths, media_type=MediaType.PODCAST
+                )
+            else:
+                return await self._browse_expanded_paths(
+                    full_path=path, sub_paths=sub_paths, media_type=MediaType.AUDIOBOOK
+                )
 
     async def _browse_expanded_paths(
         self,
@@ -762,48 +757,4 @@ class Audiobookshelf(MusicProvider):
             )
             if mass_item is not None:
                 items.append(mass_item)
-        return items
-
-    async def _browse_expanded(self, path: str) -> Sequence[MediaItemType | ItemMapping]:
-        """Browse expanded."""
-        items: list[MediaItemType | ItemMapping] = []
-        item_path = path.split("://", 1)[1]
-        if not item_path:  # root
-            for (
-                audiobook_library_id,
-                audiobook_library,
-            ) in self._client.audiobook_libraries.libraries.items():
-                items.append(
-                    BrowseFolder(
-                        item_id=audiobook_library_id,
-                        name=f"{audiobook_library.name} ({BrowseExtendedKeys.AUDIOBOOKS.value})",
-                        provider=self.lookup_key,
-                        path=f"{self.lookup_key}://{audiobook_library_id}",
-                    )
-                )
-            for (
-                podcast_library_id,
-                podcast_library,
-            ) in self._client.podcast_libraries.libraries.items():
-                items.append(
-                    BrowseFolder(
-                        item_id=podcast_library_id,
-                        name=f"{podcast_library.name} ({BrowseExtendedKeys.PODCASTS.value})",
-                        provider=self.lookup_key,
-                        path=f"{self.lookup_key}://{podcast_library_id}",
-                    )
-                )
-        else:
-            sub_paths = item_path.split("/")
-            library_id = sub_paths[0]
-            sub_paths = [BrowseExtendedKeys.LIBRARIES.value.lower(), *sub_paths]
-            if self._client.podcast_libraries.libraries.get(library_id, None) is not None:
-                return await self._browse_expanded_paths(
-                    full_path=path, sub_paths=sub_paths, media_type=MediaType.PODCAST
-                )
-            else:
-                return await self._browse_expanded_paths(
-                    full_path=path, sub_paths=sub_paths, media_type=MediaType.AUDIOBOOK
-                )
-
         return items
