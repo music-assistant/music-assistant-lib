@@ -705,8 +705,11 @@ class Audiobookshelf(MusicProvider):
             series = target.series
             books = target.audiobooks
             books_in_series: list[str] = []
+            library_id = sub_paths[1]
             for series_id in series:
-                _series = self._client.audiobook_libraries.series.get(series_id, None)
+                _series = self._client.audiobook_libraries.libraries[library_id].series.get(
+                    series_id, None
+                )
                 if _series is None:
                     continue
                 books_in_series.extend(_series.audiobooks)
@@ -716,7 +719,7 @@ class Audiobookshelf(MusicProvider):
                 items.append(
                     BrowseFolder(
                         item_id=series_id,
-                        name=f"{series_name} (Series)",
+                        name=f"{series_name} ({BrowseExtendedKeys.SERIES.value})",
                         provider=self.lookup_key,
                         path=f"{_path}/{BrowseExtendedKeys.SERIES.value.lower()}/{series_id}",
                     )
@@ -808,7 +811,7 @@ class Audiobookshelf(MusicProvider):
                 items.append(
                     BrowseFolder(
                         item_id=audiobook_library_id,
-                        name=f"{audiobook_library.name} (Audiobooks)",
+                        name=f"{audiobook_library.name} ({BrowseExtendedKeys.AUDIOBOOKS.value})",
                         provider=self.lookup_key,
                         path=f"{self.lookup_key}://{audiobook_library_id}",
                     )
@@ -820,7 +823,7 @@ class Audiobookshelf(MusicProvider):
                 items.append(
                     BrowseFolder(
                         item_id=podcast_library_id,
-                        name=f"{podcast_library.name} (Podcasts)",
+                        name=f"{podcast_library.name} ({BrowseExtendedKeys.PODCASTS.value})",
                         provider=self.lookup_key,
                         path=f"{self.lookup_key}://{podcast_library_id}",
                     )

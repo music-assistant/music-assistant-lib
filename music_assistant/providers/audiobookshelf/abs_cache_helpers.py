@@ -66,10 +66,7 @@ class CachePodcastLibrary(_Library):
 
 @dataclass
 class CacheAudiobookLibrary(_Library):
-    """AudiobookLibrary.
-
-    Here we keep what is specific to that single library
-    """
+    """AudiobookLibrary."""
 
     authors: dict[str, CacheAuthor] = field(default_factory=dict)
     series: dict[str, CacheSeries] = field(default_factory=dict)
@@ -83,18 +80,10 @@ class CachePodcastLibraries(DataClassDictMixin):
 
     # id: PodcastLibrary
     libraries: dict[str, CachePodcastLibrary] = field(default_factory=dict)
-    podcasts: UniqueList[str] = field(default_factory=UniqueList[str])
 
 
 @dataclass
 class CacheAudiobookLibraries(DataClassDictMixin):
-    """AudiobookLibraries.
-
-    Here we keep items from all libraries.
-    """
+    """AudiobookLibraries."""
 
     libraries: dict[str, CacheAudiobookLibrary] = field(default_factory=dict)
-    series: dict[str, CacheSeries] = field(default_factory=dict)
-    authors: dict[str, CacheAuthor] = field(default_factory=dict)
-    collections: dict[str, CacheCollection] = field(default_factory=dict)
-    audiobooks: UniqueList[str] = field(default_factory=UniqueList[str])
