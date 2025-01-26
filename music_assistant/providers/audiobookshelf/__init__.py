@@ -119,7 +119,7 @@ async def get_config_entries(
             label="Extended browse",
             required=False,
             description="Browse by author, collection and series in the browse function"
-            "at the cost of a little longer sync times.",
+            " at the cost of a little longer sync times.",
             default_value=False,
         ),
         ConfigEntry(
@@ -674,14 +674,23 @@ class Audiobookshelf(MusicProvider):
         else:
             return await self._browse_simple(path)
 
-    async def _browse_expanded_audiobooks(
-        self, full_path: str, sub_paths: list[str]
+    async def _browse_expanded_paths(
+        self,
+        full_path: str,
+        sub_paths: list[str],
+        media_type: MediaType,
     ) -> list[MediaItemType | ItemMapping]:
         items: list[MediaItemType | ItemMapping] = []
-        target: Any | CacheAudiobookLibrary = self._client.audiobook_libraries
+        # media items add here
+        _media_items_to_iterate: UniqueList[str] | list[str] | set[str] | None = None
+        # walk data structure
+        target: Any | CacheAudiobookLibrary | CachePodcastLibrary = self._client.audiobook_libraries
+        if media_type == MediaType.PODCAST:
+            target = self._client.podcast_libraries
         for sub_path in sub_paths:
             target = target.get(sub_path) if isinstance(target, dict) else getattr(target, sub_path)
         if isinstance(target, dict):
+            # Folders like author names, series names etc.
             for id_, params in target.items():
                 items.append(
                     BrowseFolder(
@@ -691,17 +700,11 @@ class Audiobookshelf(MusicProvider):
                         path=f"{full_path}/{id_}",
                     )
                 )
-            return items
         elif isinstance(target, CacheCollection | CacheSeries):
-            for book_id in target.audiobooks:
-                mass_item = await self.mass.music.get_library_item_by_prov_id(
-                    media_type=MediaType.AUDIOBOOK,
-                    item_id=book_id,
-                    provider_instance_id_or_domain=self.lookup_key,
-                )
-                if mass_item is not None:
-                    items.append(mass_item)
+            _media_items_to_iterate = target.audiobooks
         elif isinstance(target, CacheAuthor):
+            # Author may have series, add series as folder, and then only
+            # list remaining books
             series = target.series
             books = target.audiobooks
             books_in_series: list[str] = []
@@ -725,15 +728,9 @@ class Audiobookshelf(MusicProvider):
                     )
                 )
             books_without_series = set(books).difference(books_in_series)
-            for book_id in books_without_series:
-                mass_item = await self.mass.music.get_library_item_by_prov_id(
-                    media_type=MediaType.AUDIOBOOK,
-                    item_id=book_id,
-                    provider_instance_id_or_domain=self.lookup_key,
-                )
-                if mass_item is not None:
-                    items.append(mass_item)
+            _media_items_to_iterate = books_without_series
         elif isinstance(target, CacheAudiobookLibrary):
+            # top level view
             for folder_name in BrowseExtendedKeys:
                 if folder_name in [
                     BrowseExtendedKeys.PODCASTS.value,
@@ -750,53 +747,21 @@ class Audiobookshelf(MusicProvider):
                 )
         elif isinstance(target, list | UniqueList):
             # only media items are in a list:
-            for item_id in target:
-                mass_item = await self.mass.music.get_library_item_by_prov_id(
-                    media_type=MediaType.AUDIOBOOK,
-                    item_id=item_id,
-                    provider_instance_id_or_domain=self.lookup_key,
-                )
-                if mass_item is not None:
-                    items.append(mass_item)
-        return items
-
-    async def _browse_expanded_podcasts(
-        self, full_path: str, sub_paths: list[str]
-    ) -> list[MediaItemType | ItemMapping]:
-        """Podcasts are either by themselves or in playlists."""
-        items: list[MediaItemType | ItemMapping] = []
-        target: Any | CachePodcastLibrary = self._client.podcast_libraries
-        for sub_path in sub_paths:
-            target = target.get(sub_path) if isinstance(target, dict) else getattr(target, sub_path)
-
-        if isinstance(target, dict):
-            for id_, params in target.items():
-                items.append(
-                    BrowseFolder(
-                        item_id=id_,
-                        name=params.name,
-                        provider=self.lookup_key,
-                        path=f"{full_path}/{id_}",
-                    )
-                )
-        elif isinstance(target, list | UniqueList):
-            for item_id in target:
-                mass_item = await self.mass.music.get_library_item_by_prov_id(
-                    media_type=MediaType.PODCAST,
-                    item_id=item_id,
-                    provider_instance_id_or_domain=self.lookup_key,
-                )
-                if mass_item is not None:
-                    items.append(mass_item)
+            _media_items_to_iterate = target
         elif isinstance(target, CachePodcastLibrary):
-            for podcast_id in target.podcasts:
-                mass_item = await self.mass.music.get_library_item_by_prov_id(
-                    media_type=MediaType.PODCAST,
-                    item_id=podcast_id,
-                    provider_instance_id_or_domain=self.lookup_key,
-                )
-                if mass_item is not None:
-                    items.append(mass_item)
+            # there are only podcasts currently
+            _media_items_to_iterate = target.podcasts
+
+        if _media_items_to_iterate is None:
+            return items
+        for item_id in _media_items_to_iterate:
+            mass_item = await self.mass.music.get_library_item_by_prov_id(
+                media_type=media_type,
+                item_id=item_id,
+                provider_instance_id_or_domain=self.lookup_key,
+            )
+            if mass_item is not None:
+                items.append(mass_item)
         return items
 
     async def _browse_expanded(self, path: str) -> Sequence[MediaItemType | ItemMapping]:
@@ -833,8 +798,12 @@ class Audiobookshelf(MusicProvider):
             library_id = sub_paths[0]
             sub_paths = [BrowseExtendedKeys.LIBRARIES.value.lower(), *sub_paths]
             if self._client.podcast_libraries.libraries.get(library_id, None) is not None:
-                return await self._browse_expanded_podcasts(full_path=path, sub_paths=sub_paths)
+                return await self._browse_expanded_paths(
+                    full_path=path, sub_paths=sub_paths, media_type=MediaType.PODCAST
+                )
             else:
-                return await self._browse_expanded_audiobooks(full_path=path, sub_paths=sub_paths)
+                return await self._browse_expanded_paths(
+                    full_path=path, sub_paths=sub_paths, media_type=MediaType.AUDIOBOOK
+                )
 
         return items
