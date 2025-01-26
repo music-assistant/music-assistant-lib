@@ -9,14 +9,14 @@ from __future__ import annotations
 
 import asyncio
 import time
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import shortuuid
 from aiohttp import web
 from aiohttp.client_exceptions import ClientError
 from aiosonos.api.models import SonosCapability
 from aiosonos.utils import get_discovery_info
-from music_assistant_models.config_entries import ConfigEntry
+from music_assistant_models.config_entries import ConfigEntry, PlayerConfig
 from music_assistant_models.enums import ConfigEntryType, ContentType, ProviderFeature
 from music_assistant_models.errors import PlayerCommandFailed
 from music_assistant_models.player import DeviceInfo, PlayerMedia
@@ -38,6 +38,7 @@ from .helpers import get_primary_ip_address
 from .player import SonosPlayer
 
 if TYPE_CHECKING:
+    from music_assistant_models.queue_item import QueueItem
     from zeroconf.asyncio import AsyncServiceInfo
 
 CONF_IPS = "ips"
@@ -193,6 +194,22 @@ class SonosPlayerProvider(PlayerProvider):
             ),
         )
 
+    async def on_player_config_change(self, config: PlayerConfig, changed_keys: set[str]) -> None:
+        """Call (by config manager) when the configuration of a player changes."""
+        await super().on_player_config_change(config, changed_keys)
+        if "values/airplay_mode" in changed_keys and (
+            (sonos_player := self.sonos_players.get(config.player_id))
+            and (airplay_player := sonos_player.get_linked_airplay_player(False))
+            and airplay_player.active_source == sonos_player.mass_player.active_source
+        ):
+            # edge case: we switched from airplay mode to sonos mode (or vice versa)
+            # we need to make sure that playback gets stopped on the airplay player
+            if airplay_prov := self.mass.get_provider(airplay_player.provider):
+                await airplay_prov.cmd_stop(airplay_player.player_id)
+                airplay_player.active_source = None
+            if not sonos_player.airplay_mode_enabled:
+                await self.mass.players.cmd_power(config.player_id, False)
+
     async def cmd_stop(self, player_id: str) -> None:
         """Send STOP command to given player."""
         if sonos_player := self.sonos_players[player_id]:
@@ -234,6 +251,11 @@ class SonosPlayerProvider(PlayerProvider):
         if airplay_player := sonos_player.get_linked_airplay_player(False):
             # if airplay mode is enabled, we could possibly receive child player id's that are
             # not Sonos players, but Airplay players. We redirect those.
+            if sonos_player.mass_player.active_source and not self.mass.player_queues.get(
+                sonos_player.mass_player.active_source
+            ):
+                # edge case player is not playing a MA queue - fail this request
+                raise PlayerCommandFailed("Player is not playing a Music Assistant queue.")
             airplay_child_ids = [x for x in child_player_ids if x.startswith("ap")]
             child_player_ids = [x for x in child_player_ids if x not in airplay_child_ids]
             if airplay_child_ids:
@@ -416,51 +438,7 @@ class SonosPlayerProvider(PlayerProvider):
             sonos_player_id, CONF_ENTRY_ENFORCE_MP3.key, CONF_ENTRY_ENFORCE_MP3.default_value
         )
         sonos_queue_items = [
-            {
-                "id": item.queue_item_id,
-                "deleted": not item.media_item.available,
-                "policies": {},
-                "track": {
-                    "type": "track",
-                    "mediaUrl": self.mass.streams.resolve_stream_url(
-                        item, output_codec=ContentType.MP3 if enforce_mp3 else ContentType.FLAC
-                    ),
-                    "contentType": "audio/flac",
-                    "service": {
-                        "name": "Music Assistant",
-                        "id": "8",
-                        "accountId": "",
-                        "objectId": item.queue_item_id,
-                    },
-                    "name": item.name,
-                    "imageUrl": self.mass.metadata.get_image_url(
-                        item.image, prefer_proxy=False, image_format="jpeg"
-                    )
-                    if item.image
-                    else None,
-                    "durationMillis": item.duration * 1000 if item.duration else None,
-                    "artist": {
-                        "name": artist_str,
-                    }
-                    if item.media_item
-                    and (artist_str := getattr(item.media_item, "artist_str", None))
-                    else None,
-                    "album": {
-                        "name": album.name,
-                    }
-                    if item.media_item and (album := getattr(item.media_item, "album", None))
-                    else None,
-                    "quality": {
-                        "bitDepth": item.streamdetails.audio_format.bit_depth,
-                        "sampleRate": item.streamdetails.audio_format.sample_rate,
-                        "codec": item.streamdetails.audio_format.content_type.value,
-                        "lossless": item.streamdetails.audio_format.content_type.is_lossless(),
-                    }
-                    if item.streamdetails
-                    else None,
-                },
-            }
-            for item in queue_items
+            self._parse_sonos_queue_item(item, enforce_mp3) for item in queue_items
         ]
         result = {
             "includesBeginningOfQueue": offset == 0,
@@ -564,3 +542,52 @@ class SonosPlayerProvider(PlayerProvider):
             self.mass.players.update(sonos_player_id)
             break
         return web.Response(status=204)
+
+    def _parse_sonos_queue_item(self, queue_item: QueueItem, enforce_mp3: bool) -> dict[str, Any]:
+        """Parse a Sonos queue item to a PlayerMedia object."""
+        available = queue_item.media_item.available if queue_item.media_item else True
+        return {
+            "id": queue_item.queue_item_id,
+            "deleted": not available,
+            "policies": {},
+            "track": {
+                "type": "track",
+                "mediaUrl": self.mass.streams.resolve_stream_url(
+                    queue_item, output_codec=ContentType.MP3 if enforce_mp3 else ContentType.FLAC
+                ),
+                "contentType": "audio/flac",
+                "service": {
+                    "name": "Music Assistant",
+                    "id": "8",
+                    "accountId": "",
+                    "objectId": queue_item.queue_item_id,
+                },
+                "name": queue_item.media_item.name if queue_item.media_item else queue_item.name,
+                "imageUrl": self.mass.metadata.get_image_url(
+                    queue_item.image, prefer_proxy=False, image_format="jpeg"
+                )
+                if queue_item.image
+                else None,
+                "durationMillis": queue_item.duration * 1000 if queue_item.duration else None,
+                "artist": {
+                    "name": artist_str,
+                }
+                if queue_item.media_item
+                and (artist_str := getattr(queue_item.media_item, "artist_str", None))
+                else None,
+                "album": {
+                    "name": album.name,
+                }
+                if queue_item.media_item
+                and (album := getattr(queue_item.media_item, "album", None))
+                else None,
+                "quality": {
+                    "bitDepth": queue_item.streamdetails.audio_format.bit_depth,
+                    "sampleRate": queue_item.streamdetails.audio_format.sample_rate,
+                    "codec": queue_item.streamdetails.audio_format.content_type.value,
+                    "lossless": queue_item.streamdetails.audio_format.content_type.is_lossless(),
+                }
+                if queue_item.streamdetails
+                else None,
+            },
+        }

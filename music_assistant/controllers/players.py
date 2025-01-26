@@ -54,6 +54,7 @@ if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable, Coroutine, Iterator
 
     from music_assistant_models.config_entries import CoreConfig, PlayerConfig
+    from music_assistant_models.player_queue import PlayerQueue
 
 
 _PlayerControllerT = TypeVar("_PlayerControllerT", bound="PlayerController")
@@ -752,7 +753,10 @@ class PlayerController(CoreController):
         if (
             player.active_group
             and (group_player := self.get(player.active_group))
-            and PlayerFeature.SET_MEMBERS in group_player.supported_features
+            and (
+                PlayerFeature.SET_MEMBERS in group_player.supported_features
+                or group_player.provider.startswith("player_group")
+            )
         ):
             # the player is part of a (permanent) groupplayer and the user tries to ungroup
             # redirect the command to the group provider
@@ -1134,19 +1138,21 @@ class PlayerController(CoreController):
     async def on_player_config_change(self, config: PlayerConfig, changed_keys: set[str]) -> None:
         """Call (by config manager) when the configuration of a player changes."""
         player_disabled = "enabled" in changed_keys and not config.enabled
+        if not (player := self.get(config.player_id)):
+            return
+        resume_queue: PlayerQueue | None = self.mass.player_queues.get(player.active_source)
         # signal player provider that the config changed
         if player_provider := self.mass.get_provider(config.provider):
             with suppress(PlayerUnavailableError):
                 await player_provider.on_player_config_change(config, changed_keys)
-        if not (player := self.get(config.player_id)):
-            return
         if player_disabled:
             # edge case: ensure that the player is powered off if the player gets disabled
             await self.cmd_power(config.player_id, False)
             player.available = False
-        # if the player was playing, restart playback
-        elif not player_disabled and player.state == PlayerState.PLAYING:
-            self.mass.call_later(1, self.mass.player_queues.resume, player.active_source)
+        # if the PlayerQueue was playing, restart playback
+        # TODO: add property to ConfigEntry if it requires a restart of playback on change
+        elif not player_disabled and resume_queue.state == PlayerState.PLAYING:
+            self.mass.call_later(1, self.mass.player_queues.resume, resume_queue.queue_id)
         # check for group memberships that need to be updated
         if player_disabled and player.active_group and player_provider:
             # try to remove from the group

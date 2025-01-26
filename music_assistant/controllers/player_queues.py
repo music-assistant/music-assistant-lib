@@ -725,7 +725,7 @@ class PlayerQueuesController(CoreController):
             # use current position as resume position
             resume_pos = queue.corrected_elapsed_time
         else:
-            resume_pos = queue.resume_pos
+            resume_pos = queue.resume_pos or queue.elapsed_time
 
         if not resume_item and queue.current_index is not None and len(queue_items) > 0:
             resume_item = self.get_item(queue_id, queue.current_index)
@@ -1144,6 +1144,8 @@ class PlayerQueuesController(CoreController):
         cur_index = self.index_by_id(queue_id, current_item_id)
         idx = 0
         while True:
+            if cur_index is None:
+                break
             next_item: QueueItem | None = None
             next_index = self._get_next_index(queue_id, cur_index + idx)
             if next_index is None:

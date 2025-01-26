@@ -11,7 +11,11 @@ from datetime import datetime, timedelta
 from enum import StrEnum
 from typing import TYPE_CHECKING, ParamSpec, TypeVar, cast
 
-from music_assistant_models.config_entries import ConfigEntry, ConfigValueOption, ConfigValueType
+from music_assistant_models.config_entries import (
+    ConfigEntry,
+    ConfigValueOption,
+    ConfigValueType,
+)
 from music_assistant_models.enums import (
     AlbumType,
     CacheCategory,
@@ -48,7 +52,10 @@ from tidalapi import exceptions as tidal_exceptions
 
 from music_assistant.helpers.auth import AuthenticationHelper
 from music_assistant.helpers.tags import AudioTags, async_parse_tags
-from music_assistant.helpers.throttle_retry import ThrottlerManager, throttle_with_retries
+from music_assistant.helpers.throttle_retry import (
+    ThrottlerManager,
+    throttle_with_retries,
+)
 from music_assistant.models.music_provider import MusicProvider
 
 from .helpers import (
@@ -132,12 +139,12 @@ async def setup(
 async def tidal_auth_url(auth_helper: AuthenticationHelper, quality: str) -> str:
     """Generate the Tidal authentication URL."""
 
-    def inner() -> TidalSession:
-        # global glob_temp_session
+    def inner() -> str:
         config = TidalConfig(quality=quality, item_limit=10000, alac=False)
         session = TidalSession(config=config)
         url = session.pkce_login_url()
-        auth_helper.send_url(url)
+        # Schedule auth_helper.send_url to run in event loop
+        auth_helper.mass.loop.call_soon_threadsafe(auth_helper.send_url, url)
         session_bytes = pickle.dumps(session)
         base64_bytes = base64.b64encode(session_bytes)
         return base64_bytes.decode("utf-8")

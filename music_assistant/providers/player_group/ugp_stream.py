@@ -54,8 +54,8 @@ class UGPStream:
             return
         if self._task and not self._task.done():
             self._task.cancel()
-        with suppress(asyncio.CancelledError):
-            await self._task
+            with suppress(asyncio.CancelledError):
+                await self._task
         self._done.set()
 
     async def subscribe_raw(self) -> AsyncGenerator[bytes, None]:

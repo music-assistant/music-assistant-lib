@@ -7,6 +7,7 @@ allowing the user to create 'presets' of players to sync together (of the same t
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Callable
 from contextlib import suppress
 from time import time
@@ -112,7 +113,7 @@ CONFIG_ENTRY_UGP_NOTE = ConfigEntry(
     "allows you to group any player, it will not enable audio sync "
     "between players of different ecosystems. It is advised to always use native "
     "player groups or sync groups when available for your player type(s) and use "
-    "the Universal Group only to group players of different ecosystems.",
+    "the Universal Group only to group players of different ecosystems/protocols.",
     required=False,
 )
 CONFIG_ENTRY_DYNAMIC_MEMBERS = ConfigEntry(
@@ -210,6 +211,10 @@ class PlayerGroupProvider(PlayerProvider):
 
         Called when provider is deregistered (e.g. MA exiting or config reloading).
         """
+        # power off all group players at unload
+        for group_player in self.players:
+            if group_player.powered:
+                await self.cmd_power(group_player.player_id, False)
         for unload_cb in self._on_unload:
             unload_cb()
 
@@ -364,6 +369,16 @@ class PlayerGroupProvider(PlayerProvider):
                 ):
                     # stop playing existing content on member if we start the group player
                     await player_provider.cmd_stop(member.player_id)
+                if member.active_group not in (
+                    None,
+                    group_player.player_id,
+                    member.player_id,
+                ):
+                    # collision: child player is part of multiple groups
+                    # and another group already active !
+                    # solve this by powering off the other group
+                    await self.mass.players.cmd_power(member.active_group, False)
+                    await asyncio.sleep(1)
                 if not member.powered:
                     member.active_group = None  # needed to prevent race conditions
                     await self.mass.players.cmd_power(member.player_id, True)
@@ -386,7 +401,7 @@ class PlayerGroupProvider(PlayerProvider):
                     await self.mass.players.cmd_power(member.player_id, False)
 
         if powered and player_id.startswith(SYNCGROUP_PREFIX):
-            await self._sync_syncgroup(group_player)
+            await self._form_syncgroup(group_player)
         # optimistically set the group state
         group_player.powered = powered
         self.mass.players.update(group_player.player_id)
@@ -413,8 +428,7 @@ class PlayerGroupProvider(PlayerProvider):
         # handle play_media for sync group
         if player_id.startswith(SYNCGROUP_PREFIX):
             # simply forward the command to the sync leader
-            sync_leader = self._select_sync_leader(group_player)
-            assert sync_leader  # for typing
+            sync_leader = self._get_sync_leader(group_player)
             player_provider = self.mass.get_provider(sync_leader.provider)
             assert player_provider  # for typing
             await player_provider.play_media(
@@ -575,6 +589,13 @@ class PlayerGroupProvider(PlayerProvider):
             raise UnsupportedFeaturedException(
                 f"Adjusting group members is not allowed for group {group_player.display_name}"
             )
+        child_player = self.mass.players.get(player_id, raise_unavailable=True)
+        if TYPE_CHECKING:
+            group_player = cast(Player, group_player)
+        if child_player.active_group and child_player.active_group != group_player.player_id:
+            raise InvalidDataError(
+                f"Player {child_player.display_name} already has another group active"
+            )
         group_player.group_childs.append(player_id)
 
         # handle resync/resume if group player was already playing
@@ -624,21 +645,33 @@ class PlayerGroupProvider(PlayerProvider):
         group_player.group_childs.remove(player_id)
         child_player.active_group = None
         child_player.active_source = None
+        player_provider = self.mass.players.get_player_provider(child_player.player_id)
         if group_type == GROUP_TYPE_UNIVERSAL:
             if was_playing:
                 # stop playing the group player
-                player_provider = self.mass.players.get_player_provider(child_player.player_id)
                 await player_provider.cmd_stop(child_player.player_id)
             self._update_attributes(group_player)
             return
         # handle sync group
-        if player_provider := self.mass.players.get_player_provider(child_player.player_id):
+        if child_player.group_childs:
+            # this is the sync leader, unsync all its childs!
+            # NOTE that some players/providers might support this in a less intrusive way
+            # but for now we just ungroup all childs to keep thinngs universal
+            async with TaskManager(self.mass) as tg:
+                for sync_child_id in child_player.group_childs:
+                    if sync_child_id == child_player.player_id:
+                        continue
+                    tg.create_task(player_provider.cmd_ungroup(sync_child_id))
+            await player_provider.cmd_stop(child_player.player_id)
+        else:
+            # this is a regular member, just ungroup itself
             await player_provider.cmd_ungroup(child_player.player_id)
+
         if is_sync_leader and was_playing and group_player.powered:
-            # ungrouping the sync leader will stop the group so we need to resume
+            # ungrouping the sync leader stops the group so we need to resume
             task_id = f"resync_group_{group_player.player_id}"
             self.mass.call_later(
-                3, self.mass.players.cmd_play, group_player.player_id, task_id=task_id
+                2, self.mass.players.cmd_play(group_player.player_id), task_id=task_id
             )
 
     async def _register_all_players(self) -> None:
@@ -712,6 +745,7 @@ class PlayerGroupProvider(PlayerProvider):
             type=PlayerType.GROUP,
             name=name,
             available=True,
+            # group players are always powered off by default at init/startup
             powered=False,
             device_info=DeviceInfo(model=model_name, manufacturer=manufacturer),
             supported_features=player_features,
@@ -726,53 +760,25 @@ class PlayerGroupProvider(PlayerProvider):
         self._update_attributes(player)
         return player
 
-    def _get_sync_leader(self, group_player: Player) -> Player | None:
+    def _get_sync_leader(self, group_player: Player) -> Player:
         """Get the active sync leader player for the syncgroup."""
-        if group_player.synced_to:
-            # should not happen but just in case...
-            return self.mass.players.get(group_player.synced_to)
-        if len(group_player.group_childs) == 1:
-            # Return the (first/only) player
-            # this is to handle the edge case where players are not
-            # yet synced or there simply is just one player
-            for child_player in self.mass.players.iter_group_members(
-                group_player, only_powered=False, only_playing=False, active_only=False
-            ):
-                if not child_player.synced_to:
-                    return child_player
-        # Return the (first/only) player that has group childs
         for child_player in self.mass.players.iter_group_members(
             group_player, only_powered=False, only_playing=False, active_only=False
         ):
-            if child_player.group_childs:
-                return child_player
-        return None
-
-    def _select_sync_leader(self, group_player: Player) -> Player | None:
-        """Select the active sync leader player for a syncgroup."""
-        if sync_leader := self._get_sync_leader(group_player):
-            return sync_leader
-        # select new sync leader: return the first active player
-        for child_player in self.mass.players.iter_group_members(group_player, active_only=True):
-            if child_player.active_group not in (None, group_player.player_id):
-                continue
-            if (
-                child_player.active_source
-                and child_player.active_source != group_player.active_source
-            ):
-                continue
+            # the syncleader is always the first player in the group
             return child_player
-        # fallback select new sync leader: simply return the first (available) player
-        for child_player in self.mass.players.iter_group_members(
-            group_player, only_powered=False, only_playing=False, active_only=False
-        ):
-            return child_player
-        # this really should not be possible
-        raise RuntimeError("No players available to form syncgroup")
+        raise RuntimeError("No players available in syncgroup")
 
-    async def _sync_syncgroup(self, group_player: Player) -> None:
-        """Sync all (possible) players of a syncgroup."""
-        sync_leader = self._select_sync_leader(group_player)
+    async def _form_syncgroup(self, group_player: Player) -> None:
+        """Form syncgroup by sync all (possible) members."""
+        sync_leader = await self._select_sync_leader(group_player)
+        # ensure the sync leader is first in the list
+        group_player.group_childs.set(
+            [
+                sync_leader.player_id,
+                *[x for x in group_player.group_childs if x != sync_leader.player_id],
+            ]
+        )
         members_to_sync: list[str] = []
         for member in self.mass.players.iter_group_members(group_player, active_only=False):
             if member.synced_to and member.synced_to != sync_leader.player_id:
@@ -791,6 +797,24 @@ class PlayerGroupProvider(PlayerProvider):
         if members_to_sync:
             await self.mass.players.cmd_group_many(sync_leader.player_id, members_to_sync)
 
+    async def _select_sync_leader(self, group_player: Player) -> Player:
+        """Select the active sync leader player for a syncgroup."""
+        # prefer the first player that already has sync childs
+        for prefer_sync_leader in (True, False):
+            for child_player in self.mass.players.iter_group_members(group_player):
+                if prefer_sync_leader and child_player.synced_to:
+                    continue
+                if child_player.active_group not in (
+                    None,
+                    group_player.player_id,
+                    child_player.player_id,
+                ):
+                    # this should not happen (because its already handled in the power on logic),
+                    # but guard it just in case bad things happen
+                    continue
+                return child_player
+        raise RuntimeError("No players available to form syncgroup")
+
     async def _on_mass_player_added_event(self, event: MassEvent) -> None:
         """Handle player added event from player controller."""
         await self._register_all_players()
@@ -800,9 +824,15 @@ class PlayerGroupProvider(PlayerProvider):
         group_type = self.mass.config.get_raw_player_config_value(
             player.player_id, CONF_ENTRY_GROUP_TYPE.key, CONF_ENTRY_GROUP_TYPE.default_value
         )
-        for child_player in self.mass.players.iter_group_members(player, active_only=True):
-            # just grab the first active player
+        # grab current media and state from one of the active players
+        for child_player in self.mass.players.iter_group_members(
+            player, active_only=True, only_playing=True
+        ):
             if child_player.synced_to:
+                # ignore child players
+                continue
+            if child_player.active_source not in (None, player.active_source):
+                # this should not happen but guard just in case
                 continue
             player.state = child_player.state
             if child_player.current_media:
@@ -812,7 +842,6 @@ class PlayerGroupProvider(PlayerProvider):
             break
         else:
             player.state = PlayerState.IDLE
-            player.active_source = player.player_id
         if group_type == GROUP_TYPE_UNIVERSAL:
             can_group_with = {
                 # allow grouping with all providers, except the playergroup provider itself
@@ -824,7 +853,6 @@ class PlayerGroupProvider(PlayerProvider):
             can_group_with = {sync_player_provider.instance_id}
         else:
             can_group_with = {}
-
         player.can_group_with = can_group_with
         self.mass.players.update(player.player_id)
 

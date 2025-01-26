@@ -31,6 +31,7 @@ from music_assistant_models.errors import InvalidCommand
 from music_assistant.constants import CONF_BIND_IP, CONF_BIND_PORT, VERBOSE_LOG_LEVEL
 from music_assistant.helpers.api import APICommandHandler, parse_arguments
 from music_assistant.helpers.audio import get_preview_stream
+from music_assistant.helpers.json import json_dumps
 from music_assistant.helpers.util import get_ip, get_ips
 from music_assistant.helpers.webserver import Webserver
 from music_assistant.models.core_controller import CoreController
@@ -159,6 +160,8 @@ class WebserverController(CoreController):
         routes.append(("GET", "/imageproxy", self.mass.metadata.handle_imageproxy))
         # also host the audio preview service
         routes.append(("GET", "/preview", self.serve_preview_stream))
+        # add jsonrpc api
+        routes.append(("POST", "/api", self._handle_jsonrpc_api_command))
         # start the webserver
         default_publish_ip = await get_ip()
         if self.mass.running_as_hass_addon:
@@ -220,6 +223,34 @@ class WebserverController(CoreController):
             return await connection.handle_client()
         finally:
             self.clients.remove(connection)
+
+    async def _handle_jsonrpc_api_command(self, request: web.Request) -> web.Response:
+        """Handle incoming JSON RPC API command."""
+        if not request.can_read_body:
+            return web.Response(status=400, text="Body required")
+        cmd_data = await request.read()
+        self.logger.log(VERBOSE_LOG_LEVEL, "Received on JSONRPC API: %s", cmd_data)
+        try:
+            command_msg = CommandMessage.from_json(cmd_data)
+        except ValueError:
+            error = f"Invalid JSON: {cmd_data}"
+            self.logger.error("Unhandled JSONRPC API error: %s", error)
+            return web.Response(status=400, text=error)
+
+        # work out handler for the given path/command
+        handler = self.mass.command_handlers.get(command_msg.command)
+        if handler is None:
+            error = f"Invalid Command: {command_msg.command}"
+            self.logger.error("Unhandled JSONRPC API error: %s", error)
+            return web.Response(status=400, text=error)
+        args = parse_arguments(handler.signature, handler.type_hints, command_msg.args)
+        result = handler.target(**args)
+        if hasattr(result, "__anext__"):
+            # handle async generator (for really large listings)
+            result = [item async for item in result]
+        elif asyncio.iscoroutine(result):
+            result = await result
+        return web.json_response(result, dumps=json_dumps)
 
     async def _handle_application_log(self, request: web.Request) -> web.Response:
         """Handle request to get the application log."""

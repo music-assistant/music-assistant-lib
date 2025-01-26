@@ -346,8 +346,6 @@ class StreamsController(CoreController):
             input_format=pcm_format,
             output_format=output_format,
             filter_params=get_player_filter_params(self.mass, queue_player.player_id, pcm_format),
-            # we don't allow the player to buffer too much ahead so we use readrate limiting
-            extra_input_args=["-readrate", "1.1", "-readrate_initial_burst", "10"],
         ):
             try:
                 await resp.write(chunk)
@@ -445,8 +443,6 @@ class StreamsController(CoreController):
                 self.mass, queue_player.player_id, flow_pcm_format
             ),
             chunk_size=icy_meta_interval if enable_icy else None,
-            # we don't allow the player to buffer too much ahead so we use readrate limiting
-            extra_input_args=["-readrate", "1.1", "-readrate_initial_burst", "10"],
         ):
             try:
                 await resp.write(chunk)
