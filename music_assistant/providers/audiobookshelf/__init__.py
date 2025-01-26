@@ -678,20 +678,6 @@ class Audiobookshelf(MusicProvider):
         self, full_path: str, sub_paths: list[str]
     ) -> list[MediaItemType | ItemMapping]:
         items: list[MediaItemType | ItemMapping] = []
-        if not sub_paths:
-            for folder_name in BrowseExtendedKeys:
-                if folder_name == BrowseExtendedKeys.PODCASTS.value:
-                    continue
-                items.append(
-                    BrowseFolder(
-                        item_id=folder_name.lower(),
-                        name=f"All {folder_name}",
-                        provider=self.lookup_key,
-                        path=f"{full_path}/{folder_name.lower()}",
-                    )
-                )
-            return items
-
         target: Any | CacheAudiobookLibrary = self._client.audiobook_libraries
         for sub_path in sub_paths:
             target = target.get(sub_path) if isinstance(target, dict) else getattr(target, sub_path)
@@ -776,19 +762,6 @@ class Audiobookshelf(MusicProvider):
     ) -> list[MediaItemType | ItemMapping]:
         """Podcasts are either by themselves or in playlists."""
         items: list[MediaItemType | ItemMapping] = []
-        if not sub_paths:
-            folder_names = [BrowseExtendedKeys.PODCASTS.value, BrowseExtendedKeys.LIBRARIES.value]
-            for folder_name in folder_names:
-                items.append(
-                    BrowseFolder(
-                        item_id=folder_name.lower(),
-                        name=f"All {folder_name}",
-                        provider=self.lookup_key,
-                        path=f"{full_path}/{folder_name.lower()}",
-                    )
-                )
-            return items
-
         target: Any | CachePodcastLibrary = self._client.podcast_libraries
         for sub_path in sub_paths:
             target = target.get(sub_path) if isinstance(target, dict) else getattr(target, sub_path)
@@ -828,24 +801,37 @@ class Audiobookshelf(MusicProvider):
         items: list[MediaItemType | ItemMapping] = []
         item_path = path.split("://", 1)[1]
         if not item_path:  # root
-            # Podcast and Audiobook libraries cannot overlap
-            # in ABS, so we offer the choice here
-            for key in (BrowseExtendedKeys.PODCASTS.value, BrowseExtendedKeys.AUDIOBOOKS.value):
+            for (
+                audiobook_library_id,
+                audiobook_library,
+            ) in self._client.audiobook_libraries.libraries.items():
                 items.append(
                     BrowseFolder(
-                        item_id=key,
-                        name=key,
+                        item_id=audiobook_library_id,
+                        name=f"{audiobook_library.name} (Audiobooks)",
                         provider=self.lookup_key,
-                        path=f"{self.lookup_key}://{key.lower()}",
+                        path=f"{self.lookup_key}://{audiobook_library_id}",
+                    )
+                )
+            for (
+                podcast_library_id,
+                podcast_library,
+            ) in self._client.podcast_libraries.libraries.items():
+                items.append(
+                    BrowseFolder(
+                        item_id=podcast_library_id,
+                        name=f"{podcast_library.name} (Podcasts)",
+                        provider=self.lookup_key,
+                        path=f"{self.lookup_key}://{podcast_library_id}",
                     )
                 )
         else:
             sub_paths = item_path.split("/")
-            if sub_paths[0] == BrowseExtendedKeys.PODCASTS.value.lower():
-                return await self._browse_expanded_podcasts(full_path=path, sub_paths=sub_paths[1:])
+            library_id = sub_paths[0]
+            sub_paths = [BrowseExtendedKeys.LIBRARIES.value.lower(), *sub_paths]
+            if self._client.podcast_libraries.libraries.get(library_id, None) is not None:
+                return await self._browse_expanded_podcasts(full_path=path, sub_paths=sub_paths)
             else:
-                return await self._browse_expanded_audiobooks(
-                    full_path=path, sub_paths=sub_paths[1:]
-                )
+                return await self._browse_expanded_audiobooks(full_path=path, sub_paths=sub_paths)
 
         return items

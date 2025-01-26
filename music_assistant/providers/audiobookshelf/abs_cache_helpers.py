@@ -14,11 +14,11 @@ from music_assistant_models.media_items import UniqueList
 class BrowseExtendedKeys(StrEnum):
     """BrowseExtendedKeys."""
 
-    AUTHORS = "Authors"
-    SERIES = "Series"
-    COLLECTIONS = "Collections"
     AUDIOBOOKS = "Audiobooks"
     PODCASTS = "Podcasts"
+    SERIES = "Series"
+    COLLECTIONS = "Collections"
+    AUTHORS = "Authors"
     LIBRARIES = "Libraries"
 
 
