@@ -695,6 +695,11 @@ class MusicAssistant:
                         icon_path = os.path.join(provider_path, "icon_dark.svg")
                         if await isfile(icon_path):
                             provider_manifest.icon_svg_dark = await get_icon_string(icon_path)
+                    # check for icon_monochrome file
+                    if not provider_manifest.icon_svg_monochrome:
+                        icon_path = os.path.join(provider_path, "icon_monochrome.svg")
+                        if await isfile(icon_path):
+                            provider_manifest.icon_svg_monochrome = await get_icon_string(icon_path)
                     self._provider_manifests[provider_manifest.domain] = provider_manifest
                     LOGGER.debug("Loaded manifest for provider %s", provider_manifest.name)
                 except Exception as exc:
