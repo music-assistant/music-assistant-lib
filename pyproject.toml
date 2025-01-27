@@ -14,7 +14,7 @@ dependencies = [
   "Brotli>=1.0.9",
   "aiohttp==3.11.11",
   "aiofiles==24.1.0",
-  "aiorun==2024.8.1",
+  "aiorun==2025.1.1",
   "aiosqlite==0.20.0",
   "certifi==2024.12.14",
   "colorlog==6.9.0",
