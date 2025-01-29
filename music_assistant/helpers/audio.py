@@ -944,6 +944,7 @@ def get_player_filter_params(
     mass: MusicAssistant,
     player_id: str,
     input_format: AudioFormat,
+    output_format: AudioFormat,
 ) -> list[str]:
     """Get player specific filter parameters for ffmpeg (if any)."""
     filter_params = []

@@ -905,7 +905,7 @@ class PlayerGroupProvider(PlayerProvider):
         filter_params = None
         if child_player_id:
             filter_params = get_player_filter_params(
-                self.mass, child_player_id, stream.input_format
+                self.mass, child_player_id, stream.input_format, output_format
             )
 
         async for chunk in stream.get_stream(

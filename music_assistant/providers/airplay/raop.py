@@ -235,7 +235,9 @@ class RaopStream:
             audio_input="-",
             input_format=self.session.input_format,
             output_format=AIRPLAY_PCM_FORMAT,
-            filter_params=get_player_filter_params(self.mass, player_id, self.session.input_format),
+            filter_params=get_player_filter_params(
+                self.mass, player_id, self.session.input_format, AIRPLAY_PCM_FORMAT
+            ),
             audio_output=write,
         )
         await self._ffmpeg_proc.start()

@@ -962,10 +962,12 @@ class SlimprotoProvider(PlayerProvider):
             "Start serving multi-client flow audio stream to %s",
             child_player.display_name,
         )
-
+        output_format = AudioFormat(content_type=ContentType.try_parse(fmt))
         async for chunk in stream.get_stream(
-            output_format=AudioFormat(content_type=ContentType.try_parse(fmt)),
-            filter_params=get_player_filter_params(self.mass, child_player_id, stream.audio_format)
+            output_format=output_format,
+            filter_params=get_player_filter_params(
+                self.mass, child_player_id, stream.audio_format, output_format
+            )
             if child_player_id
             else None,
         ):
