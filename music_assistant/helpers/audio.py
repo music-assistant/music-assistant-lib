@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import os
 import re
@@ -220,15 +221,26 @@ def get_stream_dsp_details(
 ) -> dict[str, DSPDetails]:
     """Return DSP details of all players playing this queue, keyed by player_id."""
     player = mass.players.get(queue_id)
-    dsp = {}
+    dsp: dict[str, DSPDetails] = {}
     group_preventing_dsp = is_grouping_preventing_dsp(player)
+    output_format = None
 
-    # We skip the PlayerGroups as they don't provide an audio output
-    # by themselves, but only sync other players.
-    if not player.provider.startswith("player_group"):
+    if player.provider.startswith("player_group"):
+        if group_preventing_dsp:
+            with contextlib.suppress(RuntimeError):
+                # We need a bit of a hack here since only the leader knows the correct output format
+                provider = mass.get_provider(player.provider)
+                if provider:
+                    output_format = provider._get_sync_leader(player)._output_format
+    else:
+        # We only add real players (so skip the PlayerGroups as they only sync containing players)
         details = get_player_dsp_details(mass, player)
         details.is_leader = True
         dsp[player.player_id] = details
+        if group_preventing_dsp:
+            # The leader is responsible for sending the (combined) audio stream, so get
+            # the output format from the leader.
+            output_format = player._output_format
 
     if player and player.group_childs:
         # grouped playback, get DSP details for each player in the group
@@ -237,6 +249,11 @@ def get_stream_dsp_details(
                 dsp[child_id] = get_player_dsp_details(
                     mass, child_player, group_preventing_dsp=group_preventing_dsp
                 )
+                if group_preventing_dsp:
+                    # Use the correct format from the group leader, since
+                    # this player is part of a group that does not support
+                    # multi device DSP processing.
+                    dsp[child_id].output_format = output_format
     return dsp
 
 
