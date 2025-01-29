@@ -410,6 +410,11 @@ async def get_media_stream(
                 bytes_sent += len(chunk)
                 continue
 
+            if chunk_number == 0:
+                # At this point ffmpeg has started and should now know the codec used
+                # for encoding the audio.
+                streamdetails.audio_format.codec_type = ffmpeg_proc.input_format.codec_type
+
             chunk_number += 1
             # determine buffer size dynamically
             if chunk_number < 5 and strip_silence_begin:

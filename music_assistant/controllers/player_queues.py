@@ -23,6 +23,7 @@ from music_assistant_models.config_entries import ConfigEntry, ConfigValueOption
 from music_assistant_models.enums import (
     CacheCategory,
     ConfigEntryType,
+    ContentType,
     EventType,
     MediaType,
     PlayerState,
@@ -108,6 +109,7 @@ class CompareState(TypedDict):
     elapsed_time: int
     stream_title: str | None
     content_type: str | None
+    codec_type: ContentType | None
     output_formats: list[str] | None
 
 
@@ -990,6 +992,9 @@ class PlayerQueuesController(CoreController):
             if queue.current_item and queue.current_item.streamdetails
             else None,
             content_type=queue.current_item.streamdetails.audio_format.output_format_str
+            if queue.current_item and queue.current_item.streamdetails
+            else None,
+            codec_type=queue.current_item.streamdetails.audio_format.codec_type
             if queue.current_item and queue.current_item.streamdetails
             else None,
             output_formats=output_formats,

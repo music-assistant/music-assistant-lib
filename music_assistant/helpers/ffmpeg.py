@@ -59,6 +59,7 @@ class FFMpeg(AsyncProcess):
         self.log_history: deque[str] = deque(maxlen=100)
         self._stdin_task: asyncio.Task | None = None
         self._logger_task: asyncio.Task | None = None
+        self._input_codec_parsed = False
         super().__init__(
             ffmpeg_args,
             stdin=True if isinstance(audio_input, str | AsyncGenerator) else audio_input,
@@ -117,15 +118,19 @@ class FFMpeg(AsyncProcess):
 
             # if streamdetails contenttype is unknown, try parse it from the ffmpeg log
             if line.startswith("Stream #") and ": Audio: " in line:
-                if self.input_format.content_type == ContentType.UNKNOWN:
+                if not self._input_codec_parsed:
                     content_type_raw = line.split(": Audio: ")[1].split(" ")[0]
+                    content_type_raw = content_type_raw.split(",")[0]
                     content_type = ContentType.try_parse(content_type_raw)
                     self.logger.debug(
                         "Detected (input) content type: %s (%s)",
                         content_type,
                         content_type_raw,
                     )
-                    self.input_format.content_type = content_type
+                    if self.input_format.content_type == ContentType.UNKNOWN:
+                        self.input_format.content_type = content_type
+                    self.input_format.codec_type = content_type
+                    self._input_codec_parsed = True
             del line
 
     async def _feed_stdin(self) -> None:
