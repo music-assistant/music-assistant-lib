@@ -210,6 +210,7 @@ def get_player_dsp_details(
         filters=dsp_config.filters,
         output_gain=dsp_config.output_gain,
         output_limiter=dsp_config.output_limiter,
+        output_format=player._output_format,
     )
 
 
@@ -969,6 +970,11 @@ def get_player_filter_params(
             else:
                 # This should normally never happen, but if it does, we disable DSP.
                 dsp.enabled = False
+
+        # We here implicitly know what output format is used for the player
+        # in the audio processing steps. We save this information to
+        # later be able to show this to the user in the UI.
+        player._output_format = output_format
 
     if dsp.enabled:
         # Apply input gain
