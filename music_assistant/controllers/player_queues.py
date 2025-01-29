@@ -108,7 +108,7 @@ class CompareState(TypedDict):
     elapsed_time: int
     stream_title: str | None
     content_type: str | None
-    group_childs_count: int
+    output_formats: list[str] | None
 
 
 class PlayerQueuesController(CoreController):
@@ -966,9 +966,18 @@ class PlayerQueuesController(CoreController):
                 next_item_id=None,
                 elapsed_time=0,
                 stream_title=None,
-                group_childs_count=0,
+                output_formats=None,
             ),
         )
+
+        # This is enough to detect any changes in the DSPDetails
+        # (so child count changed, or any output format changed)
+        output_formats = []
+        if player._output_format:
+            output_formats.append(player._output_format.output_format_str)
+        for child_id in player.group_childs:
+            if (child := self.mass.players.get(child_id)) and child._output_format:
+                output_formats.append(child._output_format.output_format_str)
 
         # basic throttle: do not send state changed events if queue did not actually change
         new_state = CompareState(
@@ -983,7 +992,7 @@ class PlayerQueuesController(CoreController):
             content_type=queue.current_item.streamdetails.audio_format.output_format_str
             if queue.current_item and queue.current_item.streamdetails
             else None,
-            group_childs_count=len(player.group_childs),
+            output_formats=output_formats,
         )
         changed_keys = get_changed_keys(prev_state, new_state)
         # return early if nothing changed
@@ -1005,8 +1014,8 @@ class PlayerQueuesController(CoreController):
         else:
             self._prev_states.pop(queue_id, None)
 
-        if "group_childs_count" in changed_keys:
-            # refresh DSP details since a player has been added/removed from the group
+        if "output_formats" in changed_keys:
+            # refresh DSP details since they may have changed
             dsp = get_stream_dsp_details(self.mass, queue_id)
             if queue.current_item and queue.current_item.streamdetails:
                 queue.current_item.streamdetails.dsp = dsp
