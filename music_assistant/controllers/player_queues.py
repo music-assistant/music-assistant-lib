@@ -973,11 +973,11 @@ class PlayerQueuesController(CoreController):
         # This is enough to detect any changes in the DSPDetails
         # (so child count changed, or any output format changed)
         output_formats = []
-        if player._output_format:
-            output_formats.append(player._output_format.output_format_str)
+        if player.output_format:
+            output_formats.append(player.output_format.output_format_str)
         for child_id in player.group_childs:
-            if (child := self.mass.players.get(child_id)) and child._output_format:
-                output_formats.append(child._output_format.output_format_str)
+            if (child := self.mass.players.get(child_id)) and child.output_format:
+                output_formats.append(child.output_format.output_format_str)
 
         # basic throttle: do not send state changed events if queue did not actually change
         new_state = CompareState(

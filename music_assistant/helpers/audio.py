@@ -211,7 +211,7 @@ def get_player_dsp_details(
         filters=dsp_config.filters,
         output_gain=dsp_config.output_gain,
         output_limiter=dsp_config.output_limiter,
-        output_format=player._output_format,
+        output_format=player.output_format,
     )
 
 
@@ -231,7 +231,7 @@ def get_stream_dsp_details(
                 # We need a bit of a hack here since only the leader knows the correct output format
                 provider = mass.get_provider(player.provider)
                 if provider:
-                    output_format = provider._get_sync_leader(player)._output_format
+                    output_format = provider._get_sync_leader(player).output_format
     else:
         # We only add real players (so skip the PlayerGroups as they only sync containing players)
         details = get_player_dsp_details(mass, player)
@@ -240,7 +240,7 @@ def get_stream_dsp_details(
         if group_preventing_dsp:
             # The leader is responsible for sending the (combined) audio stream, so get
             # the output format from the leader.
-            output_format = player._output_format
+            output_format = player.output_format
 
     if player and player.group_childs:
         # grouped playback, get DSP details for each player in the group
@@ -991,7 +991,7 @@ def get_player_filter_params(
         # We here implicitly know what output format is used for the player
         # in the audio processing steps. We save this information to
         # later be able to show this to the user in the UI.
-        player._output_format = output_format
+        player.output_format = output_format
 
     if dsp.enabled:
         # Apply input gain
