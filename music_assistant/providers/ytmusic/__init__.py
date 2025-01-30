@@ -88,6 +88,7 @@ VARIOUS_ARTISTS_YTM_ID = "UCUTXlgdcKU5vfzFqHOWIvkA"
 # Playlist ID's are not unique across instances for lists like 'Liked videos', 'SuperMix' etc.
 # So we need to add a delimiter to make them unique
 YT_PLAYLIST_ID_DELIMITER = "🎵"
+PODCAST_EPISODE_SPLITTER = "|"
 YT_PERSONAL_PLAYLISTS = (
     "LM",  # Liked songs
     "SE"  # Episodes for Later
@@ -422,7 +423,7 @@ class YoutubeMusicProvider(MusicProvider):
 
     async def get_podcast_episode(self, prov_episode_id: str) -> PodcastEpisode:
         """Get a single Podcast Episode."""
-        podcast_id, episode_id = prov_episode_id.split("|")
+        podcast_id, episode_id = prov_episode_id.split(PODCAST_EPISODE_SPLITTER)
         podcast = await self.get_podcast(podcast_id)
         episode_obj = await get_podcast_episode(episode_id, headers=self._headers)
         episode = self._parse_podcast_episode(episode_obj, podcast)
@@ -541,7 +542,7 @@ class YoutubeMusicProvider(MusicProvider):
     ) -> StreamDetails:
         """Return the content details for the given track when it will be streamed."""
         if media_type == MediaType.PODCAST_EPISODE:
-            item_id = item_id.split("|")[1]
+            item_id = item_id.split(PODCAST_EPISODE_SPLITTER)[1]
         stream_format = await self._get_stream_format(item_id=item_id)
         self.logger.debug("Found stream_format: %s for song %s", stream_format["format"], item_id)
         stream_details = StreamDetails(
@@ -809,7 +810,7 @@ class YoutubeMusicProvider(MusicProvider):
         if not episode_id:
             msg = "Podcast episode is missing videoId"
             raise InvalidDataError(msg)
-        item_id = f"{podcast.item_id}|{episode_id}"
+        item_id = f"{podcast.item_id}{PODCAST_EPISODE_SPLITTER}{episode_id}"
         episode = PodcastEpisode(
             item_id=item_id,
             provider=self.lookup_key,
