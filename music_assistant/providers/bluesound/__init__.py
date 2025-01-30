@@ -294,7 +294,7 @@ class BluesoundPlayerProvider(PlayerProvider):
             },
             needs_poll=True,
             poll_interval=30,
-            can_group_with={self.instance_id},
+            can_group_with={self.lookup_key},
         )
         await self.mass.players.register(mass_player)
 

@@ -742,9 +742,9 @@ class PlayerGroupProvider(PlayerProvider):
             )
             can_group_with = {
                 # allow grouping with all providers, except the playergroup provider itself
-                x.instance_id
+                x.lookup_key
                 for x in self.mass.players.providers
-                if x.instance_id != self.instance_id
+                if x.lookup_key != self.lookup_key
             }
             player_features.add(PlayerFeature.MULTI_DEVICE_DSP)
         elif player_provider := self.mass.get_provider(group_type):
@@ -753,7 +753,7 @@ class PlayerGroupProvider(PlayerProvider):
                 player_provider = cast(PlayerProvider, player_provider)
             model_name = "Sync Group"
             manufacturer = self.mass.get_provider(group_type).name
-            can_group_with = {player_provider.instance_id}
+            can_group_with = {player_provider.lookup_key}
             for feature in (PlayerFeature.PAUSE, PlayerFeature.VOLUME_MUTE, PlayerFeature.ENQUEUE):
                 if all(feature in x.supported_features for x in player_provider.players):
                     player_features.add(feature)
@@ -873,12 +873,12 @@ class PlayerGroupProvider(PlayerProvider):
         if group_type == GROUP_TYPE_UNIVERSAL:
             can_group_with = {
                 # allow grouping with all providers, except the playergroup provider itself
-                x.instance_id
+                x.lookup_key
                 for x in self.mass.players.providers
-                if x.instance_id != self.instance_id
+                if x.lookup_key != self.lookup_key
             }
         elif sync_player_provider := self.mass.get_provider(group_type):
-            can_group_with = {sync_player_provider.instance_id}
+            can_group_with = {sync_player_provider.lookup_key}
         else:
             can_group_with = {}
         player.can_group_with = can_group_with

@@ -495,7 +495,7 @@ class AirplayProvider(PlayerProvider):
                 PlayerFeature.VOLUME_SET,
             },
             volume_level=volume,
-            can_group_with={self.instance_id},
+            can_group_with={self.lookup_key},
             enabled_by_default=not is_broken_raop_model(manufacturer, model),
         )
         await self.mass.players.register_or_update(mass_player)

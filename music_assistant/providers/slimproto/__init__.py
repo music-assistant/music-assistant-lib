@@ -652,7 +652,7 @@ class SlimprotoProvider(PlayerProvider):
                     PlayerFeature.VOLUME_MUTE,
                     PlayerFeature.ENQUEUE,
                 },
-                can_group_with={self.instance_id},
+                can_group_with={self.lookup_key},
             )
             await self.mass.players.register_or_update(player)
 

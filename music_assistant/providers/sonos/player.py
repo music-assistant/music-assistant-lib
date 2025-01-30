@@ -118,6 +118,7 @@ class SonosPlayer:
             supported_features.add(PlayerFeature.PLAY_ANNOUNCEMENT)
         if not self.client.player.has_fixed_volume:
             supported_features.add(PlayerFeature.VOLUME_SET)
+            supported_features.add(PlayerFeature.VOLUME_MUTE)
         if not self.get_linked_airplay_player(False):
             supported_features.add(PlayerFeature.NEXT_PREVIOUS)
 
@@ -137,7 +138,7 @@ class SonosPlayer:
             supported_features=supported_features,
             # NOTE: strictly taken we can have multiple sonos households
             # but for now we assume we only have one
-            can_group_with={self.prov.instance_id},
+            can_group_with={self.prov.lookup_key},
         )
         self.update_attributes()
         await self.mass.players.register_or_update(mass_player)
@@ -279,7 +280,7 @@ class SonosPlayer:
                     if x.player_id != airplay_player.player_id
                 )
             else:
-                self.mass_player.can_group_with = {self.prov.instance_id}
+                self.mass_player.can_group_with = {self.prov.lookup_key}
             self.mass_player.synced_to = None
         else:
             # player is group child (synced to another player)

@@ -382,7 +382,7 @@ class SnapCastProvider(PlayerProvider):
                     PlayerFeature.VOLUME_MUTE,
                 },
                 synced_to=self._synced_to(player_id),
-                can_group_with={self.instance_id},
+                can_group_with={self.lookup_key},
             )
         asyncio.run_coroutine_threadsafe(
             self.mass.players.register_or_update(player), loop=self.mass.loop

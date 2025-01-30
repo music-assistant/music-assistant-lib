@@ -17,7 +17,7 @@ from aiohttp.client_exceptions import ClientError
 from aiosonos.api.models import SonosCapability
 from aiosonos.utils import get_discovery_info
 from music_assistant_models.config_entries import ConfigEntry, PlayerConfig
-from music_assistant_models.enums import ConfigEntryType, ContentType, ProviderFeature
+from music_assistant_models.enums import ConfigEntryType, ContentType, PlayerState, ProviderFeature
 from music_assistant_models.errors import PlayerCommandFailed
 from music_assistant_models.player import DeviceInfo, PlayerMedia
 from zeroconf import ServiceStateChange
@@ -251,8 +251,9 @@ class SonosPlayerProvider(PlayerProvider):
         if airplay_player := sonos_player.get_linked_airplay_player(False):
             # if airplay mode is enabled, we could possibly receive child player id's that are
             # not Sonos players, but Airplay players. We redirect those.
-            if sonos_player.mass_player.active_source and not self.mass.player_queues.get(
-                sonos_player.mass_player.active_source
+            if (
+                airplay_player.active_source == sonos_player.mass_player.active_source
+                and airplay_player.state == PlayerState.PLAYING
             ):
                 # edge case player is not playing a MA queue - fail this request
                 raise PlayerCommandFailed("Player is not playing a Music Assistant queue.")
