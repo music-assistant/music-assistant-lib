@@ -220,7 +220,7 @@ def get_stream_dsp_details(
     """Return DSP details of all players playing this queue, keyed by player_id."""
     player = mass.players.get(queue_id)
     dsp = {}
-    group_preventing_dsp: bool = False
+    group_preventing_dsp = is_grouping_preventing_dsp(player)
 
     # We skip the PlayerGroups as they don't provide an audio output
     # by themselves, but only sync other players.
@@ -228,8 +228,6 @@ def get_stream_dsp_details(
         details = get_player_dsp_details(mass, player)
         details.is_leader = True
         dsp[player.player_id] = details
-    else:
-        group_preventing_dsp = is_grouping_preventing_dsp(player)
 
     if player and player.group_childs:
         # grouped playback, get DSP details for each player in the group

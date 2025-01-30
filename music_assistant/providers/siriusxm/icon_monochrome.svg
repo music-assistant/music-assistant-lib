@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   version="1.2"
+   viewBox="0 0 3276.8 3276.8"
+   width="512"
+   height="512"
+   id="svg1"
+   sodipodi:docname="icon_monochrome.svg"
+   inkscape:version="1.3.2 (091e20e, 2023-11-25, custom)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <defs
+     id="defs1" />
+  <sodipodi:namedview
+     id="namedview1"
+     pagecolor="#21ffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:zoom="1.7324219"
+     inkscape:cx="256"
+     inkscape:cy="261.19504"
+     inkscape:window-width="1920"
+     inkscape:window-height="1129"
+     inkscape:window-x="-8"
+     inkscape:window-y="-8"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="svg1" />
+  <title
+     id="title1">SIRI_BIG copy-svg</title>
+  <style
+     id="style1">
+		.s0 { fill: #0000eb }
+	</style>
+  <path
+     id="Layer"
+     class="s0"
+     d="m 3152.844,1763.5114 c 77.0183,116.7009 122.2479,258.1501 122.2479,433.9481 -5.3337,646.8685 -541.2617,1084.8701 -1695.2563,1084.8701 C 858.72222,3282.3296 65.924264,3062.5821 0,2226.2614 v -41.1761 h 1081.2433 l -239.16216,704.4723 788.53096,-547.8755 788.7444,547.8755 -204.8132,-605.6925 c -31.5754,-61.6574 -113.9274,-96.0062 -113.9274,-96.0062 C 1669.228,1948.9101 97.499644,2077.9851 97.499644,1021.7034 97.499644,226.55865 934.24711,-5.5630341 1589.4362,-5.5630341 c 685.6976,0 1490.6564,155.1033741 1562.1277,979.2633541 v 31.57538 H 1934.4185 L 1633.3857,119.45839 1331.2861,1005.2757 H 355.86302 l 545.31528,374.8509 c 159.3703,-63.1507 329.8347,-90.4591 500.0857,-109.8737 182.8385,-19.2013 366.7438,-23.2549 550.8623,-10.8808 153.8232,9.6006 307.8599,31.5754 458.9097,67.2044 136.1154,31.5753 274.7911,67.4177 398.3191,134.622 138.889,77.0183 259.6434,173.0245 343.4889,302.3129 z"
+     style="fill:#ffffff;fill-opacity:1;stroke-width:2.13347" />
+  <metadata
+     id="metadata1">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <dc:title>SIRI_BIG copy-svg</dc:title>
+      </cc:Work>
+    </rdf:RDF>
+  </metadata>
+</svg>
