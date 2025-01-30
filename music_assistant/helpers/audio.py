@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import logging
 import os
 import re
@@ -227,11 +226,15 @@ def get_stream_dsp_details(
 
     if player.provider.startswith("player_group"):
         if group_preventing_dsp:
-            with contextlib.suppress(RuntimeError):
+            try:
                 # We need a bit of a hack here since only the leader knows the correct output format
                 provider = mass.get_provider(player.provider)
                 if provider:
                     output_format = provider._get_sync_leader(player).output_format
+            except RuntimeError:
+                # _get_sync_leader will raise a RuntimeError if this group has no players
+                # just ignore this and continue without output_format
+                LOGGER.warning("Unable to get the sync group leader for %s", queue_id)
     else:
         # We only add real players (so skip the PlayerGroups as they only sync containing players)
         details = get_player_dsp_details(mass, player)
