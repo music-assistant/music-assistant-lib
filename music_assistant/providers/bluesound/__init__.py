@@ -277,7 +277,7 @@ class BluesoundPlayerProvider(PlayerProvider):
 
         bluos_player.mass_player = mass_player = Player(
             player_id=self.player_id,
-            provider=self.instance_id,
+            provider=self.lookup_key,
             type=PlayerType.PLAYER,
             name=name,
             available=True,

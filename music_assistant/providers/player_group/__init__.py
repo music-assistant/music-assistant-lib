@@ -769,7 +769,7 @@ class PlayerGroupProvider(PlayerProvider):
 
         player = Player(
             player_id=group_player_id,
-            provider=self.instance_id,
+            provider=self.lookup_key,
             type=PlayerType.GROUP,
             name=name,
             available=True,

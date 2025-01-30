@@ -894,7 +894,7 @@ class PlayerController(CoreController):
         # make sure that the player's provider is set to the lookup key (=instance id)
         prov = self.mass.get_provider(player.provider)
         if not prov or prov.lookup_key != player.provider:
-            raise RuntimeError("Invalid provider ID given: %s", player.provider)
+            raise RuntimeError(f"Invalid provider ID given: {player.provider}")
 
         # make sure a default config exists
         self.mass.config.create_default_player_config(
@@ -1116,7 +1116,7 @@ class PlayerController(CoreController):
         # make sure that the playercontrol's provider is set to the lookup_key
         prov = self.mass.get_provider(player_control.provider)
         if not prov or prov.lookup_key != player_control.provider:
-            raise RuntimeError("Invalid provider ID given: %s", player_control.provider)
+            raise RuntimeError(f"Invalid provider ID given: {player_control.provider}")
 
         self._controls[control_id] = player_control
 

@@ -479,7 +479,7 @@ class AirplayProvider(PlayerProvider):
             volume = FALLBACK_VOLUME
         mass_player = Player(
             player_id=player_id,
-            provider=self.instance_id,
+            provider=self.lookup_key,
             type=PlayerType.PLAYER,
             name=display_name,
             available=True,

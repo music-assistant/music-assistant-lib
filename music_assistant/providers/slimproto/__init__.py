@@ -633,7 +633,7 @@ class SlimprotoProvider(PlayerProvider):
             # player does not yet exist, create it
             player = Player(
                 player_id=player_id,
-                provider=self.instance_id,
+                provider=self.lookup_key,
                 type=PlayerType.PLAYER,
                 name=slimplayer.name,
                 available=True,

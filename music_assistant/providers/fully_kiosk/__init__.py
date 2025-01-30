@@ -117,7 +117,7 @@ class FullyKioskProvider(PlayerProvider):
         if not player:
             player = Player(
                 player_id=player_id,
-                provider=self.instance_id,
+                provider=self.lookup_key,
                 type=PlayerType.PLAYER,
                 name=self._fully.deviceInfo["deviceName"],
                 available=True,

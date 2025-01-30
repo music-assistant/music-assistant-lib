@@ -124,7 +124,7 @@ class SonosPlayer:
         # instantiate the MA player
         self.mass_player = mass_player = Player(
             player_id=self.player_id,
-            provider=self.prov.instance_id,
+            provider=self.prov.lookup_key,
             type=PlayerType.PLAYER,
             name=self.discovery_info["device"]["name"]
             or self.discovery_info["device"]["modelDisplayName"],

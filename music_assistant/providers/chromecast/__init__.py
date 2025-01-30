@@ -379,7 +379,7 @@ class ChromecastProvider(PlayerProvider):
                 ),
                 player=Player(
                     player_id=player_id,
-                    provider=self.instance_id,
+                    provider=self.lookup_key,
                     type=player_type,
                     name=cast_info.friendly_name,
                     available=False,

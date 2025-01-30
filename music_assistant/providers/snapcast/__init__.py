@@ -367,7 +367,7 @@ class SnapCastProvider(PlayerProvider):
             )
             player = Player(
                 player_id=player_id,
-                provider=self.instance_id,
+                provider=self.lookup_key,
                 type=PlayerType.PLAYER,
                 name=snap_client.friendly_name,
                 available=snap_client.connected,
