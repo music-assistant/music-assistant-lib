@@ -91,6 +91,33 @@ async def get_track(
     return await asyncio.to_thread(_get_song)
 
 
+async def get_podcast(
+    prov_podcast_id: str, headers: dict[str, str], language: str = "en"
+) -> dict[str, str] | None:
+    """Async wrapper around the get_podcast function."""
+
+    def _get_podcast():
+        ytm = ytmusicapi.YTMusic(auth=headers, language=language)
+        podcast_obj = ytm.get_podcast(playlistId=prov_podcast_id)
+        if "podcastId" not in podcast_obj:
+            podcast_obj["podcastId"] = prov_podcast_id
+        return podcast_obj
+
+    return await asyncio.to_thread(_get_podcast)
+
+
+async def get_podcast_episode(
+    prov_episode_id: str, headers: dict[str, str], language: str = "en"
+) -> dict[str, str] | None:
+    """Async wrapper around the podcast episode function."""
+
+    def _get_podcast_episode():
+        ytm = ytmusicapi.YTMusic(auth=headers, language=language)
+        return ytm.get_episode(videoId=prov_episode_id)
+
+    return await asyncio.to_thread(_get_podcast_episode)
+
+
 async def get_library_artists(
     headers: dict[str, str], language: str = "en", user: str | None = None
 ) -> dict[str, str]:
@@ -150,6 +177,18 @@ async def get_library_tracks(
         return ytm.get_library_songs(limit=9999)
 
     return await asyncio.to_thread(_get_library_tracks)
+
+
+async def get_library_podcasts(
+    headers: dict[str, str], language: str = "en", user: str | None = None
+) -> dict[str, str]:
+    """Async wrapper around the ytmusic api get_library_podcasts function."""
+
+    def _get_library_podcasts():
+        ytm = ytmusicapi.YTMusic(auth=headers, language=language, user=user)
+        return ytm.get_library_podcasts(limit=None)
+
+    return await asyncio.to_thread(_get_library_podcasts)
 
 
 async def library_add_remove_artist(

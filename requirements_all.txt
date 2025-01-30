@@ -17,6 +17,7 @@ colorlog==6.9.0
 cryptography==44.0.0
 deezer-python-async==0.3.0
 defusedxml==0.7.1
+duration-parser==1.0.1
 eyeD3==0.9.7
 faust-cchardet>=2.1.18
 hass-client==1.2.0
