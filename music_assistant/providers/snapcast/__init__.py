@@ -370,8 +370,7 @@ class SnapCastProvider(PlayerProvider):
                 provider=self.instance_id,
                 type=PlayerType.PLAYER,
                 name=snap_client.friendly_name,
-                available=True,
-                powered=snap_client.connected,
+                available=snap_client.connected,
                 device_info=DeviceInfo(
                     model=snap_client._client.get("host").get("os"),
                     ip_address=snap_client._client.get("host").get("ip"),

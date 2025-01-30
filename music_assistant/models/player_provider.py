@@ -5,6 +5,13 @@ from __future__ import annotations
 from abc import abstractmethod
 from typing import TYPE_CHECKING
 
+from music_assistant_models.config_entries import ConfigEntry, ConfigValueOption
+from music_assistant_models.constants import (
+    PLAYER_CONTROL_FAKE,
+    PLAYER_CONTROL_NATIVE,
+    PLAYER_CONTROL_NONE,
+)
+from music_assistant_models.enums import ConfigEntryType, PlayerFeature
 from music_assistant_models.errors import UnsupportedFeaturedException
 from zeroconf import ServiceStateChange
 from zeroconf.asyncio import AsyncServiceInfo
@@ -15,12 +22,15 @@ from music_assistant.constants import (
     CONF_ENTRY_ANNOUNCE_VOLUME_MAX,
     CONF_ENTRY_ANNOUNCE_VOLUME_MIN,
     CONF_ENTRY_ANNOUNCE_VOLUME_STRATEGY,
+    CONF_MUTE_CONTROL,
+    CONF_POWER_CONTROL,
+    CONF_VOLUME_CONTROL,
 )
 
 from .provider import Provider
 
 if TYPE_CHECKING:
-    from music_assistant_models.config_entries import ConfigEntry, PlayerConfig
+    from music_assistant_models.config_entries import PlayerConfig
     from music_assistant_models.player import Player, PlayerMedia
 
 # ruff: noqa: ARG001, ARG002
@@ -45,6 +55,8 @@ class PlayerProvider(Provider):
             CONF_ENTRY_ANNOUNCE_VOLUME,
             CONF_ENTRY_ANNOUNCE_VOLUME_MIN,
             CONF_ENTRY_ANNOUNCE_VOLUME_MAX,
+            # add player control entries
+            *self._create_player_control_config_entries(self.mass.players.get(player_id)),
         )
 
     async def on_player_config_change(self, config: PlayerConfig, changed_keys: set[str]) -> None:
@@ -257,3 +269,82 @@ class PlayerProvider(Provider):
             for player in self.mass.players
             if player.provider in (self.instance_id, self.domain)
         ]
+
+    def _create_player_control_config_entries(
+        self, player: Player | None
+    ) -> tuple[ConfigEntry, ...]:
+        """Create config entries for player controls."""
+        all_controls = self.mass.players.player_controls()
+        power_controls = [x for x in all_controls if x.supports_power]
+        volume_controls = [x for x in all_controls if x.supports_volume]
+        mute_controls = [x for x in all_controls if x.supports_mute]
+        # work out player supported features
+        supports_power = PlayerFeature.POWER in player.supported_features if player else False
+        supports_volume = PlayerFeature.VOLUME_SET in player.supported_features if player else False
+        supports_mute = PlayerFeature.VOLUME_MUTE in player.supported_features if player else False
+        # create base options per control type (and add defaults like native and fake)
+        base_power_options: list[ConfigValueOption] = [
+            ConfigValueOption(title="None", value=PLAYER_CONTROL_NONE),
+            ConfigValueOption(title="Fake power control", value=PLAYER_CONTROL_FAKE),
+        ]
+        if supports_power:
+            base_power_options.append(
+                ConfigValueOption(title="Native power control", value=PLAYER_CONTROL_NATIVE),
+            )
+        base_volume_options: list[ConfigValueOption] = [
+            ConfigValueOption(title="None", value=PLAYER_CONTROL_NONE),
+        ]
+        if supports_volume:
+            base_volume_options.append(
+                ConfigValueOption(title="Native volume control", value=PLAYER_CONTROL_NATIVE),
+            )
+        base_mute_options: list[ConfigValueOption] = [
+            ConfigValueOption(title="None", value=PLAYER_CONTROL_NONE),
+            ConfigValueOption(title="Fake mute control", value=PLAYER_CONTROL_FAKE),
+        ]
+        if supports_mute:
+            base_mute_options.append(
+                ConfigValueOption(title="Native mute control", value=PLAYER_CONTROL_NATIVE),
+            )
+        # return final config entries for all options
+        return (
+            # Power control config entry
+            ConfigEntry(
+                key=CONF_POWER_CONTROL,
+                type=ConfigEntryType.STRING,
+                label="Power Control",
+                default_value=PLAYER_CONTROL_NATIVE if supports_power else PLAYER_CONTROL_NONE,
+                required=True,
+                options=(
+                    *base_power_options,
+                    *(ConfigValueOption(x.name, x.id) for x in power_controls),
+                ),
+                category="player_controls",
+            ),
+            # Volume control config entry
+            ConfigEntry(
+                key=CONF_VOLUME_CONTROL,
+                type=ConfigEntryType.STRING,
+                label="Volume Control",
+                default_value=PLAYER_CONTROL_NATIVE if supports_volume else PLAYER_CONTROL_NONE,
+                required=True,
+                options=(
+                    *base_volume_options,
+                    *(ConfigValueOption(x.name, x.id) for x in volume_controls),
+                ),
+                category="player_controls",
+            ),
+            # Mute control config entry
+            ConfigEntry(
+                key=CONF_MUTE_CONTROL,
+                type=ConfigEntryType.STRING,
+                label="Mute Control",
+                default_value=PLAYER_CONTROL_NATIVE if supports_mute else PLAYER_CONTROL_NONE,
+                required=True,
+                options=(
+                    *base_mute_options,
+                    *(ConfigValueOption(x.name, x.id) for x in mute_controls),
+                ),
+                category="player_controls",
+            ),
+        )

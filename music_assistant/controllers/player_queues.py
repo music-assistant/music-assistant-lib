@@ -740,7 +740,7 @@ class PlayerQueuesController(CoreController):
         if resume_item is not None:
             resume_pos = resume_pos if resume_pos > 10 else 0
             queue_player = self.mass.players.get(queue_id)
-            if fade_in is None and not queue_player.powered:
+            if fade_in is None and queue_player.state == PlayerState.IDLE:
                 fade_in = resume_pos > 0
             if resume_item.media_type == MediaType.RADIO:
                 # we're not able to skip in online radio so this is pointless
@@ -827,8 +827,8 @@ class PlayerQueuesController(CoreController):
             # edge case: the user wants to move playback from the group as a whole, to a single
             # player in the group or it is grouped and the command targeted at the single player.
             # We need to dissolve the group first.
-            await self.mass.players.cmd_power(
-                target_player.active_group or target_player.synced_to, False
+            await self.mass.players.cmd_ungroup(
+                target_player.active_group or target_player.synced_to
             )
             await asyncio.sleep(3)
 

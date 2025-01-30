@@ -351,10 +351,8 @@ class SonosPlayerProvider(PlayerProvider):
         # dynamically change the poll interval
         if sonos_player.mass_player.state == PlayerState.PLAYING:
             sonos_player.mass_player.poll_interval = 5
-        elif sonos_player.mass_player.powered:
-            sonos_player.mass_player.poll_interval = 20
         else:
-            sonos_player.mass_player.poll_interval = 60
+            sonos_player.mass_player.poll_interval = 30
         try:
             # the check_poll logic will work out what endpoints need polling now
             # based on when we last received info from the device
@@ -431,8 +429,6 @@ class SonosPlayerProvider(PlayerProvider):
         if soco.uid not in self.boot_counts:
             self.boot_counts[soco.uid] = soco.boot_seqnum
         self.logger.debug("Adding new player: %s", speaker_info)
-        transport_info = soco.get_current_transport_info()
-        play_state = transport_info["current_transport_state"]
         if not (mass_player := self.mass.players.get(soco.uid)):
             mass_player = Player(
                 player_id=soco.uid,
@@ -440,7 +436,6 @@ class SonosPlayerProvider(PlayerProvider):
                 type=PlayerType.PLAYER,
                 name=soco.player_name,
                 available=True,
-                powered=play_state in ("PLAYING", "TRANSITIONING"),
                 supported_features=PLAYER_FEATURES,
                 device_info=DeviceInfo(
                     model=speaker_info["model_name"],

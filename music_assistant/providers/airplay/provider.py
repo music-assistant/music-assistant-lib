@@ -380,9 +380,6 @@ class AirplayProvider(PlayerProvider):
         parent_player.group_childs.append(parent_player.player_id)
         parent_player.group_childs.append(child_player.player_id)
         child_player.synced_to = parent_player.player_id
-        # mark players as powered
-        parent_player.powered = True
-        child_player.powered = True
         # check if we should (re)start or join a stream session
         active_queue = self.mass.player_queues.get_active_queue(parent_player.player_id)
         if active_queue.state == PlayerState.PLAYING:
@@ -486,7 +483,6 @@ class AirplayProvider(PlayerProvider):
             type=PlayerType.PLAYER,
             name=display_name,
             available=True,
-            powered=False,
             device_info=DeviceInfo(
                 model=model,
                 manufacturer=manufacturer,
@@ -655,7 +651,8 @@ class AirplayProvider(PlayerProvider):
                 return
             await asyncio.sleep(0.5)
 
-        airplay_player.logger.info(
-            "Player has been in prevent playback mode for too long, powering off.",
-        )
-        await self.mass.players.cmd_power(airplay_player.player_id, False)
+        if airplay_player.raop_stream and airplay_player.raop_stream.session:
+            airplay_player.logger.info(
+                "Player has been in prevent playback mode for too long, aborting playback.",
+            )
+            await airplay_player.raop_stream.session.remove_client(airplay_player)

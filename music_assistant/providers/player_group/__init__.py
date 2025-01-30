@@ -21,6 +21,7 @@ from music_assistant_models.config_entries import (
     ConfigValueType,
     PlayerConfig,
 )
+from music_assistant_models.constants import PLAYER_CONTROL_NATIVE, PLAYER_CONTROL_NONE
 from music_assistant_models.enums import (
     ConfigEntryType,
     ContentType,
@@ -53,7 +54,10 @@ from music_assistant.constants import (
     CONF_FLOW_MODE,
     CONF_GROUP_MEMBERS,
     CONF_HTTP_PROFILE,
+    CONF_MUTE_CONTROL,
+    CONF_POWER_CONTROL,
     CONF_SAMPLE_RATES,
+    CONF_VOLUME_CONTROL,
     DEFAULT_PCM_FORMAT,
     create_sample_rates_config_entry,
 )
@@ -227,6 +231,30 @@ class PlayerGroupProvider(PlayerProvider):
             CONF_ENTRY_GROUP_TYPE,
             CONF_ENTRY_GROUP_MEMBERS,
             CONFIG_ENTRY_DYNAMIC_MEMBERS,
+            # add player control entries as hidden entries
+            ConfigEntry(
+                key=CONF_POWER_CONTROL,
+                type=ConfigEntryType.STRING,
+                label=CONF_POWER_CONTROL,
+                default_value=PLAYER_CONTROL_NATIVE,
+                hidden=True,
+            ),
+            ConfigEntry(
+                key=CONF_VOLUME_CONTROL,
+                type=ConfigEntryType.STRING,
+                label=CONF_VOLUME_CONTROL,
+                default_value=PLAYER_CONTROL_NATIVE,
+                hidden=True,
+            ),
+            ConfigEntry(
+                key=CONF_MUTE_CONTROL,
+                type=ConfigEntryType.STRING,
+                label=CONF_MUTE_CONTROL,
+                # disable mute control for group players for now
+                # TODO: work out if all child players support mute control
+                default_value=PLAYER_CONTROL_NONE,
+                hidden=True,
+            ),
         )
         # group type is static and can not be changed. we just grab the existing, stored value
         group_type: str = self.mass.config.get_raw_player_config_value(
@@ -379,7 +407,7 @@ class PlayerGroupProvider(PlayerProvider):
                     # solve this by powering off the other group
                     await self.mass.players.cmd_power(member.active_group, False)
                     await asyncio.sleep(1)
-                if not member.powered:
+                if not member.powered and member.power_control != PLAYER_CONTROL_NONE:
                     member.active_group = None  # needed to prevent race conditions
                     await self.mass.players.cmd_power(member.player_id, True)
                 # set active source to group player if the group (is going to be) powered
@@ -397,7 +425,7 @@ class PlayerGroupProvider(PlayerProvider):
                 member.active_group = None
                 member.active_source = None
                 # handle TURN_OFF of the group player by turning off all members
-                if member.powered:
+                if member.powered and member.power_control != PLAYER_CONTROL_NONE:
                     await self.mass.players.cmd_power(member.player_id, False)
 
         if powered and player_id.startswith(SYNCGROUP_PREFIX):

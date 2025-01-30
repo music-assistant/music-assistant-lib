@@ -129,8 +129,6 @@ class SonosPlayer:
             name=self.discovery_info["device"]["name"]
             or self.discovery_info["device"]["modelDisplayName"],
             available=True,
-            # sonos has no power support so we always assume its powered
-            powered=True,
             device_info=DeviceInfo(
                 model=self.discovery_info["device"]["modelDisplayName"],
                 manufacturer=self.prov.manifest.name,
@@ -311,7 +309,6 @@ class SonosPlayer:
                 PlayerState.PAUSED,
             ):
                 self.mass_player.state = airplay_player.state
-                self.mass_player.powered = True
                 self.mass_player.active_source = airplay_player.active_source
                 self.mass_player.elapsed_time = airplay_player.elapsed_time
                 self.mass_player.elapsed_time_last_updated = (

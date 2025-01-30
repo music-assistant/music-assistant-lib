@@ -75,6 +75,9 @@ CONF_VOLUME_NORMALIZATION_RADIO: Final[str] = "volume_normalization_radio"
 CONF_VOLUME_NORMALIZATION_TRACKS: Final[str] = "volume_normalization_tracks"
 CONF_VOLUME_NORMALIZATION_FIXED_GAIN_RADIO: Final[str] = "volume_normalization_fixed_gain_radio"
 CONF_VOLUME_NORMALIZATION_FIXED_GAIN_TRACKS: Final[str] = "volume_normalization_fixed_gain_tracks"
+CONF_POWER_CONTROL: Final[str] = "power_control"
+CONF_VOLUME_CONTROL: Final[str] = "volume_control"
+CONF_MUTE_CONTROL: Final[str] = "mute_control"
 
 # config default values
 DEFAULT_HOST: Final[str] = "0.0.0.0"

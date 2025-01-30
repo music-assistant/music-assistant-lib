@@ -442,7 +442,6 @@ class HomeAssistantPlayers(PlayerProvider):
             type=PlayerType.PLAYER,
             name=state["attributes"]["friendly_name"],
             available=state["state"] not in ("unavailable", "unknown"),
-            powered=state["state"] not in ("unavailable", "unknown", "standby", "off"),
             device_info=DeviceInfo.from_dict(dev_info),
             state=StateMap.get(state["state"], PlayerState.IDLE),
             extra_data={
@@ -474,6 +473,7 @@ class HomeAssistantPlayers(PlayerProvider):
             and MediaPlayerEntityFeature.TURN_OFF in hass_supported_features
         ):
             player.supported_features.add(PlayerFeature.POWER)
+            player.powered = state["state"] not in ("unavailable", "unknown", "standby", "off")
 
         self._update_player_attributes(player, state["attributes"])
         await self.mass.players.register_or_update(player)
@@ -494,12 +494,13 @@ class HomeAssistantPlayers(PlayerProvider):
                 return
             if "s" in state:
                 player.state = StateMap.get(state["s"], PlayerState.IDLE)
-                player.powered = state["s"] not in (
-                    "unavailable",
-                    "unknown",
-                    "standby",
-                    "off",
-                )
+                if PlayerFeature.POWER in player.supported_features:
+                    player.powered = state["s"] not in (
+                        "unavailable",
+                        "unknown",
+                        "standby",
+                        "off",
+                    )
             if "a" in state:
                 self._update_player_attributes(player, state["a"])
             self.mass.players.update(entity_id)

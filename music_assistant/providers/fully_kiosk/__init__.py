@@ -121,7 +121,6 @@ class FullyKioskProvider(PlayerProvider):
                 type=PlayerType.PLAYER,
                 name=self._fully.deviceInfo["deviceName"],
                 available=True,
-                powered=False,
                 device_info=DeviceInfo(
                     model=self._fully.deviceInfo["deviceModel"],
                     manufacturer=self._fully.deviceInfo["deviceManufacturer"],

@@ -23,12 +23,7 @@ from async_upnp_client.exceptions import UpnpError, UpnpResponseError
 from async_upnp_client.profiles.dlna import DmrDevice, TransportState
 from async_upnp_client.search import async_search
 from music_assistant_models.config_entries import ConfigEntry, ConfigValueType
-from music_assistant_models.enums import (
-    ConfigEntryType,
-    PlayerFeature,
-    PlayerState,
-    PlayerType,
-)
+from music_assistant_models.enums import ConfigEntryType, PlayerFeature, PlayerState, PlayerType
 from music_assistant_models.errors import PlayerUnavailableError
 from music_assistant_models.player import DeviceInfo, Player, PlayerMedia
 
@@ -494,7 +489,6 @@ class DLNAPlayerProvider(PlayerProvider):
                         type=PlayerType.PLAYER,
                         name=udn,
                         available=False,
-                        powered=False,
                         # device info will be discovered later after connect
                         device_info=DeviceInfo(
                             model="unknown",

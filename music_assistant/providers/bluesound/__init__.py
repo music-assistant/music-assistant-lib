@@ -281,7 +281,6 @@ class BluesoundPlayerProvider(PlayerProvider):
             type=PlayerType.PLAYER,
             name=name,
             available=True,
-            powered=True,
             device_info=DeviceInfo(
                 model="BluOS speaker",
                 manufacturer="Bluesound",
