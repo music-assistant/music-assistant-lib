@@ -113,7 +113,10 @@ async def get_podcast_episode(
 
     def _get_podcast_episode():
         ytm = ytmusicapi.YTMusic(auth=headers, language=language)
-        return ytm.get_episode(videoId=prov_episode_id)
+        episode = ytm.get_episode(videoId=prov_episode_id)
+        if "videoId" not in episode:
+            episode["videoId"] = prov_episode_id
+        return episode
 
     return await asyncio.to_thread(_get_podcast_episode)
 

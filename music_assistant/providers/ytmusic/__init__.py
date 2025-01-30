@@ -540,6 +540,8 @@ class YoutubeMusicProvider(MusicProvider):
         self, item_id: str, media_type: MediaType = MediaType.TRACK
     ) -> StreamDetails:
         """Return the content details for the given track when it will be streamed."""
+        if media_type == MediaType.PODCAST_EPISODE:
+            item_id = item_id.split("|")[1]
         stream_format = await self._get_stream_format(item_id=item_id)
         self.logger.debug("Found stream_format: %s for song %s", stream_format["format"], item_id)
         stream_details = StreamDetails(
@@ -793,6 +795,8 @@ class YoutubeMusicProvider(MusicProvider):
                 )
             },
         )
+        if description := podcast_obj.get("description"):
+            podcast.metadata.description = description
         if author := podcast_obj.get("author"):
             podcast.publisher = author["name"]
         if thumbnails := podcast_obj.get("thumbnails"):
