@@ -44,3 +44,6 @@ StateMap = {
     "unknown": PlayerState.IDLE,
     "unavailable": PlayerState.IDLE,
 }
+
+# HA states that we consider as "powered off"
+OFF_STATES = ("unavailable", "unknown", "standby", "off")

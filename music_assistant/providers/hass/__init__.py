@@ -34,7 +34,7 @@ from music_assistant.helpers.auth import AuthenticationHelper
 from music_assistant.helpers.util import try_parse_int
 from music_assistant.models.plugin import PluginProvider
 
-from .constants import MediaPlayerEntityFeature
+from .constants import OFF_STATES, MediaPlayerEntityFeature
 
 if TYPE_CHECKING:
     from hass_client.models import CompressedState, EntityStateEvent
@@ -52,9 +52,6 @@ CONF_VERIFY_SSL = "verify_ssl"
 CONF_POWER_CONTROLS = "power_controls"
 CONF_MUTE_CONTROLS = "mute_controls"
 CONF_VOLUME_CONTROLS = "volume_controls"
-
-# HA states that we consider as "powered off"
-OFF_STATES = ("unavailable", "unknown", "standby", "off")
 
 
 async def setup(

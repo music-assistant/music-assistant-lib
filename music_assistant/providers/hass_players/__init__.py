@@ -33,7 +33,7 @@ from music_assistant.helpers.datetime import from_iso_string
 from music_assistant.helpers.tags import async_parse_tags
 from music_assistant.models.player_provider import PlayerProvider
 from music_assistant.providers.hass import DOMAIN as HASS_DOMAIN
-from music_assistant.providers.hass.constants import MediaPlayerEntityFeature, StateMap
+from music_assistant.providers.hass.constants import OFF_STATES, MediaPlayerEntityFeature, StateMap
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
@@ -457,12 +457,7 @@ class HomeAssistantPlayers(PlayerProvider):
             if "s" in state:
                 player.state = StateMap.get(state["s"], PlayerState.IDLE)
                 if PlayerFeature.POWER in player.supported_features:
-                    player.powered = state["s"] not in (
-                        "unavailable",
-                        "unknown",
-                        "standby",
-                        "off",
-                    )
+                    player.powered = state["s"] not in OFF_STATES
             if "a" in state:
                 self._update_player_attributes(player, state["a"])
             self.mass.players.update(entity_id)
