@@ -13,7 +13,10 @@ import asyncio
 import logging
 
 from music_assistant_models.enums import MediaType
-from music_assistant_models.errors import MediaNotFoundError, ResourceTemporarilyUnavailable
+from music_assistant_models.errors import (
+    MediaNotFoundError,
+    ResourceTemporarilyUnavailable,
+)
 from tidalapi import Album as TidalAlbum
 from tidalapi import Artist as TidalArtist
 from tidalapi import Favorites as TidalFavorites

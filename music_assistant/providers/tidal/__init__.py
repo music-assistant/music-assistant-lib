@@ -476,14 +476,14 @@ class TidalProvider(MusicProvider):
     async def get_album_tracks(self, prov_album_id: str) -> list[Track]:
         """Get album tracks for given album id."""
         tidal_session = await self._get_tidal_session()
-        tracks_obj = await get_album_tracks(tidal_session, prov_album_id)
+        tracks_obj: list[TidalTrack] = await get_album_tracks(tidal_session, prov_album_id)
         return [self._parse_track(track_obj=track_obj) for track_obj in tracks_obj]
 
     @throttle_with_retries
     async def get_artist_albums(self, prov_artist_id: str) -> list[Album]:
         """Get a list of all albums for the given artist."""
         tidal_session = await self._get_tidal_session()
-        artist_albums_obj = await get_artist_albums(tidal_session, prov_artist_id)
+        artist_albums_obj: list[TidalAlbum] = await get_artist_albums(tidal_session, prov_artist_id)
         return [self._parse_album(album) for album in artist_albums_obj]
 
     @throttle_with_retries
@@ -491,7 +491,9 @@ class TidalProvider(MusicProvider):
         """Get a list of 10 most popular tracks for the given artist."""
         tidal_session = await self._get_tidal_session()
         try:
-            artist_toptracks_obj = await get_artist_toptracks(tidal_session, prov_artist_id)
+            artist_toptracks_obj: list[TidalTrack] = await get_artist_toptracks(
+                tidal_session, prov_artist_id
+            )
             return [self._parse_track(track) for track in artist_toptracks_obj]
         except tidal_exceptions.ObjectNotFound as err:
             self.logger.warning(f"Failed to get toptracks for artist {prov_artist_id}: {err}")
@@ -504,7 +506,7 @@ class TidalProvider(MusicProvider):
         page_size = 200
         offset = page * page_size
         track_obj: TidalTrack  # satisfy the type checker
-        tidal_tracks = await get_playlist_tracks(
+        tidal_tracks: list[TidalTrack] = await get_playlist_tracks(
             tidal_session, prov_playlist_id, limit=page_size, offset=offset
         )
         for index, track_obj in enumerate(tidal_tracks, 1):
@@ -517,7 +519,9 @@ class TidalProvider(MusicProvider):
     async def get_similar_tracks(self, prov_track_id: str, limit: int = 25) -> list[Track]:
         """Get similar tracks for given track id."""
         tidal_session = await self._get_tidal_session()
-        similar_tracks_obj = await get_similar_tracks(tidal_session, prov_track_id, limit)
+        similar_tracks_obj: list[TidalTrack] = await get_similar_tracks(
+            tidal_session, prov_track_id, limit
+        )
         return [self._parse_track(track) for track in similar_tracks_obj]
 
     async def library_add(self, item: MediaItemType) -> bool:
@@ -545,20 +549,24 @@ class TidalProvider(MusicProvider):
     async def add_playlist_tracks(self, prov_playlist_id: str, prov_track_ids: list[str]) -> None:
         """Add track(s) to playlist."""
         tidal_session = await self._get_tidal_session()
-        return await add_playlist_tracks(tidal_session, prov_playlist_id, prov_track_ids)
+        await add_playlist_tracks(tidal_session, prov_playlist_id, prov_track_ids)
 
     async def remove_playlist_tracks(
         self, prov_playlist_id: str, positions_to_remove: tuple[int, ...]
     ) -> None:
         """Remove track(s) from playlist."""
-        prov_track_ids = []
         tidal_session = await self._get_tidal_session()
+        prov_track_ids: list[str] = []
+        # Get tracks by position
         for pos in positions_to_remove:
-            for tidal_track in await get_playlist_tracks(
+            tracks: list[TidalTrack] = await get_playlist_tracks(
                 tidal_session, prov_playlist_id, limit=1, offset=pos - 1
-            ):
-                prov_track_ids.append(tidal_track.id)
-        return await remove_playlist_tracks(tidal_session, prov_playlist_id, prov_track_ids)
+            )
+            if tracks and len(tracks) > 0:
+                prov_track_ids.append(str(tracks[0].id))
+
+        if prov_track_ids:
+            await remove_playlist_tracks(tidal_session, prov_playlist_id, prov_track_ids)
 
     async def create_playlist(self, name: str) -> Playlist:
         """Create a new playlist on provider with given name."""
