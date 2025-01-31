@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import asyncio
 import time
-from enum import IntFlag
 from typing import TYPE_CHECKING, Any
 
 from hass_client.exceptions import FailedCommand
@@ -34,6 +33,7 @@ from music_assistant.helpers.datetime import from_iso_string
 from music_assistant.helpers.tags import async_parse_tags
 from music_assistant.models.player_provider import PlayerProvider
 from music_assistant.providers.hass import DOMAIN as HASS_DOMAIN
+from music_assistant.providers.hass.constants import MediaPlayerEntityFeature, StateMap
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
@@ -47,47 +47,9 @@ if TYPE_CHECKING:
 
     from music_assistant import MusicAssistant
     from music_assistant.models import ProviderInstanceType
-    from music_assistant.providers.hass import HomeAssistant as HomeAssistantProvider
+    from music_assistant.providers.hass import HomeAssistantProvider
 
 CONF_PLAYERS = "players"
-
-StateMap = {
-    "playing": PlayerState.PLAYING,
-    "paused": PlayerState.PAUSED,
-    "buffering": PlayerState.PLAYING,
-    "idle": PlayerState.IDLE,
-    "off": PlayerState.IDLE,
-    "standby": PlayerState.IDLE,
-    "unknown": PlayerState.IDLE,
-    "unavailable": PlayerState.IDLE,
-}
-
-
-class MediaPlayerEntityFeature(IntFlag):
-    """Supported features of the media player entity."""
-
-    PAUSE = 1
-    SEEK = 2
-    VOLUME_SET = 4
-    VOLUME_MUTE = 8
-    PREVIOUS_TRACK = 16
-    NEXT_TRACK = 32
-
-    TURN_ON = 128
-    TURN_OFF = 256
-    PLAY_MEDIA = 512
-    VOLUME_STEP = 1024
-    SELECT_SOURCE = 2048
-    STOP = 4096
-    CLEAR_PLAYLIST = 8192
-    PLAY = 16384
-    SHUFFLE_SET = 32768
-    SELECT_SOUND_MODE = 65536
-    BROWSE_MEDIA = 131072
-    REPEAT_SET = 262144
-    GROUPING = 524288
-    MEDIA_ANNOUNCE = 1048576
-    MEDIA_ENQUEUE = 2097152
 
 
 DEFAULT_PLAYER_CONFIG_ENTRIES = (
