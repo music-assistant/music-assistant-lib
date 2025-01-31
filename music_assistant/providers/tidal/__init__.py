@@ -76,6 +76,8 @@ from .helpers import (
     get_similar_tracks,
     get_stream,
     get_track,
+    get_track_lyrics,
+    get_tracks_by_isrc,
     library_items_add_remove,
     remove_playlist_tracks,
     search,
@@ -585,17 +587,30 @@ class TidalProvider(MusicProvider):
         """Return the content details for the given track when it will be streamed."""
         tidal_session = await self._get_tidal_session()
         # make sure a valid track is requested.
-        if not (track := await get_track(tidal_session, item_id)):
-            msg = f"track {item_id} not found"
-            raise MediaNotFoundError(msg)
+        # Try direct track lookup first
+        track = await get_track(tidal_session, item_id)
+
+        # Fallback to ISRC lookup if track not found
+        if not track:
+            self.logger.info(
+                """Track %s not found, attempting fallback by ISRC.
+                It's likely that this track has a new ID upstream in Tidal's WebApp.""",
+                item_id,
+            )
+            track = await self._get_track_by_isrc(item_id, tidal_session)
+            if not track:
+                raise MediaNotFoundError(f"Track {item_id} not found")
+
         stream: TidalStream = await get_stream(track)
         manifest = stream.get_stream_manifest()
-        if stream.is_mpd:
+
+        url = (
             # for mpeg-dash streams we just pass the complete base64 manifest
-            url = f"data:application/dash+xml;base64,{manifest.manifest}"
-        else:
+            f"data:application/dash+xml;base64,{manifest.manifest}"
+            if stream.is_mpd
             # as far as I can oversee a BTS stream is just a single URL
-            url = manifest.urls[0]
+            else manifest.urls[0]
+        )
 
         return StreamDetails(
             item_id=track.id,
@@ -640,8 +655,9 @@ class TidalProvider(MusicProvider):
             track = self._parse_track(track_obj)
             # get some extra details for the full track info
             with suppress(tidal_exceptions.MetadataNotAvailable, AttributeError):
-                lyrics: TidalLyrics = await asyncio.to_thread(track_obj.lyrics)
-                track.metadata.lyrics = lyrics.text
+                lyrics: TidalLyrics = await get_track_lyrics(tidal_session, prov_track_id)
+                if lyrics and hasattr(lyrics, "text"):
+                    track.metadata.lyrics = lyrics.text
             return track
         except tidal_exceptions.ObjectNotFound as err:
             raise MediaNotFoundError from err
@@ -720,6 +736,31 @@ class TidalProvider(MusicProvider):
             return session
 
         return await asyncio.to_thread(inner)
+
+    async def _get_track_by_isrc(
+        self, item_id: str, tidal_session: TidalSession
+    ) -> TidalTrack | None:
+        """Get track by ISRC from library item."""
+        library_track = await self.mass.music.tracks.get_library_item_by_prov_id(
+            item_id, self.instance_id
+        )
+        if not library_track:
+            return None
+
+        isrc = next(
+            (
+                id_value
+                for id_type, id_value in library_track.external_ids
+                if id_type == ExternalID.ISRC
+            ),
+            None,
+        )
+        if not isrc:
+            return None
+
+        self.logger.debug("Attempting track lookup by ISRC: %s", isrc)
+        tracks: list[TidalTrack] = await get_tracks_by_isrc(tidal_session, isrc)
+        return tracks[0] if tracks else None
 
     # Parsers
 

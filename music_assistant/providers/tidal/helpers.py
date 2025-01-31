@@ -25,7 +25,13 @@ from tidalapi import Playlist as TidalPlaylist
 from tidalapi import Session as TidalSession
 from tidalapi import Track as TidalTrack
 from tidalapi import UserPlaylist as TidalUserPlaylist
-from tidalapi.exceptions import MetadataNotAvailable, ObjectNotFound, TooManyRequests
+from tidalapi.exceptions import (
+    InvalidISRC,
+    MetadataNotAvailable,
+    ObjectNotFound,
+    TooManyRequests,
+)
+from tidalapi.media import Lyrics as TidalLyrics
 from tidalapi.media import Stream as TidalStream
 
 DEFAULT_LIMIT = 50
@@ -188,14 +194,38 @@ async def get_track(session: TidalSession, prov_track_id: str) -> TidalTrack:
     return await asyncio.to_thread(inner)
 
 
-async def get_stream(track: TidalTrack) -> TidalStream:
-    """Async wrapper around the tidalapi Track.get_stream_url function."""
+async def get_track_lyrics(session: TidalSession, prov_track_id: str) -> TidalLyrics | None:
+    """Async wrapper around the tidalapi Track lyrics function."""
 
-    def inner() -> TidalStream:
+    def inner() -> TidalLyrics | None:
         try:
-            return track.get_stream()
+            track: TidalTrack = TidalTrack(session, prov_track_id)
+            lyrics = track.lyrics()
+            if lyrics and hasattr(lyrics, "text"):
+                return lyrics
         except ObjectNotFound as err:
-            msg = f"Track {track.id} has no available stream"
+            msg = f"Track {prov_track_id} not found"
+            raise MediaNotFoundError(msg) from err
+        except MetadataNotAvailable as err:
+            msg = f"Lyrics not available for track {prov_track_id}"
+            raise MediaNotFoundError(msg) from err
+        except TooManyRequests:
+            msg = "Tidal API rate limit reached"
+            raise ResourceTemporarilyUnavailable(msg)
+        return None
+
+    return await asyncio.to_thread(inner)
+
+
+async def get_tracks_by_isrc(session: TidalSession, isrc: str) -> list[TidalTrack]:
+    """Async wrapper around the tidalapi Track function."""
+
+    def inner() -> list[TidalTrack]:
+        try:
+            tracks: list[TidalTrack] = session.get_tracks_by_isrc(isrc)
+            return tracks
+        except InvalidISRC as err:
+            msg = f"ISRC {isrc} invalid or not found"
             raise MediaNotFoundError(msg) from err
         except TooManyRequests:
             msg = "Tidal API rate limit reached"
@@ -204,15 +234,14 @@ async def get_stream(track: TidalTrack) -> TidalStream:
     return await asyncio.to_thread(inner)
 
 
-async def get_track_url(session: TidalSession, prov_track_id: str) -> str:
-    """Async wrapper around the tidalapi Track.get_url function."""
+async def get_stream(track: TidalTrack) -> TidalStream:
+    """Async wrapper around the tidalapi Track.get_stream_url function."""
 
-    def inner() -> str:
+    def inner() -> TidalStream:
         try:
-            track_url: str = TidalTrack(session, prov_track_id).get_url()
-            return track_url
+            return track.get_stream()
         except ObjectNotFound as err:
-            msg = f"Track {prov_track_id} not found"
+            msg = f"Track {track.id} has no available stream"
             raise MediaNotFoundError(msg) from err
         except TooManyRequests:
             msg = "Tidal API rate limit reached"
