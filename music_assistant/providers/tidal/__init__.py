@@ -478,14 +478,14 @@ class TidalProvider(MusicProvider):
     async def get_album_tracks(self, prov_album_id: str) -> list[Track]:
         """Get album tracks for given album id."""
         tidal_session = await self._get_tidal_session()
-        tracks_obj: list[TidalTrack] = await get_album_tracks(tidal_session, prov_album_id)
+        tracks_obj = await get_album_tracks(tidal_session, prov_album_id)
         return [self._parse_track(track_obj=track_obj) for track_obj in tracks_obj]
 
     @throttle_with_retries
     async def get_artist_albums(self, prov_artist_id: str) -> list[Album]:
         """Get a list of all albums for the given artist."""
         tidal_session = await self._get_tidal_session()
-        artist_albums_obj: list[TidalAlbum] = await get_artist_albums(tidal_session, prov_artist_id)
+        artist_albums_obj = await get_artist_albums(tidal_session, prov_artist_id)
         return [self._parse_album(album) for album in artist_albums_obj]
 
     @throttle_with_retries
@@ -493,9 +493,7 @@ class TidalProvider(MusicProvider):
         """Get a list of 10 most popular tracks for the given artist."""
         tidal_session = await self._get_tidal_session()
         try:
-            artist_toptracks_obj: list[TidalTrack] = await get_artist_toptracks(
-                tidal_session, prov_artist_id
-            )
+            artist_toptracks_obj = await get_artist_toptracks(tidal_session, prov_artist_id)
             return [self._parse_track(track) for track in artist_toptracks_obj]
         except tidal_exceptions.ObjectNotFound as err:
             self.logger.warning(f"Failed to get toptracks for artist {prov_artist_id}: {err}")
@@ -508,7 +506,7 @@ class TidalProvider(MusicProvider):
         page_size = 200
         offset = page * page_size
         track_obj: TidalTrack  # satisfy the type checker
-        tidal_tracks: list[TidalTrack] = await get_playlist_tracks(
+        tidal_tracks = await get_playlist_tracks(
             tidal_session, prov_playlist_id, limit=page_size, offset=offset
         )
         for index, track_obj in enumerate(tidal_tracks, 1):
@@ -521,9 +519,7 @@ class TidalProvider(MusicProvider):
     async def get_similar_tracks(self, prov_track_id: str, limit: int = 25) -> list[Track]:
         """Get similar tracks for given track id."""
         tidal_session = await self._get_tidal_session()
-        similar_tracks_obj: list[TidalTrack] = await get_similar_tracks(
-            tidal_session, prov_track_id, limit
-        )
+        similar_tracks_obj = await get_similar_tracks(tidal_session, prov_track_id, limit)
         return [self._parse_track(track) for track in similar_tracks_obj]
 
     async def library_add(self, item: MediaItemType) -> bool:
@@ -561,7 +557,7 @@ class TidalProvider(MusicProvider):
         prov_track_ids: list[str] = []
         # Get tracks by position
         for pos in positions_to_remove:
-            tracks: list[TidalTrack] = await get_playlist_tracks(
+            tracks = await get_playlist_tracks(
                 tidal_session, prov_playlist_id, limit=1, offset=pos - 1
             )
             if tracks and len(tracks) > 0:
@@ -587,11 +583,11 @@ class TidalProvider(MusicProvider):
         """Return the content details for the given track when it will be streamed."""
         tidal_session = await self._get_tidal_session()
         # make sure a valid track is requested.
-        # Try direct track lookup first
-        track = await get_track(tidal_session, item_id)
-
-        # Fallback to ISRC lookup if track not found
-        if not track:
+        # Try direct track lookup first with exception handling
+        try:
+            track = await get_track(tidal_session, item_id)
+        except MediaNotFoundError:
+            # Fallback to ISRC lookup
             self.logger.info(
                 """Track %s not found, attempting fallback by ISRC.
                 It's likely that this track has a new ID upstream in Tidal's WebApp.""",
@@ -740,7 +736,26 @@ class TidalProvider(MusicProvider):
     async def _get_track_by_isrc(
         self, item_id: str, tidal_session: TidalSession
     ) -> TidalTrack | None:
-        """Get track by ISRC from library item."""
+        """Get track by ISRC from library item, with caching."""
+        # Try to get from cache first
+        cache_key = f"isrc_map_{item_id}"
+        cached_track_id = await self.mass.cache.get(
+            cache_key, category=CacheCategory.DEFAULT, base_key=self.lookup_key
+        )
+
+        if cached_track_id:
+            self.logger.debug(
+                "Using cached track id",
+            )
+            try:
+                return await get_track(tidal_session, str(cached_track_id))
+            except MediaNotFoundError:
+                # Track no longer exists, invalidate cache
+                await self.mass.cache.delete(
+                    cache_key, category=CacheCategory.DEFAULT, base_key=self.lookup_key
+                )
+
+        # Lookup by ISRC if no cache or cached track not found
         library_track = await self.mass.music.tracks.get_library_item_by_prov_id(
             item_id, self.instance_id
         )
@@ -760,7 +775,15 @@ class TidalProvider(MusicProvider):
 
         self.logger.debug("Attempting track lookup by ISRC: %s", isrc)
         tracks: list[TidalTrack] = await get_tracks_by_isrc(tidal_session, isrc)
-        return tracks[0] if tracks else None
+        if not tracks:
+            return None
+
+        # Cache the mapping for future use
+        await self.mass.cache.set(
+            cache_key, tracks[0].id, category=CacheCategory.DEFAULT, base_key=self.lookup_key
+        )
+
+        return tracks[0]
 
     # Parsers
 
