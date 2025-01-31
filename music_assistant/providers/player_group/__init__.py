@@ -179,8 +179,8 @@ class PlayerGroupProvider(PlayerProvider):
         await super().loaded_in_mass()
         # temp: migrate old config entries
         # remove this after MA 2.4 release
-        for player_config in await self.mass.config.get_player_configs():
-            if player_config.provider == self.instance_id:
+        for player_config in await self.mass.config.get_player_configs(include_values=True):
+            if player_config.values.get(CONF_GROUP_TYPE) is not None:
                 # already migrated
                 continue
             # migrate old syncgroup players to this provider
@@ -384,6 +384,9 @@ class PlayerGroupProvider(PlayerProvider):
         if not powered and group_player.state in (PlayerState.PLAYING, PlayerState.PAUSED):
             await self.cmd_stop(group_player.player_id)
 
+        if powered and player_id.startswith(SYNCGROUP_PREFIX):
+            await self._form_syncgroup(group_player)
+
         if powered:
             # handle TURN_ON of the group player by turning on all members
             for member in self.mass.players.iter_group_members(
@@ -428,8 +431,6 @@ class PlayerGroupProvider(PlayerProvider):
                 if member.powered and member.power_control != PLAYER_CONTROL_NONE:
                     await self.mass.players.cmd_power(member.player_id, False)
 
-        if powered and player_id.startswith(SYNCGROUP_PREFIX):
-            await self._form_syncgroup(group_player)
         # optimistically set the group state
         group_player.powered = powered
         self.mass.players.update(group_player.player_id)
@@ -564,7 +565,7 @@ class PlayerGroupProvider(PlayerProvider):
             if ProviderFeature.SYNC_PLAYERS not in player_prov.supported_features:
                 msg = f"Provider {player_prov.name} does not support creating groups"
                 raise UnsupportedFeaturedException(msg)
-            group_type = player_prov.instance_id  # just in case only domain was sent
+            group_type = player_prov.lookup_key  # just in case only domain was sent
 
         new_group_id = f"{prefix}{shortuuid.random(8).lower()}"
         # cleanup list, just in case the frontend sends some garbage
@@ -705,7 +706,7 @@ class PlayerGroupProvider(PlayerProvider):
     async def _register_all_players(self) -> None:
         """Register all (virtual/fake) group players in the Player controller."""
         player_configs = await self.mass.config.get_player_configs(
-            self.instance_id, include_values=True
+            self.lookup_key, include_values=True
         )
         for player_config in player_configs:
             if self.mass.players.get(player_config.player_id):
@@ -955,7 +956,7 @@ class PlayerGroupProvider(PlayerProvider):
                 x
                 for x in members
                 if (player := self.mass.players.get(x))
-                and player.provider in (player_provider.instance_id, self.instance_id)
+                and player.provider == player_provider.lookup_key
             ]
         # cleanup members - filter out impossible choices
         syncgroup_childs: list[str] = []
