@@ -395,9 +395,13 @@ class Audiobookshelf(MusicProvider):
         return mass_audiobook
 
     async def get_library_audiobooks(self) -> AsyncGenerator[Audiobook, None]:
-        """Get Audiobook libraries."""
+        """Get Audiobook libraries.
+
+        We need the expanded version here to have chapters shown!
+        """
         async for abs_audiobook in self._client.get_all_audiobooks_minified():
-            mass_audiobook = await self._parse_audiobook(abs_audiobook)
+            abs_audiobook_expanded = await self._client.get_audiobook_expanded(abs_audiobook.id_)
+            mass_audiobook = await self._parse_audiobook(abs_audiobook_expanded)
             yield mass_audiobook
 
     async def get_audiobook(self, prov_audiobook_id: str) -> Audiobook:
