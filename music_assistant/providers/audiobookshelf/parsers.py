@@ -15,6 +15,7 @@ from aioaudiobookshelf.schema.library import (
 from aioaudiobookshelf.schema.library import (
     LibraryItemPodcast as AbsLibraryItemPodcast,
 )
+from aioaudiobookshelf.schema.media_progress import MediaProgress as AbsMediaProgress
 from aioaudiobookshelf.schema.podcast import PodcastEpisodeExpanded as AbsPodcastEpisodeExpanded
 from music_assistant_models.enums import ContentType, ImageType, MediaType
 from music_assistant_models.media_items import Audiobook as MassAudiobook
@@ -90,6 +91,7 @@ def parse_podcast_episode(
     instance_id: str,
     token: str | None,
     base_url: str,
+    media_progress: AbsMediaProgress | None = None,
 ) -> MassPodcastEpisode:
     """Translate ABSPodcastEpisode to MassPodcastEpisode.
 
@@ -139,6 +141,10 @@ def parse_podcast_episode(
             [MediaItemImage(type=ImageType.THUMB, path=url_cover, provider=lookup_key)]
         )
 
+    if media_progress is not None:
+        mass_episode.resume_position_ms = int(media_progress.current_time * 1000)
+        mass_episode.fully_played = media_progress.is_finished
+
     return mass_episode
 
 
@@ -150,6 +156,7 @@ def parse_audiobook(
     instance_id: str,
     token: str | None,
     base_url: str,
+    media_progress: AbsMediaProgress | None = None,
 ) -> MassAudiobook:
     """Translate AbsBook to Mass Book."""
     title = abs_audiobook.media.metadata.title
@@ -203,7 +210,7 @@ def parse_audiobook(
                     position=idx + 1,  # chapter starting at 1
                     name=chapter.title,
                     start=chapter.start,
-                    end=chapter.end,
+                    end=chapter.start + chapter.end,
                 )
             )
         mass_audiobook.metadata.chapters = chapters
@@ -211,5 +218,9 @@ def parse_audiobook(
     elif isinstance(abs_audiobook, AbsLibraryItemMinifiedBook):
         mass_audiobook.authors = UniqueList([abs_audiobook.media.metadata.author_name])
         mass_audiobook.narrators = UniqueList([abs_audiobook.media.metadata.narrator_name])
+
+    if media_progress is not None:
+        mass_audiobook.resume_position_ms = int(media_progress.current_time * 1000)
+        mass_audiobook.fully_played = media_progress.is_finished
 
     return mass_audiobook
