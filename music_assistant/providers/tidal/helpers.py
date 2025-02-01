@@ -383,8 +383,11 @@ async def get_similar_tracks(
                 limit=limit
             )
             return tracks
-        except (MetadataNotAvailable, ObjectNotFound) as err:
-            msg = f"Track {prov_track_id} not found"
+        except ObjectNotFound as err:
+            msg = f"Source track {prov_track_id} not found"
+            raise MediaNotFoundError(msg) from err
+        except MetadataNotAvailable as err:
+            msg = f"No similar tracks available for {prov_track_id}"
             raise MediaNotFoundError(msg) from err
         except TooManyRequests:
             msg = "Tidal API rate limit reached"
