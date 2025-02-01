@@ -980,6 +980,8 @@ class PlayerQueuesController(CoreController):
         for child_id in player.group_childs:
             if (child := self.mass.players.get(child_id)) and child.output_format:
                 output_formats.append(child.output_format.output_format_str)
+            else:
+                output_formats.append("unknown")
 
         # basic throttle: do not send state changed events if queue did not actually change
         new_state = CompareState(
