@@ -379,7 +379,7 @@ class Audiobookshelf(MusicProvider):
                         position=idx + 1,  # chapter starting at 1
                         name=chapter.title,
                         start=chapter.start,
-                        end=chapter.end + chapter.start,
+                        end=chapter.end,
                     )
                 )
             mass_audiobook.metadata.chapters = chapters
