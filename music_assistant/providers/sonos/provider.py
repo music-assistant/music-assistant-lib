@@ -200,15 +200,14 @@ class SonosPlayerProvider(PlayerProvider):
         if "values/airplay_mode" in changed_keys and (
             (sonos_player := self.sonos_players.get(config.player_id))
             and (airplay_player := sonos_player.get_linked_airplay_player(False))
-            and airplay_player.active_source == sonos_player.mass_player.active_source
+            and airplay_player.state in (PlayerState.PLAYING, PlayerState.PAUSED)
         ):
             # edge case: we switched from airplay mode to sonos mode (or vice versa)
             # we need to make sure that playback gets stopped on the airplay player
             if airplay_prov := self.mass.get_provider(airplay_player.provider):
+                airplay_player.active_source = None
                 await airplay_prov.cmd_stop(airplay_player.player_id)
                 airplay_player.active_source = None
-            if not sonos_player.airplay_mode_enabled:
-                await self.mass.players.cmd_stop(config.player_id)
 
     async def cmd_stop(self, player_id: str) -> None:
         """Send STOP command to given player."""
@@ -260,15 +259,15 @@ class SonosPlayerProvider(PlayerProvider):
         if airplay_player := sonos_player.get_linked_airplay_player(False):
             # if airplay mode is enabled, we could possibly receive child player id's that are
             # not Sonos players, but Airplay players. We redirect those.
-            if (
-                airplay_player.active_source == sonos_player.mass_player.active_source
-                and airplay_player.state == PlayerState.PLAYING
-            ):
-                # edge case player is not playing a MA queue - fail this request
-                raise PlayerCommandFailed("Player is not playing a Music Assistant queue.")
             airplay_child_ids = [x for x in child_player_ids if x.startswith("ap")]
             child_player_ids = [x for x in child_player_ids if x not in airplay_child_ids]
             if airplay_child_ids:
+                if (
+                    airplay_player.active_source != sonos_player.mass_player.active_source
+                    and airplay_player.state == PlayerState.PLAYING
+                ):
+                    # edge case player is not playing a MA queue - fail this request
+                    raise PlayerCommandFailed("Player is not playing a Music Assistant queue.")
                 await self.mass.players.cmd_group_many(airplay_player.player_id, airplay_child_ids)
         if child_player_ids:
             await sonos_player.client.player.group.modify_group_members(

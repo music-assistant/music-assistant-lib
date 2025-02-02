@@ -1290,7 +1290,7 @@ class PlayerController(CoreController):
             player.available = False
         # if the PlayerQueue was playing, restart playback
         # TODO: add property to ConfigEntry if it requires a restart of playback on change
-        elif not player_disabled and resume_queue.state == PlayerState.PLAYING:
+        elif not player_disabled and resume_queue and resume_queue.state == PlayerState.PLAYING:
             self.mass.call_later(1, self.mass.player_queues.resume, resume_queue.queue_id)
         # check for group memberships that need to be updated
         if player_disabled and player.active_group and player_provider:
@@ -1366,14 +1366,16 @@ class PlayerController(CoreController):
         """Calculate a group volume from the grouped members."""
         if len(player.group_childs) == 0:
             # player is not a group or syncgroup
-            return player.volume_level
+            return player.volume_level or 0
         # calculate group volume from all (turned on) players
         group_volume = 0
         active_players = 0
         for child_player in self.iter_group_members(player, only_powered=True, exclude_self=False):
             if child_player.volume_control == PLAYER_CONTROL_NONE:
                 continue
-            group_volume += child_player.volume_level or 0
+            if child_player.volume_level is None:
+                continue
+            group_volume += child_player.volume_level
             active_players += 1
         if active_players:
             group_volume = group_volume / active_players
