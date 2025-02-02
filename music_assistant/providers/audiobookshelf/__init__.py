@@ -183,7 +183,11 @@ class Audiobookshelf(MusicProvider):
         password = str(self.config.get_value(CONF_PASSWORD))
         verify_ssl = bool(self.config.get_value(CONF_VERIFY_SSL))
         session_config = aioabs.SessionConfiguration(
-            session=self.mass.http_session, url=base_url, verify_ssl=verify_ssl, logger=self.logger
+            session=self.mass.http_session,
+            url=base_url,
+            verify_ssl=verify_ssl,
+            logger=self.logger,
+            pagination_items_per_page=30,  # audible provider goes with 50 here
         )
         try:
             self._client = await aioabs.get_user_client(
@@ -342,17 +346,12 @@ class Audiobookshelf(MusicProvider):
             async for response in self._client.get_library_items(library_id=book_lib_id):
                 if not response.results:
                     break
-                for abs_audiobook in response.results:
-                    if not isinstance(abs_audiobook, AbsLibraryItemMinifiedBook):
-                        raise TypeError("Unexpected type of book.")
-                    abs_book_expanded = await self._client.get_library_item_book(
-                        book_id=abs_audiobook.id_, expanded=True
-                    )
-                    # use expanded version for chapters.
-                    if not isinstance(abs_book_expanded, AbsLibraryItemExpandedBook):
-                        raise TypeError("Unexpected type of book.")
+                book_ids = [x.id_ for x in response.results]
+                # use expanded version for chapters.
+                books_expanded = await self._client.get_library_item_batch_book(item_ids=book_ids)
+                for book_expanded in books_expanded:
                     mass_audiobook = parse_audiobook(
-                        abs_audiobook=abs_book_expanded,
+                        abs_audiobook=book_expanded,
                         lookup_key=self.lookup_key,
                         domain=self.domain,
                         instance_id=self.instance_id,
