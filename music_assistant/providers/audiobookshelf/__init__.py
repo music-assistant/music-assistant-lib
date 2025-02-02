@@ -17,9 +17,13 @@ from aioaudiobookshelf.client.items import (
 )
 from aioaudiobookshelf.exceptions import ApiError as AbsApiError
 from aioaudiobookshelf.exceptions import LoginError as AbsLoginError
-from aioaudiobookshelf.schema.calls_authors import AuthorWithItemsAndSeries
-from aioaudiobookshelf.schema.calls_items import PlaybackSessionParameters
-from aioaudiobookshelf.schema.calls_series import SeriesWithProgress
+from aioaudiobookshelf.schema.calls_authors import (
+    AuthorWithItemsAndSeries as AbsAuthorWithItemsAndSeries,
+)
+from aioaudiobookshelf.schema.calls_items import (
+    PlaybackSessionParameters as AbsPlaybackSessionParameters,
+)
+from aioaudiobookshelf.schema.calls_series import SeriesWithProgress as AbsSeriesWithProgress
 from aioaudiobookshelf.schema.library import (
     LibraryItemMinifiedBook as AbsLibraryItemMinifiedBook,
 )
@@ -27,7 +31,7 @@ from aioaudiobookshelf.schema.library import (
     LibraryItemMinifiedPodcast as AbsLibraryItemMinifiedPodcast,
 )
 from aioaudiobookshelf.schema.library import LibraryMediaType as AbsLibraryMediaType
-from aioaudiobookshelf.schema.session import DeviceInfo
+from aioaudiobookshelf.schema.session import DeviceInfo as AbsDeviceInfo
 from music_assistant_models.config_entries import ConfigEntry, ConfigValueType, ProviderConfig
 from music_assistant_models.enums import (
     ConfigEntryType,
@@ -185,8 +189,8 @@ class Audiobookshelf(MusicProvider):
             self._client = await aioabs.get_user_client(
                 session_config=session_config, username=username, password=password
             )
-        except AbsLoginError:
-            raise LoginFailed(f"Login to abs instance at {base_url} failed.")
+        except AbsLoginError as exc:
+            raise LoginFailed(f"Login to abs instance at {base_url} failed.") from exc
 
         # store library ids
         self.libraries_book: dict[str, str] = {}  # lib_id: lib_name
@@ -409,14 +413,14 @@ class Audiobookshelf(MusicProvider):
         # Adding audiobook id to device id makes multiple sessions for different books
         # possible, but we can an already opened session for a particular book, if
         # it exists.
-        _device_info = DeviceInfo(
+        _device_info = AbsDeviceInfo(
             device_id=f"{self.instance_id}/{item_id}",
             client_name="Music Assistant",
             client_version=self.mass.version,
             manufacturer="",
             model=self.mass.server_id,
         )
-        _params = PlaybackSessionParameters(
+        _params = AbsPlaybackSessionParameters(
             device_info=_device_info,
             force_direct_play=False,
             force_transcode=False,
@@ -757,7 +761,7 @@ class Audiobookshelf(MusicProvider):
         abs_author = await self._client.get_author(
             author_id=author_id, include_items=True, include_series=True
         )
-        if not isinstance(abs_author, AuthorWithItemsAndSeries):
+        if not isinstance(abs_author, AbsAuthorWithItemsAndSeries):
             raise TypeError("Unexpected type of author.")
 
         book_ids = {x.id_ for x in abs_author.library_items}
@@ -790,7 +794,7 @@ class Audiobookshelf(MusicProvider):
         items = []
 
         abs_series = await self._client.get_series(series_id=series_id, include_progress=True)
-        if not isinstance(abs_series, SeriesWithProgress):
+        if not isinstance(abs_series, AbsSeriesWithProgress):
             raise TypeError("Unexpected series type.")
 
         for book_id in abs_series.progress.library_item_ids:
