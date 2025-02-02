@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncGenerator, Sequence
-from copy import deepcopy
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
@@ -19,6 +18,7 @@ from aioaudiobookshelf.client.items import (
 from aioaudiobookshelf.exceptions import ApiError as AbsApiError
 from aioaudiobookshelf.exceptions import LoginError as AbsLoginError
 from aioaudiobookshelf.schema.calls_authors import AuthorWithItemsAndSeries
+from aioaudiobookshelf.schema.calls_items import PlaybackSessionParameters
 from aioaudiobookshelf.schema.calls_series import SeriesWithProgress
 from aioaudiobookshelf.schema.library import (
     LibraryItemMinifiedBook as AbsLibraryItemMinifiedBook,
@@ -28,7 +28,6 @@ from aioaudiobookshelf.schema.library import (
 )
 from aioaudiobookshelf.schema.library import LibraryMediaType as AbsLibraryMediaType
 from aioaudiobookshelf.schema.session import DeviceInfo
-from aioaudiobookshelf.schema.session import PlaybackSessionExpanded as AbsPlaybackSessionExpanded
 from music_assistant_models.config_entries import ConfigEntry, ConfigValueType, ProviderConfig
 from music_assistant_models.enums import (
     ConfigEntryType,
@@ -188,15 +187,6 @@ class Audiobookshelf(MusicProvider):
             )
         except AbsLoginError:
             raise LoginFailed(f"Login to abs instance at {base_url} failed.")
-
-        # this will be provided when creating sessions or receive already opened sessions
-        self.device_info = DeviceInfo(
-            device_id=self.instance_id,
-            client_name="Music Assistant",
-            client_version=self.mass.version,
-            manufacturer="",
-            model=self.mass.server_id,
-        )
 
         # store library ids
         self.libraries_book: dict[str, str] = {}  # lib_id: lib_name
@@ -394,7 +384,7 @@ class Audiobookshelf(MusicProvider):
         """Get stream of item."""
         # self.logger.debug(f"Streamdetails: {item_id}")
         if media_type == MediaType.PODCAST_EPISODE:
-            return await self._get_stream_details_podcast_episode(item_id)
+            return await self._get_stream_details_episode(item_id)
         elif media_type == MediaType.AUDIOBOOK:
             abs_audiobook = await self._client.get_library_item_book(book_id=item_id, expanded=True)
             if not isinstance(abs_audiobook, AbsLibraryItemExpandedBook):
@@ -403,31 +393,42 @@ class Audiobookshelf(MusicProvider):
             if len(tracks) == 0:
                 raise MediaNotFoundError("Stream not found")
             if len(tracks) > 1:
-                # Adding audiobook id to device id makes multiple sessions for different books
-                # possible, but we can an already opened session for a particular book, if
-                # it exists.
-                _device_info = deepcopy(self.device_info)
-                _device_info.device_id += f"/{item_id}"
                 self.logger.debug(
                     "Using playback via a session for audiobook "
                     f'"{abs_audiobook.media.metadata.title}"'
                 )
-                session = await self._client.get_playback_session_music_assistant(
-                    device_info=_device_info, book_id=item_id
-                )
-                # small delay, allow abs to launch ffmpeg process
-                await asyncio.sleep(1)
-                return await self._get_stream_details_from_playback_session(session)
+                return await self._get_stream_details_session(item_id=item_id)
             self.logger.debug(
                 f'Using direct playback for audiobook "{abs_audiobook.media.metadata.title}".'
             )
             return await self._get_stream_details_audiobook(abs_audiobook)
         raise MediaNotFoundError("Stream unknown")
 
-    async def _get_stream_details_from_playback_session(
-        self, session: AbsPlaybackSessionExpanded
-    ) -> StreamDetails:
-        """Give Streamdetails from given session."""
+    async def _get_stream_details_session(self, item_id: str) -> StreamDetails:
+        """Give Streamdetails by opening a session."""
+        # Adding audiobook id to device id makes multiple sessions for different books
+        # possible, but we can an already opened session for a particular book, if
+        # it exists.
+        _device_info = DeviceInfo(
+            device_id=f"{self.instance_id}/{item_id}",
+            client_name="Music Assistant",
+            client_version=self.mass.version,
+            manufacturer="",
+            model=self.mass.server_id,
+        )
+        _params = PlaybackSessionParameters(
+            device_info=_device_info,
+            force_direct_play=False,
+            force_transcode=False,
+            supported_mime_types=[],  # will yield stream as hls without transcoding
+        )
+        session = await self._client.get_playback_session(
+            session_parameters=_params, item_id=item_id
+        )
+
+        # small delay, allow abs to launch ffmpeg process
+        await asyncio.sleep(1)
+
         tracks = session.audio_tracks
         if len(tracks) == 0:
             raise RuntimeError("Playback session has no tracks to play")
@@ -435,11 +436,10 @@ class Audiobookshelf(MusicProvider):
         track_url = track.content_url
         if track_url.split("/")[1] != "hls":
             raise RuntimeError("Did expect HLS stream for session playback")
-        item_id = ""
         media_type = MediaType.AUDIOBOOK
         audiobook_id = session.library_item_id
         self.session_ids.add(session.id_)
-        item_id = f"{audiobook_id} {session.id_}"
+        streamdetails_id = f"{audiobook_id} {session.id_}"
         token = self._client.token
         base_url = str(self.config.get_value(CONF_URL))
         media_url = track.content_url
@@ -447,7 +447,7 @@ class Audiobookshelf(MusicProvider):
         self.logger.debug(f"Using session with id {session.id_}.")
         return StreamDetails(
             provider=self.instance_id,
-            item_id=item_id,
+            item_id=streamdetails_id,
             audio_format=AudioFormat(
                 content_type=ContentType.UNKNOWN,
             ),
@@ -478,8 +478,8 @@ class Audiobookshelf(MusicProvider):
             path=stream_url,
         )
 
-    async def _get_stream_details_podcast_episode(self, podcast_id: str) -> StreamDetails:
-        """Stream of a Podcast."""
+    async def _get_stream_details_episode(self, podcast_id: str) -> StreamDetails:
+        """Streamdetails of a podcast episode."""
         abs_podcast_id, abs_episode_id = podcast_id.split(" ")
         abs_episode = None
 
@@ -610,7 +610,7 @@ class Audiobookshelf(MusicProvider):
                 case AbsBrowsePaths.COLLECTIONS:
                     return await self._browse_collections(current_path=path, library_id=lib_id)
                 case AbsBrowsePaths.AUDIOBOOKS:
-                    return await self._browse_audiobooks(library_id=lib_id)
+                    return await self._browse_books(library_id=lib_id)
         elif len(sub_path) == 3:
             item_key, item_id = sub_path[1:3]
             match item_key:
@@ -732,7 +732,7 @@ class Audiobookshelf(MusicProvider):
                 )
         return items
 
-    async def _browse_audiobooks(self, library_id: str) -> Sequence[MediaItemType]:
+    async def _browse_books(self, library_id: str) -> Sequence[MediaItemType]:
         items = []
         async for response in self._client.get_library_items(library_id=library_id):
             if not response.results:
