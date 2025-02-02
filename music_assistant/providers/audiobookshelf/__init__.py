@@ -62,14 +62,6 @@ CONF_VERIFY_SSL = "verify_ssl"
 # optionally hide podcasts with no episodes
 CONF_HIDE_EMPTY_PODCASTS = "hide_empty_podcasts"
 
-CACHE_BASE_KEY_PREFIX = "audiobookshelf"
-CACHE_CATEGORY_ABS_CLIENT = 0
-CACHE_KEY_PODCAST_LIBRARIES = "absclient_podcast_libraries"
-CACHE_KEY_AUDIOBOOK_LIBRARIES = "absclient_audiobook_libraries"
-
-
-# browse constants
-
 
 class AbsBrowsePaths(StrEnum):
     """Path prefixes for browse view."""
@@ -207,30 +199,8 @@ class Audiobookshelf(MusicProvider):
         )
 
         # store library ids
-        # need to store the library uuid + name in cache
-        # otherwise browse view only works if client is manually
-        # synced ahead.
         self.libraries_book: dict[str, str] = {}  # lib_id: lib_name
         self.libraries_podcast: dict[str, str] = {}
-        self.cache_base_key = f"{CACHE_BASE_KEY_PREFIX}{self.lookup_key}"
-        data = await self.mass.cache.get(
-            key=CACHE_KEY_PODCAST_LIBRARIES,
-            base_key=self.cache_base_key,
-            category=CACHE_CATEGORY_ABS_CLIENT,
-            default=None,
-        )
-        if data is not None and isinstance(data, dict):
-            self.libraries_podcast = data
-
-        data = await self.mass.cache.get(
-            key=CACHE_KEY_AUDIOBOOK_LIBRARIES,
-            base_key=self.cache_base_key,
-            category=CACHE_CATEGORY_ABS_CLIENT,
-            default=None,
-        )
-        if data is not None and isinstance(data, dict):
-            self.libraries_book = data
-
         # keep track of open sessions
         self.session_ids: set[str] = set()
 
@@ -254,26 +224,16 @@ class Audiobookshelf(MusicProvider):
 
     async def sync_library(self, media_types: tuple[MediaType, ...]) -> None:
         """Obtain audiobook library ids and podcast library ids."""
+        await self._sync_library_ids()
+        await super().sync_library(media_types=media_types)
+
+    async def _sync_library_ids(self) -> None:
         libraries = await self._client.get_all_libraries()
         for library in libraries:
             if library.media_type == AbsLibraryMediaType.BOOK:
                 self.libraries_book[library.id_] = library.name
             elif library.media_type == AbsLibraryMediaType.PODCAST:
                 self.libraries_podcast[library.id_] = library.name
-        # store dicts in cache
-        await self.mass.cache.set(
-            key=CACHE_KEY_PODCAST_LIBRARIES,
-            base_key=self.cache_base_key,
-            category=CACHE_CATEGORY_ABS_CLIENT,
-            data=self.libraries_podcast,
-        )
-        await self.mass.cache.set(
-            key=CACHE_KEY_AUDIOBOOK_LIBRARIES,
-            base_key=self.cache_base_key,
-            category=CACHE_CATEGORY_ABS_CLIENT,
-            data=self.libraries_book,
-        )
-        await super().sync_library(media_types=media_types)
 
     async def get_library_podcasts(self) -> AsyncGenerator[Podcast, None]:
         """Retrieve library/subscribed podcasts from the provider.
@@ -627,6 +587,9 @@ class Audiobookshelf(MusicProvider):
             Podcast_1
             Podcast_2
         """
+        if not self.libraries_book and not self.libraries_podcast:
+            await self._sync_library_ids()
+
         item_path = path.split("://", 1)[1]
         if not item_path:
             return self._browse_root()
@@ -662,8 +625,6 @@ class Audiobookshelf(MusicProvider):
             series_id = sub_path[3]
             return await self._browse_series_books(series_id=series_id)
         return []
-        # if not item_path:
-        #     return self._browse_root()
 
     def _browse_root(self) -> Sequence[MediaItemType]:
         items = []
@@ -676,13 +637,13 @@ class Audiobookshelf(MusicProvider):
                 path=f"{self.instance_id}://{path}",
             )
 
-        for lib_id, lib_name in self.libraries_podcast.items():
-            path = f"{AbsBrowsePaths.LIBRARIES_PODCAST} {lib_id}"
-            name = f"{lib_name} ({AbsBrowseItemsPodcast.PODCASTS})"
-            items.append(_get_folder(path, lib_id, name))
         for lib_id, lib_name in self.libraries_book.items():
             path = f"{AbsBrowsePaths.LIBRARIES_BOOK} {lib_id}"
             name = f"{lib_name} ({AbsBrowseItemsBook.AUDIOBOOKS})"
+            items.append(_get_folder(path, lib_id, name))
+        for lib_id, lib_name in self.libraries_podcast.items():
+            path = f"{AbsBrowsePaths.LIBRARIES_PODCAST} {lib_id}"
+            name = f"{lib_name} ({AbsBrowseItemsPodcast.PODCASTS})"
             items.append(_get_folder(path, lib_id, name))
         return items
 
