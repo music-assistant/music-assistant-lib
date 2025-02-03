@@ -223,6 +223,7 @@ def get_stream_dsp_details(
     dsp: dict[str, DSPDetails] = {}
     group_preventing_dsp = is_grouping_preventing_dsp(player)
     output_format = None
+    is_external_group = False
 
     if player.provider.startswith("player_group"):
         if group_preventing_dsp:
@@ -244,8 +245,11 @@ def get_stream_dsp_details(
             # The leader is responsible for sending the (combined) audio stream, so get
             # the output format from the leader.
             output_format = player.output_format
+        is_external_group = player.type in (PlayerType.GROUP, PlayerType.STEREO_PAIR)
 
-    if player and player.group_childs:
+    # We don't enumerate all group members in case this group is externally created
+    # (e.g. a Chromecast group from the Google Home app)
+    if player and player.group_childs and not is_external_group:
         # grouped playback, get DSP details for each player in the group
         for child_id in player.group_childs:
             if child_player := mass.players.get(child_id):
