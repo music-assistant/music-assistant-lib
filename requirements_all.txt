@@ -9,7 +9,7 @@ aiorun==2025.1.1
 aioslimproto==3.1.0
 aiosonos==0.1.9
 aiosqlite==0.20.0
-async-upnp-client==0.42.0
+async-upnp-client==0.43.0
 audible==0.10.0
 bidict==0.23.1
 certifi==2024.12.14
