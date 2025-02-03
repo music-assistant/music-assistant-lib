@@ -238,7 +238,6 @@ def get_stream_dsp_details(
     else:
         # We only add real players (so skip the PlayerGroups as they only sync containing players)
         details = get_player_dsp_details(mass, player)
-        details.is_leader = True
         dsp[player.player_id] = details
         if group_preventing_dsp:
             # The leader is responsible for sending the (combined) audio stream, so get
