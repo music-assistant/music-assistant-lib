@@ -201,9 +201,7 @@ class SpotifyConnectProvider(MusicProvider):
             },
         )
 
-    async def get_stream_details(
-        self, item_id: str, media_type: MediaType = MediaType.TRACK
-    ) -> StreamDetails:
+    async def get_stream_details(self, item_id: str, media_type: MediaType) -> StreamDetails:
         """Return the streamdetails to stream an audiosource provided by this plugin."""
         self._current_streamdetails = streamdetails = StreamDetails(
             item_id=CONNECT_ITEM_ID,

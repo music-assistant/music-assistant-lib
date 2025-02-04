@@ -537,9 +537,7 @@ class YoutubeMusicProvider(MusicProvider):
             return tracks
         return []
 
-    async def get_stream_details(
-        self, item_id: str, media_type: MediaType = MediaType.TRACK
-    ) -> StreamDetails:
+    async def get_stream_details(self, item_id: str, media_type: MediaType) -> StreamDetails:
         """Return the content details for the given track when it will be streamed."""
         if media_type == MediaType.PODCAST_EPISODE:
             item_id = item_id.split(PODCAST_EPISODE_SPLITTER)[1]

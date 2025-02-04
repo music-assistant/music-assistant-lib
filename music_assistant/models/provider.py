@@ -93,8 +93,8 @@ class Provider:
             return self.config.name
         inst_count = len([x for x in self.mass.music.providers if x.domain == self.domain])
         if inst_count > 1:
-            postfix = self.instance_id[:-8]
-            return f"{self.manifest.name}.{postfix}"
+            postfix = self.instance_id[-8:]
+            return f"{self.manifest.name} {postfix}"
         return self.manifest.name
 
     def to_dict(self, *args, **kwargs) -> dict[str, Any]:

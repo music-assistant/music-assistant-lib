@@ -11,11 +11,7 @@ from datetime import datetime, timedelta
 from enum import StrEnum
 from typing import TYPE_CHECKING, ParamSpec, TypeVar, cast
 
-from music_assistant_models.config_entries import (
-    ConfigEntry,
-    ConfigValueOption,
-    ConfigValueType,
-)
+from music_assistant_models.config_entries import ConfigEntry, ConfigValueOption, ConfigValueType
 from music_assistant_models.enums import (
     AlbumType,
     CacheCategory,
@@ -52,10 +48,7 @@ from tidalapi import exceptions as tidal_exceptions
 
 from music_assistant.helpers.auth import AuthenticationHelper
 from music_assistant.helpers.tags import AudioTags, async_parse_tags
-from music_assistant.helpers.throttle_retry import (
-    ThrottlerManager,
-    throttle_with_retries,
-)
+from music_assistant.helpers.throttle_retry import ThrottlerManager, throttle_with_retries
 from music_assistant.models.music_provider import MusicProvider
 
 from .helpers import (
@@ -577,9 +570,7 @@ class TidalProvider(MusicProvider):
         )
         return self._parse_playlist(playlist_obj)
 
-    async def get_stream_details(
-        self, item_id: str, media_type: MediaType = MediaType.TRACK
-    ) -> StreamDetails:
+    async def get_stream_details(self, item_id: str, media_type: MediaType) -> StreamDetails:
         """Return the content details for the given track when it will be streamed."""
         tidal_session = await self._get_tidal_session()
         # make sure a valid track is requested.

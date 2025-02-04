@@ -230,9 +230,7 @@ class IBroadcastProvider(MusicProvider):
             return tracks
         return await self._get_tracks(playlist_obj["tracks"], True)
 
-    async def get_stream_details(
-        self, item_id: str, media_type: MediaType = MediaType.TRACK
-    ) -> StreamDetails:
+    async def get_stream_details(self, item_id: str, media_type: MediaType) -> StreamDetails:
         """Return the content details for the given track when it will be streamed."""
         # How to buildup a stream url:
         # [streaming_server]/[url]?Expires=[now]&Signature=[user token]&file_id=[file ID]
