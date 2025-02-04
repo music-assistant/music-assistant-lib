@@ -154,8 +154,7 @@ class AsyncProcess:
     async def write(self, data: bytes) -> None:
         """Write data to process stdin."""
         if self.closed:
-            self.logger.warning("write called while process already done")
-            return
+            raise RuntimeError("write called while process already done")
         self.proc.stdin.write(data)
         with suppress(BrokenPipeError, ConnectionResetError):
             await self.proc.stdin.drain()
