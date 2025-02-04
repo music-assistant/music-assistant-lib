@@ -24,6 +24,14 @@ CONF_ENTRY_MISSING_ALBUM_ARTIST = ConfigEntry(
     depends_on_value="music",
 )
 
+
+CONF_ENTRY_PATH = ConfigEntry(
+    key="path",
+    type=ConfigEntryType.STRING,
+    label="Path",
+    default_value="/media",
+)
+
 CONF_ENTRY_CONTENT_TYPE = ConfigEntry(
     key=CONF_CONTENT_TYPE,
     type=ConfigEntryType.STRING,
@@ -37,6 +45,16 @@ CONF_ENTRY_CONTENT_TYPE = ConfigEntry(
         ConfigValueOption("Podcasts", "podcasts"),
     ),
 )
+CONF_ENTRY_CONTENT_TYPE_READ_ONLY = ConfigEntry(
+    key=CONF_CONTENT_TYPE,
+    type=ConfigEntryType.STRING,
+    label=CONF_ENTRY_CONTENT_TYPE.label,
+    default_value="blah",
+    required=False,
+    depends_on=CONF_ENTRY_PATH.key,
+    depends_on_value="thisdoesnotexist",
+)
+
 
 TRACK_EXTENSIONS = {
     "aac",

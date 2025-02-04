@@ -15,9 +15,7 @@ import aiofiles
 import shortuuid
 import xmltodict
 from aiofiles.os import wrap
-from music_assistant_models.config_entries import ConfigEntry, ConfigValueType
 from music_assistant_models.enums import (
-    ConfigEntryType,
     ContentType,
     ExternalID,
     ImageType,
@@ -69,7 +67,9 @@ from music_assistant.models.music_provider import MusicProvider
 from .constants import (
     AUDIOBOOK_EXTENSIONS,
     CONF_ENTRY_CONTENT_TYPE,
+    CONF_ENTRY_CONTENT_TYPE_READ_ONLY,
     CONF_ENTRY_MISSING_ALBUM_ARTIST,
+    CONF_ENTRY_PATH,
     CONF_MISSING_ALBUM_ARTIST_ACTION,
     IMAGE_EXTENSIONS,
     PLAYLIST_EXTENSIONS,
@@ -89,7 +89,7 @@ from .helpers import (
 )
 
 if TYPE_CHECKING:
-    from music_assistant_models.config_entries import ProviderConfig
+    from music_assistant_models.config_entries import ConfigEntry, ConfigValueType, ProviderConfig
     from music_assistant_models.provider import ProviderManifest
 
     from music_assistant.mass import MusicAssistant
@@ -132,15 +132,22 @@ async def get_config_entries(
     values: the (intermediate) raw values for config entries sent with the action.
     """
     # ruff: noqa: ARG001
+    if instance_id is None or values is None:
+        return (
+            CONF_ENTRY_CONTENT_TYPE,
+            CONF_ENTRY_PATH,
+            CONF_ENTRY_MISSING_ALBUM_ARTIST,
+        )
+    media_type = values.get(CONF_ENTRY_CONTENT_TYPE.key)
+    if media_type == "music":
+        return (
+            CONF_ENTRY_PATH,
+            CONF_ENTRY_CONTENT_TYPE_READ_ONLY,
+            CONF_ENTRY_MISSING_ALBUM_ARTIST,
+        )
     return (
-        ConfigEntry(
-            key="path",
-            type=ConfigEntryType.STRING,
-            label="Path",
-            default_value="/media",
-        ),
-        CONF_ENTRY_CONTENT_TYPE,
-        CONF_ENTRY_MISSING_ALBUM_ARTIST,
+        CONF_ENTRY_PATH,
+        CONF_ENTRY_CONTENT_TYPE_READ_ONLY,
     )
 
 
