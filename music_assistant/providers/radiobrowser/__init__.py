@@ -348,9 +348,7 @@ class RadioBrowserProvider(MusicProvider):
 
         return radio
 
-    async def get_stream_details(
-        self, item_id: str, media_type: MediaType = MediaType.RADIO
-    ) -> StreamDetails:
+    async def get_stream_details(self, item_id: str, media_type: MediaType) -> StreamDetails:
         """Get streamdetails for a radio station."""
         stream = await self.radios.station(uuid=item_id)
         if not stream:

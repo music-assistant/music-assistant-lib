@@ -352,9 +352,7 @@ class AppleMusicProvider(MusicProvider):
                     found_tracks.append(self._parse_track(track))
         return found_tracks
 
-    async def get_stream_details(
-        self, item_id: str, media_type: MediaType = MediaType.TRACK
-    ) -> StreamDetails:
+    async def get_stream_details(self, item_id: str, media_type: MediaType) -> StreamDetails:
         """Return the content details for the given track when it will be streamed."""
         stream_metadata = await self._fetch_song_stream_metadata(item_id)
         license_url = stream_metadata["hls-key-server-url"]

@@ -79,6 +79,16 @@ def split_artists(
 
 
 @dataclass
+class AudioTagsChapter:
+    """Chapter data from an audio file."""
+
+    chapter_id: int
+    position_start: float
+    position_end: float
+    title: str | None
+
+
+@dataclass
 class AudioTags:
     """Audio metadata parsed from an audio file."""
 
@@ -146,6 +156,19 @@ class AudioTags:
         return (UNKNOWN_ARTIST,)
 
     @property
+    def writers(self) -> tuple[str, ...]:
+        """Return writer(s)."""
+        # prefer multi-item tag
+        if tag := self.tags.get("writers"):
+            return split_items(tag)
+        # fallback to regular writer string
+        if tag := self.tags.get("writer"):
+            if TAG_SPLITTER in tag:
+                return split_items(tag)
+            return split_artists(tag)
+        return ()
+
+    @property
     def album_artists(self) -> tuple[str, ...]:
         """Return (all) album artists (if any)."""
         # prefer multi-artist tag
@@ -186,10 +209,16 @@ class AudioTags:
         # or 01.title.mp3
         # or 01 title.mp3
         # or 1. title.mp3
+        filename = self.filename.rsplit(os.sep, 1)[-1].split(".")[0]
         for splitpos in (4, 3, 2, 1):
-            firstpart = self.filename[:splitpos]
+            firstpart = filename[:splitpos].strip()
             if firstpart.isnumeric():
                 return try_parse_int(firstpart, None)
+        # fallback to parsing from last part of filename (if present)
+        # this can be in the form of title 01.mp3
+        lastpart = filename.split(" ")[-1]
+        if lastpart.isnumeric():
+            return try_parse_int(lastpart, None)
         return None
 
     @property
@@ -261,11 +290,6 @@ class AudioTags:
         return split_items(self.tags.get("albumartistsort"), False)
 
     @property
-    def is_audiobook(self) -> bool:
-        """Return True if this is an audiobook."""
-        return self.filename.endswith("m4b") and len(self.chapters) > 1
-
-    @property
     def album_type(self) -> AlbumType:
         """Return albumtype tag if present."""
         if self.tags.get("compilation", "") == "1":
@@ -314,9 +338,20 @@ class AudioTags:
         return None
 
     @property
-    def chapters(self) -> list[dict[str, Any]]:
+    def chapters(self) -> list[AudioTagsChapter]:
         """Return chapters in MediaItem (if any)."""
-        return self.raw.get("chapters") or []
+        chapters: list[AudioTagsChapter] = []
+        if raw_chapters := self.raw.get("chapters"):
+            for chapter_data in raw_chapters:
+                chapters.append(
+                    AudioTagsChapter(
+                        chapter_id=chapter_data["id"],
+                        position_start=chapter_data["start_time"],
+                        position_end=chapter_data["end_time"],
+                        title=chapter_data.get("tags", {}).get("title"),
+                    )
+                )
+        return chapters
 
     @property
     def lyrics(self) -> str | None:

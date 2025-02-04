@@ -338,9 +338,7 @@ class TestProvider(MusicProvider):
             position=int(episode_idx),
         )
 
-    async def get_stream_details(
-        self, item_id: str, media_type: MediaType = MediaType.TRACK
-    ) -> StreamDetails:
+    async def get_stream_details(self, item_id: str, media_type: MediaType) -> StreamDetails:
         """Get streamdetails for a track/radio."""
         return StreamDetails(
             provider=self.lookup_key,
