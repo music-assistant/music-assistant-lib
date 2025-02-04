@@ -5,11 +5,10 @@ from __future__ import annotations
 from collections.abc import AsyncGenerator
 from typing import TYPE_CHECKING
 
-from music_assistant_models.enums import MediaType
-
 from .provider import Provider
 
 if TYPE_CHECKING:
+    from music_assistant_models.enums import MediaType
     from music_assistant_models.media_items import PluginSource
     from music_assistant_models.streamdetails import StreamDetails
 
@@ -33,9 +32,7 @@ class PluginProvider(Provider):
         # Will only be called if ProviderFeature.AUDIO_SOURCE is declared
         raise NotImplementedError
 
-    async def get_stream_details(
-        self, item_id: str, media_type: MediaType = MediaType.TRACK
-    ) -> StreamDetails:
+    async def get_stream_details(self, item_id: str, media_type: MediaType) -> StreamDetails:
         """Return the streamdetails to stream an (audio)source provided by this plugin."""
         # Will only be called if ProviderFeature.AUDIO_SOURCE is declared
         raise NotImplementedError

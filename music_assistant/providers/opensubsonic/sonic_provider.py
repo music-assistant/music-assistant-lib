@@ -732,9 +732,7 @@ class OpenSonicProvider(MusicProvider):
             msg = f"Failed to remove songs from {prov_playlist_id}, check your permissions."
             raise ProviderPermissionDenied(msg) from ex
 
-    async def get_stream_details(
-        self, item_id: str, media_type: MediaType = MediaType.TRACK
-    ) -> StreamDetails:
+    async def get_stream_details(self, item_id: str, media_type: MediaType) -> StreamDetails:
         """Get the details needed to process a specified track."""
         item: SonicSong | SonicEpisode
         if media_type == MediaType.TRACK:

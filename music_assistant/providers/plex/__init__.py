@@ -890,9 +890,7 @@ class PlexProvider(MusicProvider):
                 return albums
         return []
 
-    async def get_stream_details(
-        self, item_id: str, media_type: MediaType = MediaType.TRACK
-    ) -> StreamDetails:
+    async def get_stream_details(self, item_id: str, media_type: MediaType) -> StreamDetails:
         """Get streamdetails for a track."""
         plex_track = await self._get_data(item_id, PlexTrack)
         if not plex_track or not plex_track.media:

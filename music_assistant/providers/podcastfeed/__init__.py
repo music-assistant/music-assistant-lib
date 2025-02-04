@@ -165,9 +165,7 @@ class PodcastMusicprovider(MusicProvider):
             episodes.append(await self._parse_episode(episode, idx))
         return episodes
 
-    async def get_stream_details(
-        self, item_id: str, media_type: MediaType = MediaType.TRACK
-    ) -> StreamDetails:
+    async def get_stream_details(self, item_id: str, media_type: MediaType) -> StreamDetails:
         """Get streamdetails for a track/radio."""
         for episode in self.parsed["episodes"]:
             if item_id == episode["guid"]:

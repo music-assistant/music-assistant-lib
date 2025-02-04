@@ -275,9 +275,7 @@ class Audibleprovider(MusicProvider):
             raise ValueError(f"Audiobook with id {prov_audiobook_id} not found")
         return audiobook
 
-    async def get_stream_details(
-        self, item_id: str, media_type: MediaType = MediaType.AUDIOBOOK
-    ) -> StreamDetails:
+    async def get_stream_details(self, item_id: str, media_type: MediaType) -> StreamDetails:
         """Get streamdetails for a audiobook based of asin."""
         return await self.helper.get_stream(asin=item_id)
 

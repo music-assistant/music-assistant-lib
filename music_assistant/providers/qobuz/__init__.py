@@ -401,9 +401,7 @@ class QobuzProvider(MusicProvider):
             playlist_track_ids=",".join(playlist_track_ids),
         )
 
-    async def get_stream_details(
-        self, item_id: str, media_type: MediaType = MediaType.TRACK
-    ) -> StreamDetails:
+    async def get_stream_details(self, item_id: str, media_type: MediaType) -> StreamDetails:
         """Return the content details for the given track when it will be streamed."""
         streamdata = None
         for format_id in [27, 7, 6, 5]:
