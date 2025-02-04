@@ -148,6 +148,8 @@ class FFMpeg(AsyncProcess):
             # so this timeout is just to catch if the source is stuck and rpeort it and not
             # to recover from it.
             async for chunk in TimedAsyncGenerator(self.audio_input, timeout=300):
+                if self.closed:
+                    return
                 await self.write(chunk)
             self.logger.log(
                 VERBOSE_LOG_LEVEL, "Audio data source exhausted in %.2fs", time.time() - start
@@ -221,7 +223,7 @@ def get_ffmpeg_args(
         "-nostats",
         "-ignore_unknown",
         "-protocol_whitelist",
-        "file,hls,http,https,tcp,tls,crypto,pipe,data,fd,rtp,udp",
+        "file,hls,http,https,tcp,tls,crypto,pipe,data,fd,rtp,udp,concat",
     ]
     # collect input args
     input_args = []

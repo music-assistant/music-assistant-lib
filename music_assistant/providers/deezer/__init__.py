@@ -427,9 +427,7 @@ class DeezerProvider(MusicProvider):
         ]["data"][:limit]
         return [await self.get_track(track["SNG_ID"]) for track in tracks]
 
-    async def get_stream_details(
-        self, item_id: str, media_type: MediaType = MediaType.TRACK
-    ) -> StreamDetails:
+    async def get_stream_details(self, item_id: str, media_type: MediaType) -> StreamDetails:
         """Return the content details for the given track when it will be streamed."""
         url_details, song_data = await self.gw_client.get_deezer_track_urls(item_id)
         url = url_details["sources"][0]["url"]

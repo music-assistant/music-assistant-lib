@@ -211,9 +211,7 @@ class SiriusXMProvider(MusicProvider):
 
         return self._parse_radio(self._channels_by_id[prov_radio_id])
 
-    async def get_stream_details(
-        self, item_id: str, media_type: MediaType = MediaType.RADIO
-    ) -> StreamDetails:
+    async def get_stream_details(self, item_id: str, media_type: MediaType) -> StreamDetails:
         """Get streamdetails for a track/radio."""
         # There's a chance that the SiriusXM auth session has expired
         # by the time the user clicks to play a station.  The sxm-client

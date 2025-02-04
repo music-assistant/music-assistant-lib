@@ -7,12 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 from music_assistant_models.enums import MediaType, ProviderFeature
 from music_assistant_models.errors import InvalidDataError
-from music_assistant_models.media_items import (
-    Artist,
-    Podcast,
-    PodcastEpisode,
-    UniqueList,
-)
+from music_assistant_models.media_items import Artist, Podcast, PodcastEpisode, UniqueList
 
 from music_assistant.constants import DB_TABLE_PLAYLOG, DB_TABLE_PODCASTS
 from music_assistant.controllers.media.base import MediaControllerBase
@@ -110,12 +105,12 @@ class PodcastsController(MediaControllerBase[Podcast, Podcast]):
         if library_podcast := await self.get_library_item_by_prov_id(
             item_id, provider_instance_id_or_domain
         ):
-            # return items from first/only provider
             for provider_mapping in library_podcast.provider_mappings:
-                episodes = await self._get_provider_podcast_episodes(
-                    provider_mapping.item_id, provider_mapping.provider_instance
-                )
-                return sorted(episodes, key=lambda x: x.position)
+                item_id = provider_mapping.item_id
+                provider_instance_id_or_domain = provider_mapping.provider_instance
+                break
+        # podcast episodes are not stored in the db/library
+        # so we always need to fetch them from the provider
         episodes = await self._get_provider_podcast_episodes(
             item_id, provider_instance_id_or_domain
         )
