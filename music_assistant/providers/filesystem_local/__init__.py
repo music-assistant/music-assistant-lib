@@ -785,9 +785,7 @@ class LocalFileSystemProvider(MusicProvider):
             await _file.write("#EXTM3U\n")
         return await self.get_playlist(filename)
 
-    async def get_stream_details(
-        self, item_id: str, media_type: MediaType = MediaType.TRACK
-    ) -> StreamDetails:
+    async def get_stream_details(self, item_id: str, media_type: MediaType) -> StreamDetails:
         """Return the content details for the given track when it will be streamed."""
         if media_type == MediaType.AUDIOBOOK:
             return await self._get_stream_details_for_audiobook(item_id)
