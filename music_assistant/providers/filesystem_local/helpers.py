@@ -217,6 +217,8 @@ def sorted_scandir(base_path: str, sub_path: str, sort: bool = False) -> list[Fi
         """Sort key for natural sorting."""
         return tuple(int(s) if s.isdigit() else s for s in re.split(r"(\d+)", name))
 
+    if base_path not in sub_path:
+        sub_path = os.path.join(base_path, sub_path)
     items = [
         FileSystemItem.from_dir_entry(x, base_path)
         for x in os.scandir(sub_path)

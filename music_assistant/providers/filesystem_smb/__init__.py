@@ -13,11 +13,10 @@ from music_assistant_models.errors import LoginFailed
 from music_assistant.constants import CONF_PASSWORD, CONF_USERNAME, VERBOSE_LOG_LEVEL
 from music_assistant.helpers.process import check_output
 from music_assistant.helpers.util import get_ip_from_host
-from music_assistant.providers.filesystem_local import (
+from music_assistant.providers.filesystem_local import LocalFileSystemProvider, exists, makedirs
+from music_assistant.providers.filesystem_local.constants import (
+    CONF_ENTRY_CONTENT_TYPE,
     CONF_ENTRY_MISSING_ALBUM_ARTIST,
-    LocalFileSystemProvider,
-    exists,
-    makedirs,
 )
 
 if TYPE_CHECKING:
@@ -108,6 +107,7 @@ async def get_config_entries(
             description="[optional] Use if your music is stored in a sublevel of the share. "
             "E.g. 'collections' or 'albums/A-K'.",
         ),
+        CONF_ENTRY_CONTENT_TYPE,
         ConfigEntry(
             key=CONF_MOUNT_OPTIONS,
             type=ConfigEntryType.STRING,
@@ -131,6 +131,21 @@ class SMBFileSystemProvider(LocalFileSystemProvider):
     We went for this OS-depdendent approach because there is no solid async-compatible
     smb library for Python (and we tried both pysmb and smbprotocol).
     """
+
+    @property
+    def name(self) -> str:
+        """Return (custom) friendly name for this provider instance."""
+        if self.config.name:
+            return self.config.name
+        share = str(self.config.get_value(CONF_SHARE))
+        subfolder = str(self.config.get_value(CONF_SUBFOLDER))
+        if subfolder:
+            postfix = subfolder
+        elif share:
+            postfix = share
+        else:
+            return super().name
+        return f"{self.manifest.name} {postfix}"
 
     async def handle_async_init(self) -> None:
         """Handle async initialization of the provider."""
