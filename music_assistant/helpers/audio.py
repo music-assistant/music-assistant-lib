@@ -251,6 +251,9 @@ def get_stream_dsp_details(
     if player and player.group_childs:
         # grouped playback, get DSP details for each player in the group
         for child_id in player.group_childs:
+            # skip if we already have the details (so if it's the group leader)
+            if child_id in dsp:
+                continue
             if child_player := mass.players.get(child_id):
                 dsp[child_id] = get_player_dsp_details(
                     mass, child_player, group_preventing_dsp=group_preventing_dsp
