@@ -25,7 +25,14 @@ from aioaudiobookshelf.schema.calls_items import (
     PlaybackSessionParameters as AbsPlaybackSessionParameters,
 )
 from aioaudiobookshelf.schema.calls_series import SeriesWithProgress as AbsSeriesWithProgress
-from aioaudiobookshelf.schema.library import LibraryMediaType as AbsLibraryMediaType
+from aioaudiobookshelf.schema.library import (
+    LibraryItemExpanded,
+    LibraryItemExpandedBook,
+    LibraryItemExpandedPodcast,
+)
+from aioaudiobookshelf.schema.library import (
+    LibraryMediaType as AbsLibraryMediaType,
+)
 from aioaudiobookshelf.schema.session import DeviceInfo as AbsDeviceInfo
 from mashumaro.mixins.dict import DataClassDictMixin
 from music_assistant_models.config_entries import ConfigEntry, ConfigValueType, ProviderConfig
@@ -49,6 +56,7 @@ from music_assistant.providers.audiobookshelf.parsers import (
 )
 
 if TYPE_CHECKING:
+    from aioaudiobookshelf.schema.media_progress import MediaProgress
     from music_assistant_models.media_items import Audiobook, Podcast, PodcastEpisode
     from music_assistant_models.provider import ProviderManifest
 
@@ -219,9 +227,10 @@ class Audiobookshelf(MusicProvider):
             pagination_items_per_page=30,  # audible provider goes with 50 here
         )
         try:
-            self._client = await aioabs.get_user_client(
+            self._client, self._client_socket = await aioabs.get_user_and_socket_client(
                 session_config=session_config, username=username, password=password
             )
+            await self._client_socket.init_client()
         except AbsLoginError as exc:
             raise LoginFailed(f"Login to abs instance at {base_url} failed.") from exc
 
@@ -241,6 +250,19 @@ class Audiobookshelf(MusicProvider):
         else:
             self.libraries = LibrariesHelper.from_dict(cached_libraries)
 
+        # set callbacks
+        self._client_socket.set_item_callbacks(
+            on_item_added=self._socket_abs_item_changed,
+            on_item_updated=self._socket_abs_item_changed,
+            on_item_removed=self._socket_abs_item_removed,
+            on_items_added=self._socket_abs_item_changed,
+            on_items_updated=self._socket_abs_item_changed,
+        )
+
+        self._client_socket.set_user_callbacks(
+            on_user_item_progress_updated=self._socket_abs_progress_updated
+        )
+
         # self.logger.debug(f"Our playback session device_id is {self.instance_id}")
 
     async def unload(self, is_removed: bool = False) -> None:
@@ -252,6 +274,7 @@ class Audiobookshelf(MusicProvider):
         """
         await self._close_all_playback_sessions()
         await self._client.logout()
+        await self._client_socket.logout()
 
     @property
     def is_streaming_provider(self) -> bool:
@@ -963,3 +986,62 @@ class Audiobookshelf(MusicProvider):
             if mass_item is not None:
                 items.append(mass_item)
         return items
+
+    async def _socket_abs_item_changed(
+        self, items: LibraryItemExpanded | list[LibraryItemExpanded]
+    ) -> None:
+        """For added and updated."""
+        abs_items = [items] if isinstance(items, LibraryItemExpanded) else items
+        for abs_item in abs_items:
+            if isinstance(abs_item, LibraryItemExpandedBook):
+                self.logger.debug(
+                    'Updated book "%s" via socket.', abs_item.media.metadata.title or ""
+                )
+                await self.mass.music.audiobooks.add_item_to_library(
+                    parse_audiobook(
+                        abs_audiobook=abs_item,
+                        lookup_key=self.lookup_key,
+                        domain=self.domain,
+                        instance_id=self.instance_id,
+                        token=self._client.token,
+                        base_url=str(self.config.get_value(CONF_URL)).rstrip("/"),
+                    ),
+                    overwrite_existing=True,
+                )
+                await self.mass.cache.set(
+                    key=abs_item.id_,
+                    base_key=self.cache_base_key,
+                    category=CACHE_CATEGORY_AUDIOBOOKS,
+                    data=abs_item.to_dict(),
+                )
+            elif isinstance(abs_item, LibraryItemExpandedPodcast):
+                self.logger.debug(
+                    'Updated podcast "%s" via socket.', abs_item.media.metadata.title or ""
+                )
+                await self.mass.music.podcasts.add_item_to_library(
+                    parse_podcast(
+                        abs_podcast=abs_item,
+                        lookup_key=self.lookup_key,
+                        domain=self.domain,
+                        instance_id=self.instance_id,
+                        token=self._client.token,
+                        base_url=str(self.config.get_value(CONF_URL)).rstrip("/"),
+                    ),
+                    overwrite_existing=True,
+                )
+                await self.mass.cache.set(
+                    key=abs_item.id_,
+                    base_key=self.cache_base_key,
+                    category=CACHE_CATEGORY_PODCASTS,
+                    data=abs_item.to_dict(),
+                )
+
+    async def _socket_abs_item_removed(self, item: LibraryItemExpanded) -> None:
+        """Item removed."""
+        if isinstance(item, LibraryItemExpandedBook):
+            await self.mass.music.audiobooks.remove_item_from_library(item.id_)
+        elif isinstance(item, LibraryItemExpandedPodcast):
+            await self.mass.music.podcasts.remove_item_from_library(item.id_)
+
+    async def _socket_abs_progress_updated(self, item_id: str, progress: MediaProgress) -> None:
+        """Media Progress updated."""
