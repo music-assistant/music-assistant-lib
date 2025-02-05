@@ -551,6 +551,8 @@ class YoutubeMusicProvider(MusicProvider):
             ),
             stream_type=StreamType.HTTP,
             path=stream_format["url"],
+            can_seek=True,
+            allow_seek=True,
         )
         if (
             stream_format.get("audio_channels")

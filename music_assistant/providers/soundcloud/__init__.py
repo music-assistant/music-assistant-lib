@@ -319,6 +319,8 @@ class SoundcloudMusicProvider(MusicProvider):
             if url.startswith("https://cf-hls-media.sndcdn.com")
             else StreamType.HTTP,
             path=url,
+            can_seek=True,
+            allow_seek=True,
         )
 
     async def _parse_artist(self, artist_obj: dict[str, Any]) -> Artist:

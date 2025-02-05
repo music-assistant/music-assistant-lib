@@ -193,7 +193,10 @@ class RadioBrowserProvider(MusicProvider):
         if TYPE_CHECKING:
             stored_radios = cast(list[str], stored_radios)
         for item in stored_radios:
-            yield await self.get_radio(item)
+            try:
+                yield await self.get_radio(item)
+            except MediaNotFoundError as err:
+                self.logger.warning("Radio station %s not found: %s", item, err)
 
     async def library_add(self, item: MediaItemType) -> bool:
         """Add item to provider's library. Return true on success."""
@@ -364,4 +367,5 @@ class RadioBrowserProvider(MusicProvider):
             stream_type=StreamType.HTTP,
             path=stream.url_resolved,
             can_seek=False,
+            allow_seek=False,
         )

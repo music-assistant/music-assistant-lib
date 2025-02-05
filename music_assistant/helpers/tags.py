@@ -8,6 +8,7 @@ import logging
 import os
 import subprocess
 from collections.abc import Iterable
+from contextlib import suppress
 from dataclasses import dataclass
 from json import JSONDecodeError
 from typing import Any
@@ -17,6 +18,7 @@ from music_assistant_models.enums import AlbumType
 from music_assistant_models.errors import InvalidDataError
 
 from music_assistant.constants import MASS_LOGGER_NAME, UNKNOWN_ARTIST
+from music_assistant.helpers.json import json_loads
 from music_assistant.helpers.process import AsyncProcess
 from music_assistant.helpers.util import try_parse_int
 
@@ -478,6 +480,13 @@ def parse_tags(input_file: str, file_size: int | None = None) -> AudioTags:
                         break
             del audiofile
         return tags
+    except subprocess.CalledProcessError as err:
+        error_msg = f"Unable to retrieve info for {input_file}"
+        if output := getattr(err, "stdout", None):
+            err_details = json_loads(output)
+            with suppress(KeyError):
+                error_msg = f"{error_msg} ({err_details['error']['string']})"
+        raise InvalidDataError(error_msg) from err
     except (KeyError, ValueError, JSONDecodeError, InvalidDataError) as err:
         msg = f"Unable to retrieve info for {input_file}: {err!s}"
         raise InvalidDataError(msg) from err

@@ -312,7 +312,10 @@ class BuiltinProvider(MusicProvider):
         """Retrieve library tracks from the provider."""
         stored_items: list[StoredItem] = self.mass.config.get(CONF_KEY_TRACKS, [])
         for item in stored_items:
-            yield await self.get_track(item["item_id"])
+            try:
+                yield await self.get_track(item["item_id"])
+            except MediaNotFoundError as err:
+                self.logger.warning("Track %s not found: %s", item, err)
 
     async def get_library_playlists(self) -> AsyncGenerator[Playlist, None]:
         """Retrieve library/subscribed playlists from the provider."""
@@ -330,7 +333,10 @@ class BuiltinProvider(MusicProvider):
         """Retrieve library/subscribed radio stations from the provider."""
         stored_items: list[StoredItem] = self.mass.config.get(CONF_KEY_RADIOS, [])
         for item in stored_items:
-            yield await self.get_radio(item["item_id"])
+            try:
+                yield await self.get_radio(item["item_id"])
+            except MediaNotFoundError as err:
+                self.logger.warning("Radio station %s not found: %s", item, err)
 
     async def library_add(self, item: MediaItemType) -> bool:
         """Add item to provider's library. Return true on success."""
@@ -454,10 +460,7 @@ class BuiltinProvider(MusicProvider):
         force_radio: bool = False,
     ) -> Track | Radio:
         """Parse plain URL to MediaItem of type Radio or Track."""
-        try:
-            media_info = await self._get_media_info(url, force_refresh)
-        except Exception as err:
-            raise MediaNotFoundError from err
+        media_info = await self._get_media_info(url, force_refresh)
         is_radio = media_info.get("icyname") or not media_info.duration
         provider_mappings = {
             ProviderMapping(
@@ -558,6 +561,7 @@ class BuiltinProvider(MusicProvider):
             stream_type=StreamType.HTTP,
             path=item_id,
             can_seek=not is_radio,
+            allow_seek=not is_radio,
         )
 
     async def _get_builtin_playlist_random_favorite_tracks(self) -> list[Track]:

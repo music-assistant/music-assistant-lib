@@ -179,6 +179,8 @@ class PodcastMusicprovider(MusicProvider):
                     media_type=MediaType.PODCAST_EPISODE,
                     stream_type=StreamType.HTTP,
                     path=episode["enclosures"][0]["url"],
+                    can_seek=True,
+                    allow_seek=True,
                 )
         raise MediaNotFoundError("Stream not found")
 

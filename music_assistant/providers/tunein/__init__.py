@@ -251,6 +251,7 @@ class TuneInProvider(MusicProvider):
                 media_type=MediaType.RADIO,
                 stream_type=StreamType.HTTP,
                 path=item_id,
+                allow_seek=False,
                 can_seek=False,
             )
         if "--" in item_id:
@@ -269,6 +270,7 @@ class TuneInProvider(MusicProvider):
                 media_type=MediaType.RADIO,
                 stream_type=StreamType.HTTP,
                 path=stream["url"],
+                allow_seek=False,
                 can_seek=False,
             )
         msg = f"Unable to retrieve stream details for {item_id}"

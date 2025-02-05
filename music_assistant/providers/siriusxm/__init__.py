@@ -238,6 +238,7 @@ class SiriusXMProvider(MusicProvider):
             media_type=MediaType.RADIO,
             path=hls_path,
             can_seek=False,
+            allow_seek=False,
         )
 
         return self._current_stream_details

@@ -915,6 +915,8 @@ class PlexProvider(MusicProvider):
             stream_type=StreamType.HTTP,
             duration=plex_track.duration,
             data=plex_track,
+            can_seek=True,
+            allow_seek=True,
         )
 
         if content_type != ContentType.M4A:

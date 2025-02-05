@@ -370,6 +370,7 @@ class AppleMusicProvider(MusicProvider):
             path=stream_url,
             decryption_key=await self._get_decryption_key(license_url, key_id, uri, item_id),
             can_seek=True,
+            allow_seek=True,
         )
 
     def _parse_artist(self, artist_obj):

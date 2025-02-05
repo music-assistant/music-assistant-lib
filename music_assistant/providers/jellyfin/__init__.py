@@ -450,6 +450,8 @@ class JellyfinProvider(MusicProvider):
                 jellyfin_track[ITEM_KEY_RUNTIME_TICKS] / 10000000
             ),  # 10000000 ticks per millisecond)
             path=url,
+            can_seek=True,
+            allow_seek=True,
         )
 
     async def get_similar_tracks(self, prov_track_id: str, limit: int = 25) -> list[Track]:

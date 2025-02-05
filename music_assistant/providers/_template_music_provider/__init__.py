@@ -392,6 +392,10 @@ class MyDemoMusicprovider(MusicProvider):
             stream_type=StreamType.HTTP,
             # explore the StreamDetails model and StreamType enum for more options
             # but the above should be the mandatory fields to set.
+            allow_seek=True,
+            # set allow_seek to True if the stream may be seeked
+            can_seek=True,
+            # set can_seek to True if the stream supports seeking
         )
 
     async def get_audio_stream(

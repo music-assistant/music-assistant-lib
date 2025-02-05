@@ -544,6 +544,8 @@ class Audiobookshelf(MusicProvider):
             media_type=media_type,
             stream_type=StreamType.HLS,
             path=stream_url,
+            can_seek=True,
+            allow_seek=True,
         )
 
     async def _get_stream_details_audiobook(
@@ -566,6 +568,8 @@ class Audiobookshelf(MusicProvider):
             media_type=MediaType.AUDIOBOOK,
             stream_type=StreamType.HTTP,
             path=stream_url,
+            can_seek=True,
+            allow_seek=True,
         )
 
     async def _get_stream_details_episode(self, podcast_id: str) -> StreamDetails:
@@ -597,6 +601,8 @@ class Audiobookshelf(MusicProvider):
             media_type=MediaType.PODCAST_EPISODE,
             stream_type=StreamType.HTTP,
             path=full_url,
+            can_seek=True,
+            allow_seek=True,
         )
 
     async def on_played(

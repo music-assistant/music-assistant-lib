@@ -444,6 +444,8 @@ class DeezerProvider(MusicProvider):
             # separately so we can use it later on.
             data={"url": url, "format": url_details["format"], "track_id": song_data["SNG_ID"]},
             size=int(song_data[f"FILESIZE_{url_details['format']}"]),
+            can_seek=True,
+            allow_seek=True,
         )
 
     async def get_audio_stream(

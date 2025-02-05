@@ -507,8 +507,8 @@ class SonosPlayerProvider(PlayerProvider):
                 },
             },
             "reports": {
-                "sendUpdateAfterMillis": 0,
-                "periodicIntervalMillis": 10000,
+                "sendUpdateAfterMillis": 1000,
+                "periodicIntervalMillis": 30000,
                 "sendPlaybackActions": True,
             },
             "playbackPolicies": {
@@ -539,11 +539,9 @@ class SonosPlayerProvider(PlayerProvider):
         sonos_player_id = sonos_playback_id.split(":")[0]
         if not (mass_player := self.mass.players.get(sonos_player_id)):
             return web.Response(status=501)
-        if not (sonos_player := self.sonos_players.get(sonos_player_id)):
+        if not (self.sonos_players.get(sonos_player_id)):
             return web.Response(status=501)
         for item in json_body["items"]:
-            if item["queueVersion"] != sonos_player.queue_version:
-                continue
             if item["type"] != "update":
                 continue
             if "positionMillis" not in item:

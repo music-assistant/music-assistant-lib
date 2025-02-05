@@ -200,6 +200,9 @@ def get_player_dsp_details(
     ):
         dsp_state = DSPState.DISABLED_BY_UNSUPPORTED_GROUP
         dsp_config = DSPConfig(enabled=False)
+    elif dsp_state == DSPState.DISABLED:
+        # DSP is disabled by the user, remove all filters
+        dsp_config = DSPConfig(enabled=False)
 
     # remove disabled filters
     dsp_config.filters = [x for x in dsp_config.filters if x.enabled]
@@ -223,6 +226,7 @@ def get_stream_dsp_details(
     dsp: dict[str, DSPDetails] = {}
     group_preventing_dsp = is_grouping_preventing_dsp(player)
     output_format = None
+    is_external_group = False
 
     if player.provider.startswith("player_group"):
         if group_preventing_dsp:
@@ -238,16 +242,21 @@ def get_stream_dsp_details(
     else:
         # We only add real players (so skip the PlayerGroups as they only sync containing players)
         details = get_player_dsp_details(mass, player)
-        details.is_leader = True
         dsp[player.player_id] = details
         if group_preventing_dsp:
             # The leader is responsible for sending the (combined) audio stream, so get
             # the output format from the leader.
             output_format = player.output_format
+        is_external_group = player.type in (PlayerType.GROUP, PlayerType.STEREO_PAIR)
 
-    if player and player.group_childs:
+    # We don't enumerate all group members in case this group is externally created
+    # (e.g. a Chromecast group from the Google Home app)
+    if player and player.group_childs and not is_external_group:
         # grouped playback, get DSP details for each player in the group
         for child_id in player.group_childs:
+            # skip if we already have the details (so if it's the group leader)
+            if child_id in dsp:
+                continue
             if child_player := mass.players.get(child_id):
                 dsp[child_id] = get_player_dsp_details(
                     mass, child_player, group_preventing_dsp=group_preventing_dsp
@@ -650,7 +659,7 @@ async def resolve_radio_stream(mass: MusicAssistant, url: str) -> tuple[str, Str
                 stream_type = StreamType.HLS
 
     except Exception as err:
-        LOGGER.warning("Error while parsing radio URL %s: %s", url, err)
+        LOGGER.warning("Error while parsing radio URL %s: %s", url, str(err))
         return (url, stream_type)
 
     result = (resolved_url, stream_type)

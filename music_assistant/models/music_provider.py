@@ -403,10 +403,11 @@ class MusicProvider(Provider):
         if subpath == "artists":
             library_items = await self.mass.cache.get(
                 "artist",
-                default=[],
                 category=CacheCategory.LIBRARY_ITEMS,
                 base_key=self.instance_id,
             )
+            if library_items is None:
+                return await self.mass.music.artists.library_items(provider=self.instance_id)
             library_items = cast(list[int], library_items)
             query = "artists.item_id in :ids"
             query_params = {"ids": library_items}
@@ -418,10 +419,11 @@ class MusicProvider(Provider):
         if subpath == "albums":
             library_items = await self.mass.cache.get(
                 "album",
-                default=[],
                 category=CacheCategory.LIBRARY_ITEMS,
                 base_key=self.instance_id,
             )
+            if library_items is None:
+                return await self.mass.music.albums.library_items(provider=self.instance_id)
             library_items = cast(list[int], library_items)
             query = "albums.item_id in :ids"
             query_params = {"ids": library_items}
@@ -431,10 +433,11 @@ class MusicProvider(Provider):
         if subpath == "tracks":
             library_items = await self.mass.cache.get(
                 "track",
-                default=[],
                 category=CacheCategory.LIBRARY_ITEMS,
                 base_key=self.instance_id,
             )
+            if library_items is None:
+                return await self.mass.music.tracks.library_items(provider=self.instance_id)
             library_items = cast(list[int], library_items)
             query = "tracks.item_id in :ids"
             query_params = {"ids": library_items}
@@ -444,10 +447,11 @@ class MusicProvider(Provider):
         if subpath == "radios":
             library_items = await self.mass.cache.get(
                 "radio",
-                default=[],
                 category=CacheCategory.LIBRARY_ITEMS,
                 base_key=self.instance_id,
             )
+            if library_items is None:
+                return await self.mass.music.radio.library_items(provider=self.instance_id)
             library_items = cast(list[int], library_items)
             query = "radios.item_id in :ids"
             query_params = {"ids": library_items}
@@ -457,10 +461,11 @@ class MusicProvider(Provider):
         if subpath == "playlists":
             library_items = await self.mass.cache.get(
                 "playlist",
-                default=[],
                 category=CacheCategory.LIBRARY_ITEMS,
                 base_key=self.instance_id,
             )
+            if library_items is None:
+                return await self.mass.music.playlists.library_items(provider=self.instance_id)
             library_items = cast(list[int], library_items)
             query = "playlists.item_id in :ids"
             query_params = {"ids": library_items}
@@ -470,10 +475,11 @@ class MusicProvider(Provider):
         if subpath == "audiobooks":
             library_items = await self.mass.cache.get(
                 "audiobook",
-                default=[],
                 category=CacheCategory.LIBRARY_ITEMS,
                 base_key=self.instance_id,
             )
+            if library_items is None:
+                return await self.mass.music.audiobooks.library_items(provider=self.instance_id)
             library_items = cast(list[int], library_items)
             query = "audiobooks.item_id in :ids"
             query_params = {"ids": library_items}
@@ -483,10 +489,11 @@ class MusicProvider(Provider):
         if subpath == "podcasts":
             library_items = await self.mass.cache.get(
                 "podcast",
-                default=[],
                 category=CacheCategory.LIBRARY_ITEMS,
                 base_key=self.instance_id,
             )
+            if library_items is None:
+                return await self.mass.music.podcasts.library_items(provider=self.instance_id)
             library_items = cast(list[int], library_items)
             query = "podcasts.item_id in :ids"
             query_params = {"ids": library_items}

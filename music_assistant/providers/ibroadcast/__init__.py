@@ -246,6 +246,8 @@ class IBroadcastProvider(MusicProvider):
             ),
             stream_type=StreamType.HTTP,
             path=url,
+            can_seek=True,
+            allow_seek=True,
         )
 
     async def _get_tracks(self, track_ids: list[int], is_playlist: bool = False) -> list[Track]:

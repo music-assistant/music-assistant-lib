@@ -305,31 +305,61 @@ class PlayerController(CoreController):
     async def cmd_next_track(self, player_id: str) -> None:
         """Handle NEXT TRACK command for given player."""
         player = self._get_player_with_redirect(player_id)
+        active_source_id = player.active_source or player.player_id
+        supports_native_skip = PlayerFeature.NEXT_PREVIOUS in player.supported_features
+        can_native_skip = False
+        if active_queue := self.mass.player_queues.get(active_source_id):
+            # active source is a MA queue
+            can_native_skip = not active_queue.flow_mode
+        elif supports_native_skip:
+            # player has some other source active and native next/previous support
+            active_source = next((x for x in player.source_list if x.id == active_source_id), None)
+            can_native_skip = active_source and active_source.can_next_previous
+        # always prefer native skip, even if player is playing MA queue
+        if can_native_skip:
+            player_provider = self.get_player_provider(player.player_id)
+            await player_provider.cmd_next(player.player_id)
+            return
         # Redirect to queue controller if it is active
-        active_source = player.active_source or player.player_id
-        if active_queue := self.mass.player_queues.get(active_source):
+        # which will result in a new play_media call
+        if active_queue:
             await self.mass.player_queues.next(active_queue.queue_id)
             return
-        if PlayerFeature.NEXT_PREVIOUS not in player.supported_features:
-            msg = f"Player {player.display_name} does not support skipping to the next track."
-            raise UnsupportedFeaturedException(msg)
-        player_prov = self.get_player_provider(player.player_id)
-        await player_prov.cmd_next(player.player_id)
+        if supports_native_skip:
+            msg = "This action is (currently) unavailable for this source."
+            raise PlayerCommandFailed(msg)
+        msg = f"Player {player.display_name} does not support skipping to the next track."
+        raise UnsupportedFeaturedException(msg)
 
     @api_command("players/cmd/previous")
     async def cmd_previous_track(self, player_id: str) -> None:
         """Handle PREVIOUS TRACK command for given player."""
         player = self._get_player_with_redirect(player_id)
+        active_source_id = player.active_source or player.player_id
+        supports_native_skip = PlayerFeature.NEXT_PREVIOUS in player.supported_features
+        can_native_skip = False
+        if active_queue := self.mass.player_queues.get(active_source_id):
+            # active source is a MA queue
+            can_native_skip = not active_queue.flow_mode
+        elif supports_native_skip:
+            # player has some other source active and native next/previous support
+            active_source = next((x for x in player.source_list if x.id == active_source_id), None)
+            can_native_skip = active_source and active_source.can_next_previous
+        # always prefer native skip, even if player is playing MA queue
+        if can_native_skip:
+            player_provider = self.get_player_provider(player.player_id)
+            await player_provider.cmd_previous(player.player_id)
+            return
         # Redirect to queue controller if it is active
-        active_source = player.active_source or player.player_id
-        if active_queue := self.mass.player_queues.get(active_source):
+        # which will result in a new play_media call
+        if active_queue:
             await self.mass.player_queues.previous(active_queue.queue_id)
             return
-        if PlayerFeature.NEXT_PREVIOUS not in player.supported_features:
-            msg = f"Player {player.display_name} does not support skipping to the previous track."
-            raise UnsupportedFeaturedException(msg)
-        player_prov = self.get_player_provider(player.player_id)
-        await player_prov.cmd_previous(player.player_id)
+        if supports_native_skip:
+            msg = "This action is (currently) unavailable for this source."
+            raise PlayerCommandFailed(msg)
+        msg = f"Player {player.display_name} does not support skipping to the next track."
+        raise UnsupportedFeaturedException(msg)
 
     @api_command("players/cmd/power")
     @handle_player_command
@@ -681,7 +711,7 @@ class PlayerController(CoreController):
         """
         player = self._get_player_with_redirect(player_id)
         # power on the player if needed
-        if not player.powered and player.power_control != PLAYER_CONTROL_NONE:
+        if player.powered is False and player.power_control != PLAYER_CONTROL_NONE:
             await self.cmd_power(player.player_id, True)
         player_prov = self.get_player_provider(player.player_id)
         await player_prov.play_media(

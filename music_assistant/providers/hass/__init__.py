@@ -177,7 +177,7 @@ async def get_config_entries(
         )
 
     # append player controls entries (if we have an active instance)
-    if instance_id and (hass_prov := mass.get_provider(instance_id)):
+    if instance_id and (hass_prov := mass.get_provider(instance_id)) and hass_prov.available:
         hass_prov = cast(HomeAssistantProvider, hass_prov)
         return (*base_entries, *(await _get_player_control_config_entries(hass_prov.hass)))
 
@@ -337,6 +337,7 @@ class HomeAssistantProvider(PluginProvider):
             self.logger.warning("Connection to HA lost due to error: %s", err)
         self.logger.info("Connection to HA lost. Connection will be automatically retried later.")
         # schedule a reload of the provider
+        self.available = False
         self.mass.call_later(5, self.mass.load_provider, self.instance_id, allow_retry=True)
 
     def _on_entity_state_update(self, event: EntityStateEvent) -> None:

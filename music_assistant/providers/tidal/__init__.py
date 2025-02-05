@@ -611,6 +611,8 @@ class TidalProvider(MusicProvider):
             stream_type=StreamType.HTTP,
             duration=track.duration,
             path=url,
+            can_seek=True,
+            allow_seek=True,
         )
 
     @throttle_with_retries

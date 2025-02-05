@@ -16,12 +16,7 @@ from urllib.parse import parse_qs, urlparse
 import audible
 import audible.register
 from audible import AsyncClient
-from music_assistant_models.enums import (
-    ContentType,
-    ImageType,
-    MediaType,
-    StreamType,
-)
+from music_assistant_models.enums import ContentType, ImageType, MediaType, StreamType
 from music_assistant_models.errors import LoginFailed
 from music_assistant_models.media_items import (
     Audiobook,
@@ -169,6 +164,7 @@ class AudibleHelper:
             stream_type=StreamType.HTTP,
             path=m3u8_url,
             can_seek=True,
+            allow_seek=True,
             duration=duration,
             data={"acr": acr},
         )

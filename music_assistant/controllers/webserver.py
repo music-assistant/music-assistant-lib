@@ -396,8 +396,9 @@ class WebsocketClientHandler:
                 self._logger.exception("Error handling message: %s", msg)
             else:
                 self._logger.error("Error handling message: %s: %s", msg.command, str(err))
+            err_msg = str(err) or err.__class__.__name__
             self._send_message(
-                ErrorResultMessage(msg.message_id, getattr(err, "error_code", 999), str(err))
+                ErrorResultMessage(msg.message_id, getattr(err, "error_code", 999), err_msg)
             )
 
     async def _writer(self) -> None:

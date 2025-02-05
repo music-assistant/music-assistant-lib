@@ -353,4 +353,5 @@ class TestProvider(MusicProvider):
             stream_type=StreamType.HTTP,
             path=SILENCE_FILE_LONG,
             can_seek=True,
+            allow_seek=True,
         )

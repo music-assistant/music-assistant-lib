@@ -440,6 +440,8 @@ class QobuzProvider(MusicProvider):
             duration=streamdata["duration"],
             data=streamdata,  # we need these details for reporting playback
             path=streamdata["url"],
+            can_seek=True,
+            allow_seek=True,
         )
 
     async def _report_playback_started(self, streamdata: dict) -> None:
