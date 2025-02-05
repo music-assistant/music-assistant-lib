@@ -200,6 +200,9 @@ def get_player_dsp_details(
     ):
         dsp_state = DSPState.DISABLED_BY_UNSUPPORTED_GROUP
         dsp_config = DSPConfig(enabled=False)
+    elif dsp_state == DSPState.DISABLED:
+        # DSP is disabled by the user, remove all filters
+        dsp_config = DSPConfig(enabled=False)
 
     # remove disabled filters
     dsp_config.filters = [x for x in dsp_config.filters if x.enabled]
