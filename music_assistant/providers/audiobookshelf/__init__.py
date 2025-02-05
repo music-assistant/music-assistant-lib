@@ -40,6 +40,7 @@ from music_assistant_models.errors import LoginFailed, MediaNotFoundError
 from music_assistant_models.media_items import AudioFormat, BrowseFolder, ItemMapping, MediaItemType
 from music_assistant_models.streamdetails import StreamDetails
 
+from music_assistant.helpers.ffmpeg import get_ffmpeg_stream
 from music_assistant.models.music_provider import MusicProvider
 from music_assistant.providers.audiobookshelf.parsers import (
     parse_audiobook,
@@ -240,7 +241,7 @@ class Audiobookshelf(MusicProvider):
         else:
             self.libraries = LibrariesHelper.from_dict(cached_libraries)
 
-        self.logger.debug(f"Our playback session device_id is {self.instance_id}")
+        # self.logger.debug(f"Our playback session device_id is {self.instance_id}")
 
     async def unload(self, is_removed: bool = False) -> None:
         """
@@ -479,18 +480,6 @@ class Audiobookshelf(MusicProvider):
             abs_audiobook = await self._client.get_library_item_book(book_id=item_id, expanded=True)
             if not isinstance(abs_audiobook, AbsLibraryItemExpandedBook):
                 raise TypeError("Book has wrong type.")
-            tracks = abs_audiobook.media.tracks
-            if len(tracks) == 0:
-                raise MediaNotFoundError("Stream not found")
-            if len(tracks) > 1:
-                self.logger.debug(
-                    "Using playback via a session for audiobook "
-                    f'"{abs_audiobook.media.metadata.title}"'
-                )
-                return await self._get_stream_details_session(item_id=item_id)
-            self.logger.debug(
-                f'Using direct playback for audiobook "{abs_audiobook.media.metadata.title}".'
-            )
             return await self._get_stream_details_audiobook(abs_audiobook)
         raise MediaNotFoundError("Stream unknown")
 
@@ -551,19 +540,60 @@ class Audiobookshelf(MusicProvider):
     async def _get_stream_details_audiobook(
         self, abs_audiobook: AbsLibraryItemExpandedBook
     ) -> StreamDetails:
-        """Only single audio file in audiobook."""
+        """Streamdetails audiobook."""
         tracks = abs_audiobook.media.tracks
         token = self._client.token
         base_url = str(self.config.get_value(CONF_URL))
-        media_url = tracks[0].content_url
+        if len(tracks) == 0:
+            raise MediaNotFoundError("Stream not found")
+        if len(tracks) > 1:
+            self.logger.debug("Using playback for multiple file audiobook.")
+            multiple_files = []
+            for trak in tracks:
+                media_url = trak.content_url
+                stream_url = f"{base_url}{media_url}?token={token}"
+                content_type = ContentType.UNKNOWN
+                if trak.metadata is not None:
+                    content_type = ContentType.try_parse(trak.metadata.ext)
+                multiple_files.append(
+                    (AudioFormat(content_type=content_type), stream_url, trak.duration)
+                )
+
+            return StreamDetails(
+                provider=self.instance_id,
+                item_id=abs_audiobook.id_,
+                # for the concatanated stream, we need to use a pcm stream format
+                audio_format=AudioFormat(
+                    # values recommended by Marcel (some are default, but
+                    # nonetheless given here.
+                    content_type=ContentType.PCM_S16LE,
+                    sample_rate=44100,
+                    bit_depth=16,
+                    channels=2,
+                ),
+                media_type=MediaType.AUDIOBOOK,
+                stream_type=StreamType.CUSTOM,
+                duration=int(abs_audiobook.media.duration),
+                data=multiple_files,
+                allow_seek=True,
+                can_seek=True,
+            )
+
+        self.logger.debug(
+            f'Using direct playback for audiobook "{abs_audiobook.media.metadata.title}".'
+        )
+
+        track = abs_audiobook.media.tracks[0]
+        media_url = track.content_url
         stream_url = f"{base_url}{media_url}?token={token}"
-        # audiobookshelf returns information of stream, so we should be able
-        # to lift unknown at some point.
+        content_type = ContentType.UNKNOWN
+        if track.metadata is not None:
+            content_type = ContentType.try_parse(track.metadata.ext)
         return StreamDetails(
             provider=self.lookup_key,
             item_id=abs_audiobook.id_,
             audio_format=AudioFormat(
-                content_type=ContentType.UNKNOWN,
+                content_type=content_type,
             ),
             media_type=MediaType.AUDIOBOOK,
             stream_type=StreamType.HTTP,
@@ -592,11 +622,14 @@ class Audiobookshelf(MusicProvider):
         base_url = str(self.config.get_value(CONF_URL))
         media_url = abs_episode.audio_track.content_url
         full_url = f"{base_url}{media_url}?token={token}"
+        content_type = ContentType.UNKNOWN
+        if abs_episode.audio_track.metadata is not None:
+            content_type = ContentType.try_parse(abs_episode.audio_track.metadata.ext)
         return StreamDetails(
             provider=self.lookup_key,
             item_id=podcast_id,
             audio_format=AudioFormat(
-                content_type=ContentType.UNKNOWN,
+                content_type=content_type,
             ),
             media_type=MediaType.PODCAST_EPISODE,
             stream_type=StreamType.HTTP,
@@ -604,6 +637,36 @@ class Audiobookshelf(MusicProvider):
             can_seek=True,
             allow_seek=True,
         )
+
+    async def get_audio_stream(
+        self, streamdetails: StreamDetails, seek_position: int = 0
+    ) -> AsyncGenerator[bytes, None]:
+        """
+        Return the (custom) audio stream for the provider item.
+
+        Only used for multi-file audiobooks, copy of Marcel's code
+        in the filesystem provider, only cosmetic (iter audioformat)
+        adjustments.
+        """
+        stream_data: list[tuple[AudioFormat, str, float]] = streamdetails.data
+        total_duration = 0.0
+        for audio_format, chapter_file, chapter_duration in stream_data:
+            total_duration += chapter_duration
+            if total_duration < seek_position:
+                continue
+            seek_position_netto = round(
+                max(0, seek_position - (total_duration - chapter_duration)), 2
+            )
+            self.logger.debug(chapter_file)
+            async for chunk in get_ffmpeg_stream(
+                chapter_file,
+                input_format=audio_format,
+                # output format is always pcm because we are sending
+                # the result of multiple files as one big stream
+                output_format=streamdetails.audio_format,
+                extra_input_args=["-ss", str(seek_position_netto)] if seek_position_netto else [],
+            ):
+                yield chunk
 
     async def on_played(
         self, media_type: MediaType, item_id: str, fully_played: bool, position: int
