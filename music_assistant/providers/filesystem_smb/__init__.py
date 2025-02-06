@@ -16,6 +16,7 @@ from music_assistant.helpers.util import get_ip_from_host
 from music_assistant.providers.filesystem_local import LocalFileSystemProvider, exists, makedirs
 from music_assistant.providers.filesystem_local.constants import (
     CONF_ENTRY_CONTENT_TYPE,
+    CONF_ENTRY_CONTENT_TYPE_READ_ONLY,
     CONF_ENTRY_MISSING_ALBUM_ARTIST,
 )
 
@@ -46,7 +47,9 @@ async def setup(
     if not share or "/" in share or "\\" in share:
         msg = "Invalid share name"
         raise LoginFailed(msg)
-    return SMBFileSystemProvider(mass, manifest, config)
+    # base_path will be the path where we're going to mount the remote share
+    base_path = f"/tmp/{config.instance_id}"  # noqa: S108
+    return SMBFileSystemProvider(mass, manifest, config, base_path)
 
 
 async def get_config_entries(
@@ -63,7 +66,7 @@ async def get_config_entries(
     values: the (intermediate) raw values for config entries sent with the action.
     """
     # ruff: noqa: ARG001
-    return (
+    base_entries = (
         ConfigEntry(
             key=CONF_HOST,
             type=ConfigEntryType.STRING,
@@ -107,7 +110,6 @@ async def get_config_entries(
             description="[optional] Use if your music is stored in a sublevel of the share. "
             "E.g. 'collections' or 'albums/A-K'.",
         ),
-        CONF_ENTRY_CONTENT_TYPE,
         ConfigEntry(
             key=CONF_MOUNT_OPTIONS,
             type=ConfigEntryType.STRING,
@@ -119,6 +121,16 @@ async def get_config_entries(
             "want to pass to the mount command if needed for your particular setup.",
         ),
         CONF_ENTRY_MISSING_ALBUM_ARTIST,
+    )
+
+    if instance_id is None or values is None:
+        return (
+            CONF_ENTRY_CONTENT_TYPE,
+            *base_entries,
+        )
+    return (
+        *base_entries,
+        CONF_ENTRY_CONTENT_TYPE_READ_ONLY,
     )
 
 
@@ -149,11 +161,8 @@ class SMBFileSystemProvider(LocalFileSystemProvider):
 
     async def handle_async_init(self) -> None:
         """Handle async initialization of the provider."""
-        # base_path will be the path where we're going to mount the remote share
-        self.base_path = f"/tmp/{self.instance_id}"  # noqa: S108
         if not await exists(self.base_path):
             await makedirs(self.base_path)
-
         try:
             # do unmount first to cleanup any unexpected state
             await self.unmount(ignore_error=True)
@@ -161,7 +170,6 @@ class SMBFileSystemProvider(LocalFileSystemProvider):
         except Exception as err:
             msg = f"Connection failed for the given details: {err}"
             raise LoginFailed(msg) from err
-
         await self.check_write_access()
 
     async def unload(self, is_removed: bool = False) -> None:
