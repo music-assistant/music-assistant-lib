@@ -108,7 +108,6 @@ class CompareState(TypedDict):
     next_item_id: str | None
     elapsed_time: int
     stream_title: str | None
-    content_type: str | None
     codec_type: ContentType | None
     output_formats: list[str] | None
 
@@ -976,10 +975,10 @@ class PlayerQueuesController(CoreController):
         # (so child count changed, or any output format changed)
         output_formats = []
         if player.output_format:
-            output_formats.append(player.output_format.output_format_str)
+            output_formats.append(str(player.output_format))
         for child_id in player.group_childs:
             if (child := self.mass.players.get(child_id)) and child.output_format:
-                output_formats.append(child.output_format.output_format_str)
+                output_formats.append(str(child.output_format))
             else:
                 output_formats.append("unknown")
 
@@ -990,15 +989,16 @@ class PlayerQueuesController(CoreController):
             current_item_id=queue.current_item.queue_item_id if queue.current_item else None,
             next_item_id=queue.next_item.queue_item_id if queue.next_item else None,
             elapsed_time=queue.elapsed_time,
-            stream_title=queue.current_item.streamdetails.stream_title
-            if queue.current_item and queue.current_item.streamdetails
-            else None,
-            content_type=queue.current_item.streamdetails.audio_format.output_format_str
-            if queue.current_item and queue.current_item.streamdetails
-            else None,
-            codec_type=queue.current_item.streamdetails.audio_format.codec_type
-            if queue.current_item and queue.current_item.streamdetails
-            else None,
+            stream_title=(
+                queue.current_item.streamdetails.stream_title
+                if queue.current_item and queue.current_item.streamdetails
+                else None
+            ),
+            codec_type=(
+                queue.current_item.streamdetails.audio_format.codec_type
+                if queue.current_item and queue.current_item.streamdetails
+                else None
+            ),
             output_formats=output_formats,
         )
         changed_keys = get_changed_keys(prev_state, new_state)
@@ -1733,7 +1733,7 @@ class PlayerQueuesController(CoreController):
         """Calculate current queue index and current track elapsed time when flow mode is active."""
         elapsed_time_queue_total = player.corrected_elapsed_time or 0
         if queue.current_index is None and not queue.flow_mode_stream_log:
-            return None, elapsed_time_queue_total
+            return queue.current_index, queue.elapsed_time
 
         # For each track that has been streamed/buffered to the player,
         # a playlog entry will be created with the queue item id
@@ -1766,7 +1766,10 @@ class PlayerQueuesController(CoreController):
                     track_sec_skipped = 0
                 track_time = elapsed_time_queue_total + track_sec_skipped - played_time
                 break
-
+        if player.state != PlayerState.PLAYING:
+            # if the player is not playing, we can't be sure that the elapsed time is correct
+            # so we just return the queue index and the elapsed time
+            return queue.current_index, queue.elapsed_time
         return queue_index, track_time
 
     def _parse_player_current_item_id(self, queue_id: str, player: Player) -> str | None:

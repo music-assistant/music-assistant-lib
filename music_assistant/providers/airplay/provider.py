@@ -588,10 +588,10 @@ class AirplayProvider(PlayerProvider):
                 # to prevent an endless pingpong of volume changes
                 raop_volume = float(path.split("dmcp.device-volume=", 1)[-1])
                 volume = convert_airplay_volume(raop_volume)
-                assert mass_player.volume_level
+                assert mass_player.volume_level is not None
                 if (
-                    abs(mass_player.volume_level - volume) > 5
-                    or (time.time() - airplay_player.last_command_sent) < 2
+                    abs(mass_player.volume_level - volume) > 3
+                    or (time.time() - airplay_player.last_command_sent) > 3
                 ):
                     self.mass.create_task(self.cmd_volume_set(player_id, volume))
                 else:
@@ -600,10 +600,12 @@ class AirplayProvider(PlayerProvider):
             elif "dmcp.volume=" in path:
                 # volume change request from device (e.g. volume buttons)
                 volume = int(path.split("dmcp.volume=", 1)[-1])
-                if volume != mass_player.volume_level:
+                assert mass_player.volume_level is not None
+                if (
+                    abs(mass_player.volume_level - volume) > 2
+                    or (time.time() - airplay_player.last_command_sent) > 3
+                ):
                     self.mass.create_task(self.cmd_volume_set(player_id, volume))
-                    # optimistically set the new volume to prevent bouncing around
-                    mass_player.volume_level = volume
             elif "device-prevent-playback=1" in path:
                 # device switched to another source (or is powered off)
                 if raop_stream := airplay_player.raop_stream:

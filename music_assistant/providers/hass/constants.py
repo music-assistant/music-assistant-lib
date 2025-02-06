@@ -47,3 +47,4 @@ StateMap = {
 
 # HA states that we consider as "powered off"
 OFF_STATES = ("unavailable", "unknown", "standby", "off")
+UNAVAILABLE_STATES = ("unavailable", "unknown")

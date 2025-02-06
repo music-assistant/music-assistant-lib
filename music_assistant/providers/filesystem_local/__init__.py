@@ -70,7 +70,6 @@ from .constants import (
     CONF_ENTRY_CONTENT_TYPE_READ_ONLY,
     CONF_ENTRY_MISSING_ALBUM_ARTIST,
     CONF_ENTRY_PATH,
-    CONF_MISSING_ALBUM_ARTIST_ACTION,
     IMAGE_EXTENSIONS,
     PLAYLIST_EXTENSIONS,
     PODCAST_EPISODE_EXTENSIONS,
@@ -1319,7 +1318,7 @@ class LocalFileSystemProvider(MusicProvider):
                 album_artists.append(artist)
         else:
             # album artist tag is missing, determine fallback
-            fallback_action = self.config.get_value(CONF_MISSING_ALBUM_ARTIST_ACTION)
+            fallback_action = self.config.get_value(CONF_ENTRY_MISSING_ALBUM_ARTIST.key)
             if fallback_action == "folder_name" and album_dir:
                 possible_artist_folder = os.path.dirname(album_dir)
                 self.logger.warning(

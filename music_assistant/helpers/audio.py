@@ -413,16 +413,16 @@ async def get_media_stream(
             ffmpeg_proc.proc.pid,
         )
         async for chunk in ffmpeg_proc.iter_chunked(pcm_format.pcm_sample_size):
+            if chunk_number == 0:
+                # At this point ffmpeg has started and should now know the codec used
+                # for encoding the audio.
+                streamdetails.audio_format.codec_type = ffmpeg_proc.input_format.codec_type
+
             # for non-tracks we just yield all chunks directly
             if streamdetails.media_type != MediaType.TRACK:
                 yield chunk
                 bytes_sent += len(chunk)
                 continue
-
-            if chunk_number == 0:
-                # At this point ffmpeg has started and should now know the codec used
-                # for encoding the audio.
-                streamdetails.audio_format.codec_type = ffmpeg_proc.input_format.codec_type
 
             chunk_number += 1
             # determine buffer size dynamically

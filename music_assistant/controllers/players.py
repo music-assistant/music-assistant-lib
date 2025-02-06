@@ -310,7 +310,7 @@ class PlayerController(CoreController):
         can_native_skip = False
         if active_queue := self.mass.player_queues.get(active_source_id):
             # active source is a MA queue
-            can_native_skip = not active_queue.flow_mode
+            can_native_skip = supports_native_skip and not active_queue.flow_mode
         elif supports_native_skip:
             # player has some other source active and native next/previous support
             active_source = next((x for x in player.source_list if x.id == active_source_id), None)
