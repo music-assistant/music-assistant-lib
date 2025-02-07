@@ -201,9 +201,8 @@ def get_relative_path(base_path: str, path: str) -> str:
 
 def get_absolute_path(base_path: str, path: str) -> str:
     """Return the absolute path string for a path."""
-    if path.startswith(base_path):
-        return path
-    return os.path.join(base_path, path)
+    full_path = os.path.join(base_path, path)
+    return os.path.abspath(full_path)
 
 
 def sorted_scandir(base_path: str, sub_path: str, sort: bool = False) -> list[FileSystemItem]:
