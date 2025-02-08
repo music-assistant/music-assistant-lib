@@ -56,6 +56,7 @@ from music_assistant.providers.audiobookshelf.parsers import (
 )
 
 if TYPE_CHECKING:
+    from aioaudiobookshelf.schema.events_socket import LibraryItemRemoved
     from aioaudiobookshelf.schema.media_progress import MediaProgress
     from music_assistant_models.media_items import Audiobook, Podcast, PodcastEpisode
     from music_assistant_models.provider import ProviderManifest
@@ -286,19 +287,36 @@ class Audiobookshelf(MusicProvider):
         """Obtain audiobook library ids and podcast library ids."""
         libraries = await self._client.get_all_libraries()
         # we can overwrite all libs with empty ids here, as they are directly
-        # filled afterwards again.
+        # filled afterwards again. A full sync sets all cached items as well, so we clear ahead.
         for library in libraries:
             if library.media_type == AbsLibraryMediaType.BOOK:
                 self.libraries.audiobooks[library.id_] = LibraryHelper(name=library.name)
             elif library.media_type == AbsLibraryMediaType.PODCAST:
                 self.libraries.podcasts[library.id_] = LibraryHelper(name=library.name)
         await super().sync_library(media_types=media_types)
-        await self.mass.cache.set(
-            key=CACHE_KEY_LIBRARIES,
-            base_key=self.cache_base_key,
-            category=CACHE_CATEGORY_LIBRARIES,
-            data=self.libraries.to_dict(),
-        )
+        await self._cache_set_helper_libraries()
+
+        # clean cache of abs podcasts/ audiobooks
+        for media_type, lib_dict in [
+            (MediaType.AUDIOBOOK, self.libraries.audiobooks),
+            (MediaType.PODCAST, self.libraries.podcasts),
+        ]:
+            for lib in lib_dict.values():
+                for id_ in lib.item_ids:
+                    mass_item = await self.mass.music.get_library_item_by_prov_id(
+                        media_type=media_type,
+                        item_id=id_,
+                        provider_instance_id_or_domain=self.instance_id,
+                    )
+                    if mass_item is None:
+                        self.logger.debug("Removing % , id: %s from cache.", media_type.value, id_)
+                        await self.mass.cache.delete(
+                            key=id_,
+                            base_key=self.cache_base_key,
+                            category=CACHE_CATEGORY_AUDIOBOOKS
+                            if media_type == MediaType.AUDIOBOOK
+                            else CACHE_CATEGORY_PODCASTS,
+                        )
 
     async def get_library_podcasts(self) -> AsyncGenerator[Podcast, None]:
         """Retrieve library/subscribed podcasts from the provider.
@@ -330,12 +348,7 @@ class Audiobookshelf(MusicProvider):
                         and mass_podcast.total_episodes == 0
                     ):
                         continue
-                    await self.mass.cache.set(
-                        key=podcast_expanded.id_,
-                        base_key=self.cache_base_key,
-                        category=CACHE_CATEGORY_PODCASTS,
-                        data=podcast_expanded.to_dict(),
-                    )
+                    await self._cache_set_podcast(podcast_expanded)
                     yield mass_podcast
 
     async def _get_cached_podcast(self, prov_podcast_id: str) -> AbsLibraryItemExpandedPodcast:
@@ -448,12 +461,7 @@ class Audiobookshelf(MusicProvider):
                 # use expanded version for chapters/ caching.
                 books_expanded = await self._client.get_library_item_batch_book(item_ids=book_ids)
                 for book_expanded in books_expanded:
-                    await self.mass.cache.set(
-                        key=book_expanded.id_,
-                        base_key=self.cache_base_key,
-                        category=CACHE_CATEGORY_AUDIOBOOKS,
-                        data=book_expanded.to_dict(),
-                    )
+                    await self._cache_set_audiobook(book_expanded)
                     mass_audiobook = parse_audiobook(
                         abs_audiobook=book_expanded,
                         lookup_key=self.lookup_key,
@@ -1008,40 +1016,97 @@ class Audiobookshelf(MusicProvider):
                     ),
                     overwrite_existing=True,
                 )
-                await self.mass.cache.set(
-                    key=abs_item.id_,
-                    base_key=self.cache_base_key,
-                    category=CACHE_CATEGORY_AUDIOBOOKS,
-                    data=abs_item.to_dict(),
-                )
+                await self._cache_set_audiobook(abs_item)
+                lib = self.libraries.audiobooks.get(abs_item.library_id, None)
+                if lib is not None:
+                    lib.item_ids.add(abs_item.id_)
             elif isinstance(abs_item, LibraryItemExpandedPodcast):
                 self.logger.debug(
                     'Updated podcast "%s" via socket.', abs_item.media.metadata.title or ""
                 )
-                await self.mass.music.podcasts.add_item_to_library(
-                    parse_podcast(
-                        abs_podcast=abs_item,
-                        lookup_key=self.lookup_key,
-                        domain=self.domain,
-                        instance_id=self.instance_id,
-                        token=self._client.token,
-                        base_url=str(self.config.get_value(CONF_URL)).rstrip("/"),
-                    ),
-                    overwrite_existing=True,
+                mass_podcast = parse_podcast(
+                    abs_podcast=abs_item,
+                    lookup_key=self.lookup_key,
+                    domain=self.domain,
+                    instance_id=self.instance_id,
+                    token=self._client.token,
+                    base_url=str(self.config.get_value(CONF_URL)).rstrip("/"),
                 )
-                await self.mass.cache.set(
-                    key=abs_item.id_,
+                if not (
+                    bool(self.config.get_value(CONF_HIDE_EMPTY_PODCASTS))
+                    and mass_podcast.total_episodes == 0
+                ):
+                    await self.mass.music.podcasts.add_item_to_library(
+                        mass_podcast,
+                        overwrite_existing=True,
+                    )
+                    await self._cache_set_podcast(abs_item)
+                    lib = self.libraries.podcasts.get(abs_item.library_id, None)
+                    if lib is not None:
+                        lib.item_ids.add(abs_item.id_)
+        await self._cache_set_helper_libraries()
+
+    async def _socket_abs_item_removed(self, item: LibraryItemRemoved) -> None:
+        """Item removed."""
+        media_type: MediaType | None = None
+        for lib in self.libraries.audiobooks.values():
+            if item.id_ in lib.item_ids:
+                media_type = MediaType.AUDIOBOOK
+                lib.item_ids.remove(item.id_)
+                await self.mass.cache.delete(
+                    key=item.id_,
+                    base_key=self.cache_base_key,
+                    category=CACHE_CATEGORY_AUDIOBOOKS,
+                )
+                break
+        for lib in self.libraries.podcasts.values():
+            if item.id_ in lib.item_ids:
+                media_type = MediaType.PODCAST
+                lib.item_ids.remove(item.id_)
+                await self.mass.cache.delete(
+                    key=item.id_,
                     base_key=self.cache_base_key,
                     category=CACHE_CATEGORY_PODCASTS,
-                    data=abs_item.to_dict(),
                 )
+                break
 
-    async def _socket_abs_item_removed(self, item: LibraryItemExpanded) -> None:
-        """Item removed."""
-        if isinstance(item, LibraryItemExpandedBook):
-            await self.mass.music.audiobooks.remove_item_from_library(item.id_)
-        elif isinstance(item, LibraryItemExpandedPodcast):
-            await self.mass.music.podcasts.remove_item_from_library(item.id_)
+        if media_type is not None:
+            mass_item = await self.mass.music.get_library_item_by_prov_id(
+                media_type=media_type,
+                item_id=item.id_,
+                provider_instance_id_or_domain=self.instance_id,
+            )
+            if mass_item is not None:
+                await self.mass.music.remove_item_from_library(
+                    media_type=media_type, library_item_id=mass_item.item_id
+                )
+                self.logger.debug('Removed %s "%s" via socket.', media_type.value, mass_item.name)
+
+        await self._cache_set_helper_libraries()
 
     async def _socket_abs_progress_updated(self, item_id: str, progress: MediaProgress) -> None:
         """Media Progress updated."""
+
+    async def _cache_set_helper_libraries(self) -> None:
+        await self.mass.cache.set(
+            key=CACHE_KEY_LIBRARIES,
+            base_key=self.cache_base_key,
+            category=CACHE_CATEGORY_LIBRARIES,
+            data=self.libraries.to_dict(),
+        )
+
+    async def _cache_set_podcast(self, abs_podcast: AbsLibraryItemExpandedPodcast) -> None:
+        await self.mass.cache.set(
+            key=abs_podcast.id_,
+            base_key=self.cache_base_key,
+            category=CACHE_CATEGORY_PODCASTS,
+            data=abs_podcast.to_dict(),
+        )
+
+    async def _cache_set_audiobook(self, abs_book: AbsLibraryItemExpandedBook) -> None:
+        await self.mass.cache.set(
+            key=abs_book.id_,
+            base_key=self.cache_base_key,
+            category=CACHE_CATEGORY_AUDIOBOOKS,
+            data=abs_book.to_dict(),
+        )
