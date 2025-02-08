@@ -276,30 +276,6 @@ class Audiobookshelf(MusicProvider):
         await super().sync_library(media_types=media_types)
         await self._cache_set_helper_libraries()
 
-        # clean cache of abs podcasts/ audiobooks
-        # not tested currently, as normal sync has an issue with updating/ deleted
-        # items currently
-        for media_type, lib_dict in [
-            (MediaType.AUDIOBOOK, self.libraries.audiobooks),
-            (MediaType.PODCAST, self.libraries.podcasts),
-        ]:
-            for lib in lib_dict.values():
-                for id_ in lib.item_ids:
-                    mass_item = await self.mass.music.get_library_item_by_prov_id(
-                        media_type=media_type,
-                        item_id=id_,
-                        provider_instance_id_or_domain=self.instance_id,
-                    )
-                    if mass_item is None:
-                        self.logger.debug("Removing % , id: %s from cache.", media_type.value, id_)
-                        await self.mass.cache.delete(
-                            key=id_,
-                            base_key=self.cache_base_key,
-                            category=CACHE_CATEGORY_AUDIOBOOKS
-                            if media_type == MediaType.AUDIOBOOK
-                            else CACHE_CATEGORY_PODCASTS,
-                        )
-
     async def get_library_podcasts(self) -> AsyncGenerator[Podcast, None]:
         """Retrieve library/subscribed podcasts from the provider.
 
