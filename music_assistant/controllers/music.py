@@ -766,7 +766,7 @@ class MusicController(CoreController):
     async def mark_item_played(
         self,
         media_item: MediaItemType | ItemMapping,
-        fully_played: bool | None = None,
+        fully_played: bool = True,
         seconds_played: int | None = None,
     ) -> None:
         """Mark item as played in playlog."""
@@ -799,8 +799,6 @@ class MusicController(CoreController):
 
         # forward to provider(s) to sync resume state (e.g. for audiobooks)
         for prov_mapping in media_item.provider_mappings:
-            if fully_played is None:
-                fully_played = True
             if music_prov := self.mass.get_provider(prov_mapping.provider_instance):
                 self.mass.create_task(
                     music_prov.on_played(
@@ -811,7 +809,9 @@ class MusicController(CoreController):
                     )
                 )
 
-        # also update playcount in library table
+        # also update playcount in library table (if fully played)
+        if not fully_played:
+            return
         if not (ctrl := self.get_controller(media_item.media_type)):
             # skip non media items (e.g. plugin source)
             return

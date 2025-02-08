@@ -291,8 +291,8 @@ class Audibleprovider(MusicProvider):
 
         This is called by the Queue controller when;
             - a track has been fully played
-            - a track has been skipped
-            - a track has been stopped after being played
+            - a track has been stopped (or skipped) after being played
+            - every 30s when a track is playing
 
         Fully played is True when the track has been played to the end.
         Position is the last known position of the track in seconds, to sync resume state.

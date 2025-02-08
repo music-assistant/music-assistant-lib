@@ -112,6 +112,21 @@ class CompareState(TypedDict):
     output_formats: list[str] | None
 
 
+class MediaItemPlaybackProgressReport(TypedDict):
+    """Object to submit in a progress the event submitted to report media playback."""
+
+    uri: str
+    media_type: MediaType
+    name: str
+    artist: str | None
+    album: str | None
+    image_url: str | None
+    duration: int
+    mbid: str | None
+    seconds_played: int
+    fully_played: bool
+
+
 class PlayerQueuesController(CoreController):
     """Controller holding all logic to enqueue music for players."""
 
@@ -1040,19 +1055,8 @@ class PlayerQueuesController(CoreController):
             self._handle_playback_progress_report(queue, prev_state, new_state)
 
         # check if we need to clear the queue if we reached the end
-        if (
-            # queue stopped (from playing/paused to idle)
-            prev_state["state"] in (PlayerState.PLAYING, PlayerState.PAUSED)
-            and new_state["state"] == PlayerState.IDLE
-            # no more items in the queue
-            and queue.next_item is None
-            # we had a previous item
-            and (prev_item_id := prev_state["current_item_id"]) is not None
-            and (self.get_item(queue_id, prev_item_id)) is not None
-            and queue.current_index is not None
-            and queue.current_item is not None
-        ):
-            self.mass.create_task(self._handle_end_of_queue(queue))
+        if "state" in changed_keys and queue.state == PlayerState.IDLE:
+            self._handle_end_of_queue(queue, prev_state, new_state)
 
         # watch dynamic radio items refill if needed
         if "current_item_id" in changed_keys:
@@ -1105,11 +1109,11 @@ class PlayerQueuesController(CoreController):
             msg = f"PlayerQueue {queue_id} is not available"
             raise PlayerUnavailableError(msg)
         cur_index = self.index_by_id(queue_id, current_item_id)
+        next_item: QueueItem | None = None
         idx = 0
         while True:
             if cur_index is None:
                 break
-            next_item: QueueItem | None = None
             next_index = self._get_next_index(queue_id, cur_index + idx)
             if next_index is None:
                 raise QueueEmpty("No more tracks left in the queue.")
@@ -1207,10 +1211,10 @@ class PlayerQueuesController(CoreController):
             return
         # enqueue next track on the player if we're not in flow mode
         task_id = f"enqueue_next_item_{queue_id}"
-        self.mass.call_later(2, self._enqueue_next_item, queue_id, item_id, task_id=task_id)
+        self.mass.call_later(1, self._enqueue_next_item, queue_id, item_id, task_id=task_id)
         # repeat this one time because some players
         # don't accept the next track when still buffering one
-        self.mass.call_later(30, self._enqueue_next_item, queue_id, item_id, task_id=task_id)
+        self.mass.call_later(10, self._enqueue_next_item, queue_id, item_id, task_id=task_id)
 
     # Main queue manipulation methods
 
@@ -1432,21 +1436,21 @@ class PlayerQueuesController(CoreController):
                     return 0
                 if provider_item.resume_position_ms is not None:
                     return provider_item.resume_position_ms
-            # fallback to the resume point from the playlog (if available)
-            resume_info_db_row = await self.mass.music.database.get_row(
-                DB_TABLE_PLAYLOG,
-                {
-                    "item_id": prov_mapping.item_id,
-                    "provider": provider.lookup_key,
-                    "media_type": MediaType.AUDIOBOOK,
-                },
-            )
-            if resume_info_db_row is None:
-                continue
+        # fallback to the resume point from the playlog (if available)
+        resume_info_db_row = await self.mass.music.database.get_row(
+            DB_TABLE_PLAYLOG,
+            {
+                "item_id": audio_book.item_id,
+                "provider": audio_book.provider,
+                "media_type": MediaType.AUDIOBOOK,
+            },
+        )
+        if resume_info_db_row is not None:
             if resume_info_db_row["fully_played"]:
                 return 0
             if resume_info_db_row["seconds_played"]:
                 return int(resume_info_db_row["seconds_played"] * 1000)
+
         return 0
 
     async def get_next_podcast_episodes(
@@ -1740,18 +1744,46 @@ class PlayerQueuesController(CoreController):
 
         return None
 
-    async def _handle_end_of_queue(self, queue: PlayerQueue) -> None:
+    def _handle_end_of_queue(
+        self, queue: PlayerQueue, prev_state: CompareState, new_state: CompareState
+    ) -> None:
         """Check if the queue should be cleared after the current item."""
-        for _ in range(5):
-            await asyncio.sleep(1)
-            if queue.state != PlayerState.IDLE:
-                return
-            if queue.next_item is not None:
-                return
-            if not ((queue.current_index or 0) >= len(self._queue_items[queue.queue_id]) - 1):
-                return
-        self.logger.info("End of queue reached, clearing items")
-        self.clear(queue.queue_id)
+        # check if queue state changed to stopped (from playing/paused to idle)
+        if not (
+            prev_state["state"] in (PlayerState.PLAYING, PlayerState.PAUSED)
+            and new_state["state"] == PlayerState.IDLE
+        ):
+            return
+        # check if no more items in the queue
+        if queue.next_item is not None:
+            return
+        # check if we had a previous item
+        if prev_state["current_item_id"] is None:
+            return
+        # check that we have a current item
+        if queue.current_item is None:
+            return
+
+        async def _clear_queue_delayed():
+            for _ in range(5):
+                await asyncio.sleep(1)
+                if queue.state != PlayerState.IDLE:
+                    return
+                if queue.next_item is not None:
+                    return
+            self.logger.info("End of queue reached, clearing items")
+            self.clear(queue.queue_id)
+
+        # all checks passed, we stopped playback at the last (or single) of the queue
+        # now determine if the item was fully played
+        if streamdetails := queue.current_item.streamdetails:
+            duration = streamdetails.duration or queue.current_item.duration or 24 * 3600
+        else:
+            duration = queue.current_item.duration or 24 * 3600
+        seconds_played = int(queue.elapsed_time)
+        # debounce this a bit to make sure we're not clearing the queue by accident
+        if seconds_played >= (duration or 3600) - 5:
+            self.mass.create_task(_clear_queue_delayed())
 
     def _handle_playback_progress_report(
         self, queue: PlayerQueue, prev_state: CompareState, new_state: CompareState
@@ -1771,9 +1803,6 @@ class PlayerQueuesController(CoreController):
                 # should not happen, but guard it anyway
                 return
             seconds_played = int(prev_state["elapsed_time"])
-            fully_played = stream_details and (
-                seconds_played >= (stream_details.duration or 3600) - 5
-            )
         else:
             # report on current item
             if not (item_to_report := self.get_item(queue.queue_id, cur_item_id)):
@@ -1786,12 +1815,12 @@ class PlayerQueuesController(CoreController):
             if seconds_played < 30:
                 # ignore items that have been played less than 30 seconds
                 return
-            fully_played = stream_details and (
-                seconds_played >= (stream_details.duration or 3600) - 5
-            )
         if not item_to_report.media_item:
             # only report on media items
             return
+
+        duration = stream_details.duration or item_to_report.duration or 3600
+        fully_played = seconds_played >= (duration or 3600) - 5
 
         self.logger.debug(
             "PlayerQueue %s playing/played item %s - fully_played: %s - progress: %s",
@@ -1813,25 +1842,24 @@ class PlayerQueuesController(CoreController):
         self.mass.signal_event(
             EventType.MEDIA_ITEM_PLAYED,
             object_id=item_to_report.media_item.uri,
-            data={
-                # TODO: Maybe we should create a dataclass for this as well?!
-                "media_item": {
-                    "uri": item_to_report.media_item.uri,
-                    "name": item_to_report.media_item.name,
-                    "media_type": item_to_report.media_item.media_type,
-                    "artist": getattr(item_to_report.media_item, "artist_str", None),
-                    "album": album.name
+            data=MediaItemPlaybackProgressReport(
+                uri=item_to_report.media_item.uri,
+                name=item_to_report.media_item.name,
+                media_type=item_to_report.media_item.media_type,
+                artist=getattr(item_to_report.media_item, "artist_str", None),
+                album=(
+                    album.name
                     if (album := getattr(item_to_report.media_item, "album", None))
-                    else None,
-                    "image_url": self.mass.metadata.get_image_url(
-                        item_to_report.media_item.image, size=512
-                    )
+                    else None
+                ),
+                image_url=(
+                    self.mass.metadata.get_image_url(item_to_report.media_item.image, size=512)
                     if item_to_report.media_item.image
-                    else None,
-                    "duration": getattr(item_to_report.media_item, "duration", 0),
-                    "mbid": getattr(item_to_report.media_item, "mbid", None),
-                },
-                "seconds_played": seconds_played,
-                "fully_played": fully_played,
-            },
+                    else None
+                ),
+                duration=duration,
+                mbid=(getattr(item_to_report.media_item, "mbid", None)),
+                seconds_played=seconds_played,
+                fully_played=fully_played,
+            ),
         )
