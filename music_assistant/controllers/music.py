@@ -174,7 +174,8 @@ class MusicController(CoreController):
         """Cleanup on exit."""
         if self._sync_task and not self._sync_task.done():
             self._sync_task.cancel()
-        await self.database.close()
+        if self.database:
+            await self.database.close()
 
     @property
     def providers(self) -> list[MusicProvider]:
@@ -1261,6 +1262,8 @@ class MusicController(CoreController):
         db_path = os.path.join(self.mass.storage_path, "library.db")
         await asyncio.to_thread(os.remove, db_path)
         await self._setup_database()
+        # initiate full sync
+        self.start_sync()
 
     async def __create_database_tables(self) -> None:
         """Create database tables."""

@@ -86,10 +86,13 @@ class Webserver:
     async def close(self) -> None:
         """Cleanup on exit."""
         # stop/clean webserver
-        await self._tcp_site.stop()
-        await self._apprunner.cleanup()
-        await self._webapp.shutdown()
-        await self._webapp.cleanup()
+        if self._tcp_site:
+            await self._tcp_site.stop()
+        if self._apprunner:
+            await self._apprunner.cleanup()
+        if self._webapp:
+            await self._webapp.shutdown()
+            await self._webapp.cleanup()
 
     @property
     def base_url(self):
@@ -128,7 +131,7 @@ class Webserver:
             msg = "Dynamic routes are not enabled"
             raise RuntimeError(msg)
         key = f"{method}.{path}"
-        self._dynamic_routes.pop(key)
+        self._dynamic_routes.pop(key, None)
 
     async def serve_static(self, file_path: str, request: web.Request) -> web.FileResponse:
         """Serve file response."""

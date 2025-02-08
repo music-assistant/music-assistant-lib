@@ -106,15 +106,8 @@ async def setup(
     mass: MusicAssistant, manifest: ProviderManifest, config: ProviderConfig
 ) -> ProviderInstanceType:
     """Initialize provider(instance) with given configuration."""
-    conf_path = config.get_value(CONF_PATH)
-    if not await isdir(conf_path):
-        msg = f"Music Directory {conf_path} does not exist"
-        raise SetupFailedError(msg)
-    prov = LocalFileSystemProvider(mass, manifest, config)
-    prov.base_path = str(config.get_value(CONF_PATH))
-    await prov.check_write_access()
-    prov.media_content_type = cast(str, config.get_value(CONF_ENTRY_CONTENT_TYPE.key))
-    return prov
+    base_path = cast(str, config.get_value(CONF_PATH))
+    return LocalFileSystemProvider(mass, manifest, config, base_path)
 
 
 async def get_config_entries(
@@ -137,17 +130,7 @@ async def get_config_entries(
             CONF_ENTRY_PATH,
             CONF_ENTRY_MISSING_ALBUM_ARTIST,
         )
-    media_type = values.get(CONF_ENTRY_CONTENT_TYPE.key)
-    if media_type == "music":
-        return (
-            CONF_ENTRY_PATH,
-            CONF_ENTRY_CONTENT_TYPE_READ_ONLY,
-            CONF_ENTRY_MISSING_ALBUM_ARTIST,
-        )
-    return (
-        CONF_ENTRY_PATH,
-        CONF_ENTRY_CONTENT_TYPE_READ_ONLY,
-    )
+    return (CONF_ENTRY_PATH, CONF_ENTRY_CONTENT_TYPE_READ_ONLY, CONF_ENTRY_MISSING_ALBUM_ARTIST)
 
 
 class LocalFileSystemProvider(MusicProvider):
@@ -159,10 +142,19 @@ class LocalFileSystemProvider(MusicProvider):
     Supports m3u files for playlists.
     """
 
-    base_path: str
-    write_access: bool = False
-    sync_running: bool = False
-    media_content_type: str = "music"
+    def __init__(
+        self,
+        mass: MusicAssistant,
+        manifest: ProviderManifest,
+        config: ProviderConfig,
+        base_path: str,
+    ) -> None:
+        """Initialize MusicProvider."""
+        super().__init__(mass, manifest, config)
+        self.base_path: str = base_path
+        self.write_access: bool = False
+        self.sync_running: bool = False
+        self.media_content_type = cast(str, config.get_value(CONF_ENTRY_CONTENT_TYPE.key))
 
     @property
     def supported_features(self) -> set[ProviderFeature]:
@@ -199,6 +191,13 @@ class LocalFileSystemProvider(MusicProvider):
             return self.config.name
         postfix = self.base_path.split(os.sep)[-1]
         return f"{self.manifest.name} {postfix}"
+
+    async def handle_async_init(self) -> None:
+        """Handle async initialization of the provider."""
+        if not await isdir(self.base_path):
+            msg = f"Music Directory {self.base_path} does not exist"
+            raise SetupFailedError(msg)
+        await self.check_write_access()
 
     async def search(
         self,

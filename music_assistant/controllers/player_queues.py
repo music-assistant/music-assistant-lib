@@ -1016,6 +1016,8 @@ class PlayerQueuesController(CoreController):
             )
         else:
             self.signal_update(queue_id)
+
+        # store the new state
         if queue.active:
             self._prev_states[queue_id] = new_state
         else:
@@ -1029,83 +1031,28 @@ class PlayerQueuesController(CoreController):
             if queue.next_item and queue.next_item.streamdetails:
                 queue.next_item.streamdetails.dsp = dsp
 
-        # detect change in current index to report that a item has been played
-        prev_item_id = prev_state["current_item_id"]
-        cur_item_id = new_state["current_item_id"]
-        player_stopped = (
+        # handle sending a playback progress report
+        # we do this every 30 seconds or when the state changes
+        if (
+            changed_keys.intersection({"state", "current_item_id", "next_item_id"})
+            or queue.elapsed_time % 30 == 0
+        ):
+            self._handle_playback_progress_report(queue, prev_state, new_state)
+
+        # check if we need to clear the queue if we reached the end
+        if (
+            # queue stopped (from playing/paused to idle)
             prev_state["state"] in (PlayerState.PLAYING, PlayerState.PAUSED)
             and new_state["state"] == PlayerState.IDLE
-        )
-        track_changed = not player_stopped and prev_item_id and prev_item_id != cur_item_id
-        prev_item = self.get_item(queue_id, prev_item_id)
-        end_of_queue_reached = (
-            player_stopped
+            # no more items in the queue
             and queue.next_item is None
-            and prev_item is not None
-            and (stream_details := prev_item.streamdetails)
-            and int(prev_state["elapsed_time"]) >= (stream_details.duration or 3600) - 5
-        )
-        if prev_item and (player_stopped or track_changed or end_of_queue_reached):
-            position = int(prev_state["elapsed_time"])
-            prev_item = self.get_item(queue_id, prev_item_id)
-            stream_details = prev_item.streamdetails if prev_item else None
-            seconds_played = (
-                int(prev_state["elapsed_time"]) - stream_details.seek_position
-                if stream_details
-                else 0
-            )
-            fully_played = stream_details and (position >= (stream_details.duration or 3600) - 5)
-            self.logger.debug(
-                "PlayerQueue %s played item %s for %s seconds - fully_played: %s - progress: %s",
-                queue.display_name,
-                prev_item.uri,
-                seconds_played,
-                fully_played,
-                prev_state["elapsed_time"],
-            )
-            # add entry to playlog - this also handles resume of podcasts/audiobooks
-            self.mass.create_task(
-                self.mass.music.mark_item_played(
-                    prev_item.media_item,
-                    fully_played=fully_played,
-                    seconds_played=prev_state["elapsed_time"],
-                )
-            )
-            # signal 'media item played' event,
-            # which is useful for plugins that want to do scrobbling
-            self.mass.signal_event(
-                EventType.MEDIA_ITEM_PLAYED,
-                object_id=prev_item.media_item.uri,
-                data={
-                    # TODO: Maybe we should create a dataclass for this as well?!
-                    "media_item": {
-                        "uri": prev_item.media_item.uri,
-                        "name": prev_item.media_item.name,
-                        "media_type": prev_item.media_item.media_type,
-                        "artist": getattr(prev_item.media_item, "artist_str", None),
-                        "album": album.name
-                        if (album := getattr(prev_item.media_item, "album", None))
-                        else None,
-                        "image_url": self.mass.metadata.get_image_url(
-                            prev_item.media_item.image, size=512
-                        )
-                        if prev_item.media_item.image
-                        else None,
-                        "duration": getattr(prev_item.media_item, "duration", 0),
-                        "mbid": getattr(prev_item.media_item, "mbid", None),
-                    },
-                    "seconds_played": seconds_played,
-                    "fully_played": fully_played,
-                },
-            )
-
-        if (
-            end_of_queue_reached
+            # we had a previous item
+            and (prev_item_id := prev_state["current_item_id"]) is not None
+            and (self.get_item(queue_id, prev_item_id)) is not None
             and queue.current_index is not None
             and queue.current_item is not None
         ):
-            # end of queue reached
-            self.mass.create_task(self._check_clear_queue(queue))
+            self.mass.create_task(self._handle_end_of_queue(queue))
 
         # watch dynamic radio items refill if needed
         if "current_item_id" in changed_keys:
@@ -1714,19 +1661,6 @@ class PlayerQueuesController(CoreController):
             )
         return queue_tracks
 
-    async def _check_clear_queue(self, queue: PlayerQueue) -> None:
-        """Check if the queue should be cleared after the current item."""
-        for _ in range(5):
-            await asyncio.sleep(1)
-            if queue.state != PlayerState.IDLE:
-                return
-            if queue.next_item is not None:
-                return
-            if not ((queue.current_index or 0) >= len(self._queue_items[queue.queue_id]) - 1):
-                return
-        self.logger.info("End of queue reached, clearing items")
-        self.clear(queue.queue_id)
-
     def _get_flow_queue_stream_index(
         self, queue: PlayerQueue, player: Player
     ) -> tuple[int | None, int]:
@@ -1805,3 +1739,99 @@ class PlayerQueuesController(CoreController):
                 return current_item_id
 
         return None
+
+    async def _handle_end_of_queue(self, queue: PlayerQueue) -> None:
+        """Check if the queue should be cleared after the current item."""
+        for _ in range(5):
+            await asyncio.sleep(1)
+            if queue.state != PlayerState.IDLE:
+                return
+            if queue.next_item is not None:
+                return
+            if not ((queue.current_index or 0) >= len(self._queue_items[queue.queue_id]) - 1):
+                return
+        self.logger.info("End of queue reached, clearing items")
+        self.clear(queue.queue_id)
+
+    def _handle_playback_progress_report(
+        self, queue: PlayerQueue, prev_state: CompareState, new_state: CompareState
+    ) -> None:
+        """Handle playback progress report."""
+        # detect change in current index to report that a item has been played
+        prev_item_id = prev_state["current_item_id"]
+        cur_item_id = new_state["current_item_id"]
+        if prev_item_id is None and cur_item_id is None:
+            return
+        if prev_item_id is not None and prev_item_id != cur_item_id:
+            # we have a new item, so we need report the previous one
+            if not (item_to_report := self.get_item(queue.queue_id, prev_item_id)):
+                # should not happen, but guard it anyway
+                return
+            if not (stream_details := item_to_report.streamdetails):
+                # should not happen, but guard it anyway
+                return
+            seconds_played = int(prev_state["elapsed_time"])
+            fully_played = stream_details and (
+                seconds_played >= (stream_details.duration or 3600) - 5
+            )
+        else:
+            # report on current item
+            if not (item_to_report := self.get_item(queue.queue_id, cur_item_id)):
+                # should not happen, but guard it anyway
+                return
+            if not (stream_details := item_to_report.streamdetails):
+                # should not happen, but guard it anyway
+                return
+            seconds_played = int(new_state["elapsed_time"])
+            if seconds_played < 30:
+                # ignore items that have been played less than 30 seconds
+                return
+            fully_played = stream_details and (
+                seconds_played >= (stream_details.duration or 3600) - 5
+            )
+        if not item_to_report.media_item:
+            # only report on media items
+            return
+
+        self.logger.debug(
+            "PlayerQueue %s playing/played item %s - fully_played: %s - progress: %s",
+            queue.display_name,
+            item_to_report.uri,
+            fully_played,
+            seconds_played,
+        )
+        # add entry to playlog - this also handles resume of podcasts/audiobooks
+        self.mass.create_task(
+            self.mass.music.mark_item_played(
+                item_to_report.media_item,
+                fully_played=fully_played,
+                seconds_played=seconds_played,
+            )
+        )
+        # signal 'media item played' event,
+        # which is useful for plugins that want to do scrobbling
+        self.mass.signal_event(
+            EventType.MEDIA_ITEM_PLAYED,
+            object_id=item_to_report.media_item.uri,
+            data={
+                # TODO: Maybe we should create a dataclass for this as well?!
+                "media_item": {
+                    "uri": item_to_report.media_item.uri,
+                    "name": item_to_report.media_item.name,
+                    "media_type": item_to_report.media_item.media_type,
+                    "artist": getattr(item_to_report.media_item, "artist_str", None),
+                    "album": album.name
+                    if (album := getattr(item_to_report.media_item, "album", None))
+                    else None,
+                    "image_url": self.mass.metadata.get_image_url(
+                        item_to_report.media_item.image, size=512
+                    )
+                    if item_to_report.media_item.image
+                    else None,
+                    "duration": getattr(item_to_report.media_item, "duration", 0),
+                    "mbid": getattr(item_to_report.media_item, "mbid", None),
+                },
+                "seconds_played": seconds_played,
+                "fully_played": fully_played,
+            },
+        )

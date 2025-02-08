@@ -749,6 +749,9 @@ class MetaDataController(CoreController):
             try:
                 item = await self.mass.music.get_item_by_uri(item_uri)
                 await self.update_metadata(item)
+            except MediaNotFoundError:
+                # this can happen when the item is removed from the library
+                pass
             except Exception as err:
                 self.logger.error(
                     "Error while updating metadata for %s: %s",

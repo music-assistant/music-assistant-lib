@@ -12,7 +12,15 @@ from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 import pychromecast
-from music_assistant_models.enums import MediaType, PlayerFeature, PlayerState, PlayerType
+from music_assistant_models.config_entries import ConfigEntry
+from music_assistant_models.constants import PLAYER_CONTROL_NATIVE
+from music_assistant_models.enums import (
+    ConfigEntryType,
+    MediaType,
+    PlayerFeature,
+    PlayerState,
+    PlayerType,
+)
 from music_assistant_models.errors import PlayerUnavailableError
 from music_assistant_models.player import DeviceInfo, Player, PlayerMedia
 from pychromecast.controllers.media import STREAM_TYPE_BUFFERED, STREAM_TYPE_LIVE, MediaController
@@ -26,7 +34,10 @@ from music_assistant.constants import (
     CONF_ENTRY_CROSSFADE_DURATION,
     CONF_ENTRY_CROSSFADE_FLOW_MODE_REQUIRED,
     CONF_ENTRY_ENFORCE_MP3,
+    CONF_MUTE_CONTROL,
     CONF_PLAYERS,
+    CONF_POWER_CONTROL,
+    CONF_VOLUME_CONTROL,
     MASS_LOGO_ONLINE,
     VERBOSE_LOG_LEVEL,
     create_sample_rates_config_entry,
@@ -36,7 +47,7 @@ from music_assistant.models.player_provider import PlayerProvider
 from .helpers import CastStatusListener, ChromecastInfo
 
 if TYPE_CHECKING:
-    from music_assistant_models.config_entries import ConfigEntry, ConfigValueType, ProviderConfig
+    from music_assistant_models.config_entries import ConfigValueType, ProviderConfig
     from music_assistant_models.provider import ProviderManifest
     from pychromecast.controllers.media import MediaStatus
     from pychromecast.controllers.receiver import CastStatus
@@ -181,6 +192,28 @@ class ChromecastProvider(PlayerProvider):
                 *BASE_PLAYER_CONFIG_ENTRIES,
                 *PLAYER_CONFIG_ENTRIES,
                 CONF_ENTRY_SAMPLE_RATES_CAST_GROUP,
+                # add player control entries as hidden entries
+                ConfigEntry(
+                    key=CONF_POWER_CONTROL,
+                    type=ConfigEntryType.STRING,
+                    label=CONF_POWER_CONTROL,
+                    default_value=PLAYER_CONTROL_NATIVE,
+                    hidden=True,
+                ),
+                ConfigEntry(
+                    key=CONF_VOLUME_CONTROL,
+                    type=ConfigEntryType.STRING,
+                    label=CONF_VOLUME_CONTROL,
+                    default_value=PLAYER_CONTROL_NATIVE,
+                    hidden=True,
+                ),
+                ConfigEntry(
+                    key=CONF_MUTE_CONTROL,
+                    type=ConfigEntryType.STRING,
+                    label=CONF_MUTE_CONTROL,
+                    default_value=PLAYER_CONTROL_NATIVE,
+                    hidden=True,
+                ),
             )
         base_entries = await super().get_player_config_entries(player_id)
         return (*base_entries, *PLAYER_CONFIG_ENTRIES, CONF_ENTRY_SAMPLE_RATES_CAST)

@@ -15,7 +15,6 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from collections.abc import AsyncGenerator, Awaitable, Callable, Coroutine
-from collections.abc import Set as AbstractSet
 from contextlib import suppress
 from functools import lru_cache
 from importlib.metadata import PackageNotFoundError
@@ -302,9 +301,9 @@ def get_changed_keys(
     dict1: dict[str, Any],
     dict2: dict[str, Any],
     ignore_keys: list[str] | None = None,
-) -> AbstractSet[str]:
+) -> set[str]:
     """Compare 2 dicts and return set of changed keys."""
-    return get_changed_values(dict1, dict2, ignore_keys).keys()
+    return set(get_changed_values(dict1, dict2, ignore_keys).keys())
 
 
 def get_changed_values(

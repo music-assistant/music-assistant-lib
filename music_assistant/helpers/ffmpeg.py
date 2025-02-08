@@ -338,30 +338,31 @@ def get_ffmpeg_args(
 async def check_ffmpeg_version() -> None:
     """Check if ffmpeg is present (with libsoxr support)."""
     # check for FFmpeg presence
-    returncode, output = await check_output("ffmpeg", "-version")
-    ffmpeg_present = returncode == 0 and "FFmpeg" in output.decode()
-
-    # use globals as in-memory cache
-    version = output.decode().split("ffmpeg version ")[1].split(" ")[0].split("-")[0]
-    libsoxr_support = "enable-libsoxr" in output.decode()
-    await set_global_cache_values({CACHE_ATTR_LIBSOXR_PRESENT: libsoxr_support})
-
-    if not ffmpeg_present:
-        msg = (
-            "FFmpeg binary is missing from system."
+    try:
+        returncode, output = await check_output("ffmpeg", "-version")
+    except FileNotFoundError:
+        raise AudioError(
+            "FFmpeg binary is missing from system. "
             "Please install ffmpeg on your OS to enable playback."
         )
+    # parse version number from output
+    try:
+        version = output.decode().split("ffmpeg version ")[1].split(" ")[0].split("-")[0]
+    except IndexError:
         raise AudioError(
-            msg,
+            "Error determining FFmpeg version on your system."
+            f"Additional info: {returncode} {output}"
         )
+    libsoxr_support = "enable-libsoxr" in output.decode()
+    # use globals as in-memory cache
+    await set_global_cache_values({CACHE_ATTR_LIBSOXR_PRESENT: libsoxr_support})
 
     major_version = int("".join(char for char in version.split(".")[0] if not char.isalpha()))
     if major_version < MINIMAL_FFMPEG_VERSION:
-        msg = (
+        raise AudioError(
             f"FFmpeg version {version} is not supported. "
             f"Minimal version required is {MINIMAL_FFMPEG_VERSION}."
         )
-        raise AudioError(msg)
 
     LOGGER.info(
         "Detected ffmpeg version %s %s",

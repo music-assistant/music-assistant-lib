@@ -164,14 +164,15 @@ class MusicAssistant:
             controller: CoreController = getattr(self, controller_name)
             self._provider_manifests[controller.domain] = controller.manifest
         await self.cache.setup(await self.config.get_core_config("cache"))
+        # load streams controller early so we can abort if we can't load it
+        await self.streams.setup(await self.config.get_core_config("streams"))
         await self.music.setup(await self.config.get_core_config("music"))
         await self.metadata.setup(await self.config.get_core_config("metadata"))
         await self.players.setup(await self.config.get_core_config("players"))
         await self.player_queues.setup(await self.config.get_core_config("player_queues"))
-        # load streams and webserver last so the api/frontend is
+        # load webserver/api last so the api/frontend is
         # not yet available while we're starting (or performing migrations)
         self._register_api_commands()
-        await self.streams.setup(await self.config.get_core_config("streams"))
         await self.webserver.setup(await self.config.get_core_config("webserver"))
         # load all available providers from manifest files
         await self.__load_provider_manifests()

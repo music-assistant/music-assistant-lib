@@ -210,7 +210,12 @@ def main() -> None:
         if dev_mode or log_level == "DEBUG":
             loop.set_debug(True)
         loop.set_exception_handler(_global_loop_exception_handler)
-        await mass.start()
+        try:
+            await mass.start()
+        except Exception:
+            # exit immediately if startup fails
+            loop.stop()
+            raise
 
     run(
         start_mass(),
