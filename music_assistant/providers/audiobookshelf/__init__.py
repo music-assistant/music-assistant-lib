@@ -509,14 +509,14 @@ class Audiobookshelf(MusicProvider):
         if len(tracks) > 1:
             self.logger.debug("Using playback for multiple file audiobook.")
             multiple_files = []
-            for trak in tracks:
-                media_url = trak.content_url
+            for track in tracks:
+                media_url = track.content_url
                 stream_url = f"{base_url}{media_url}?token={token}"
                 content_type = ContentType.UNKNOWN
-                if trak.metadata is not None:
-                    content_type = ContentType.try_parse(trak.metadata.ext)
+                if track.metadata is not None:
+                    content_type = ContentType.try_parse(track.metadata.ext)
                 multiple_files.append(
-                    (AudioFormat(content_type=content_type), stream_url, trak.duration)
+                    (AudioFormat(content_type=content_type), stream_url, track.duration)
                 )
 
             return StreamDetails(
