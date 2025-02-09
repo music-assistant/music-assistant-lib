@@ -81,6 +81,7 @@ class AbsBrowsePaths(StrEnum):
     LIBRARIES_BOOK = "lb"
     LIBRARIES_PODCAST = "lp"
     AUTHORS = "a"
+    NARRATORS = "n"
     SERIES = "s"
     COLLECTIONS = "c"
     AUDIOBOOKS = "b"
@@ -90,6 +91,7 @@ class AbsBrowseItemsBook(StrEnum):
     """Folder names in browse view for books."""
 
     AUTHORS = "Authors"
+    NARRATORS = "Narrators"
     SERIES = "Series"
     COLLECTIONS = "Collections"
     AUDIOBOOKS = "Audiobooks"
@@ -122,6 +124,7 @@ class LibrariesHelper(DataClassDictMixin):
 
 ABSBROWSEITEMSTOPATH: dict[str, str] = {
     AbsBrowseItemsBook.AUTHORS: AbsBrowsePaths.AUTHORS,
+    AbsBrowseItemsBook.NARRATORS: AbsBrowsePaths.NARRATORS,
     AbsBrowseItemsBook.SERIES: AbsBrowsePaths.SERIES,
     AbsBrowseItemsBook.COLLECTIONS: AbsBrowsePaths.COLLECTIONS,
     AbsBrowseItemsBook.AUDIOBOOKS: AbsBrowsePaths.AUDIOBOOKS,
@@ -685,6 +688,8 @@ class Audiobookshelf(MusicProvider):
             match item_key:
                 case AbsBrowsePaths.AUTHORS:
                     return await self._browse_authors(current_path=path, library_id=lib_id)
+                case AbsBrowsePaths.NARRATORS:
+                    return await self._browse_narrators(current_path=path, library_id=lib_id)
                 case AbsBrowsePaths.SERIES:
                     return await self._browse_series(current_path=path, library_id=lib_id)
                 case AbsBrowsePaths.COLLECTIONS:
@@ -696,6 +701,10 @@ class Audiobookshelf(MusicProvider):
             match item_key:
                 case AbsBrowsePaths.AUTHORS:
                     return await self._browse_author_books(current_path=path, author_id=item_id)
+                case AbsBrowsePaths.NARRATORS:
+                    return await self._browse_narrator_books(
+                        library_id=lib_id, narrator_filter_str=item_id
+                    )
                 case AbsBrowsePaths.SERIES:
                     return await self._browse_series_books(series_id=item_id)
                 case AbsBrowsePaths.COLLECTIONS:
@@ -738,7 +747,7 @@ class Audiobookshelf(MusicProvider):
             )
             if mass_item is not None:
                 items.append(mass_item)
-        return items
+        return sorted(items, key=lambda x: x.name)
 
     def _browse_lib_audiobooks(self, current_path: str) -> Sequence[MediaItemType]:
         items = []
@@ -768,7 +777,29 @@ class Audiobookshelf(MusicProvider):
                 )
             )
 
-        return items
+        return sorted(items, key=lambda x: x.name)
+
+    async def _browse_narrators(
+        self, current_path: str, library_id: str
+    ) -> Sequence[MediaItemType]:
+        # filter_str = get_library_filter_string(
+        #     filter_group=AbsFilterGroup.NARRATORS, filter_value=narrator.name
+        # )
+        # no need for filter str, as id returned is already base64 + urlsafe
+        abs_narrators = await self._client.get_library_narrators(library_id=library_id)
+        items = []
+        for narrator in abs_narrators:
+            path = f"{current_path}/{narrator.id_}"
+            items.append(
+                BrowseFolder(
+                    item_id=narrator.id_,
+                    name=narrator.name,
+                    provider=self.lookup_key,
+                    path=path,
+                )
+            )
+
+        return sorted(items, key=lambda x: x.name)
 
     async def _browse_series(self, current_path: str, library_id: str) -> Sequence[MediaItemType]:
         items = []
@@ -786,7 +817,7 @@ class Audiobookshelf(MusicProvider):
                     )
                 )
 
-        return items
+        return sorted(items, key=lambda x: x.name)
 
     async def _browse_collections(
         self, current_path: str, library_id: str
@@ -805,7 +836,7 @@ class Audiobookshelf(MusicProvider):
                         path=path,
                     )
                 )
-        return items
+        return sorted(items, key=lambda x: x.name)
 
     async def _browse_books(self, library_id: str) -> Sequence[MediaItemType]:
         items = []
@@ -817,7 +848,7 @@ class Audiobookshelf(MusicProvider):
             )
             if mass_item is not None:
                 items.append(mass_item)
-        return items
+        return sorted(items, key=lambda x: x.name)
 
     async def _browse_author_books(
         self, current_path: str, author_id: str
@@ -855,6 +886,26 @@ class Audiobookshelf(MusicProvider):
                 items.append(mass_item)
 
         return items
+
+    async def _browse_narrator_books(
+        self, library_id: str, narrator_filter_str: str
+    ) -> Sequence[MediaItemType]:
+        items: list[MediaItemType] = []
+        async for response in self._client.get_library_items(
+            library_id=library_id, filter_str=f"narrators.{narrator_filter_str}"
+        ):
+            if not response.results:
+                break
+            for item in response.results:
+                mass_item = await self.mass.music.get_library_item_by_prov_id(
+                    media_type=MediaType.AUDIOBOOK,
+                    item_id=item.id_,
+                    provider_instance_id_or_domain=self.instance_id,
+                )
+                if mass_item is not None:
+                    items.append(mass_item)
+
+        return sorted(items, key=lambda x: x.name)
 
     async def _browse_series_books(self, series_id: str) -> Sequence[MediaItemType]:
         items = []
