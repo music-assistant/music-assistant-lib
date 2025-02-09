@@ -407,6 +407,7 @@ class ConfigController:
     async def remove_player_config(self, player_id: str) -> None:
         """Remove PlayerConfig."""
         conf_key = f"{CONF_PLAYERS}/{player_id}"
+        dsp_conf_key = f"{CONF_PLAYER_DSP}/{player_id}"
         existing = self.get(conf_key)
         if not existing:
             msg = f"Player configuration for {player_id} does not exist"
@@ -435,6 +436,8 @@ class ConfigController:
         self.mass.players.remove(player_id, cleanup_config=False)
         # remove the actual config if all of the above passed
         self.remove(conf_key)
+        # Also remove the DSP config if it exists
+        self.remove(dsp_conf_key)
 
     @api_command("config/players/dsp/get")
     def get_player_dsp_config(self, player_id: str) -> DSPConfig:
