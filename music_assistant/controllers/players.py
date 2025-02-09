@@ -376,8 +376,8 @@ class PlayerController(CoreController):
 
         # ungroup player at power off
         player_was_synced = player.synced_to is not None
-        if not powered:
-            # this will handle both synced players and group players
+        if player.type == PlayerType.PLAYER and not powered:
+            # ungroup player if it is synced (or is a sync leader itself)
             # NOTE: ungroup will be ignored if the player is not grouped or synced
             await self.cmd_ungroup(player_id)
 

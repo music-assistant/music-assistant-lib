@@ -419,7 +419,6 @@ class PlayerGroupProvider(PlayerProvider):
         else:
             # handle TURN_OFF of the group player by turning off all members
             # optimistically set the group state to prevent race conditions
-            # with the ungroup command
             group_player.powered = False
             for member in self.mass.players.iter_group_members(
                 group_player, only_powered=True, active_only=True
@@ -427,6 +426,9 @@ class PlayerGroupProvider(PlayerProvider):
                 # reset active group on player when the group is turned off
                 member.active_group = None
                 member.active_source = None
+                if member.synced_to:
+                    # always ungroup first
+                    await self.mass.players.cmd_ungroup(member.player_id)
                 # handle TURN_OFF of the group player by turning off all members
                 if member.powered and member.power_control != PLAYER_CONTROL_NONE:
                     await self.mass.players.cmd_power(member.player_id, False)

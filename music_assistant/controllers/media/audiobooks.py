@@ -78,7 +78,7 @@ class AudiobooksController(MediaControllerBase[Audiobook, Audiobook]):
         if search and len(result) < 25 and not offset:
             # append author items to result
             extra_query_parts = [
-                "WHERE audiobooks.authors LIKE :search OR audiobooks.name LIKE :search",
+                "WHERE audiobooks.authors LIKE :search or audiobooks.narrators LIKE :search",
             ]
             extra_query_params["search"] = f"%{search}%"
             return result + await self._get_library_items_by_query(

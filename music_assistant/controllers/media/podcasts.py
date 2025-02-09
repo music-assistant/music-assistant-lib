@@ -81,7 +81,7 @@ class PodcastsController(MediaControllerBase[Podcast, Podcast]):
         if search and len(result) < 25 and not offset:
             # append publisher items to result
             extra_query_parts = [
-                "WHERE podcasts.publisher LIKE :search OR podcasts.name LIKE :search",
+                "WHERE podcasts.publisher LIKE :search",
             ]
             extra_query_params["search"] = f"%{search}%"
             return result + await self._get_library_items_by_query(
