@@ -12,7 +12,7 @@ aiosqlite==0.20.0
 async-upnp-client==0.43.0
 audible==0.10.0
 bidict==0.23.1
-certifi==2024.12.14
+certifi==2025.1.31
 colorlog==6.9.0
 cryptography==44.0.0
 deezer-python-async==0.3.0
