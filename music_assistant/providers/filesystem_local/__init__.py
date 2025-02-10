@@ -724,7 +724,7 @@ class LocalFileSystemProvider(MusicProvider):
                 while line.startswith(parentpart):
                     if len(playlist_path) < 3:
                         break  # guard
-                    playlist_path = parentpart[:-3]
+                    playlist_path = os.path.dirname(playlist_path)
                     line = line[3:]
 
             # try to resolve the filename
