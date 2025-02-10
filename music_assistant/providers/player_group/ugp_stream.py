@@ -1,8 +1,9 @@
 """
 Implementation of a Stream for the Universal Group Player.
 
-Basically this is like a fake radio radio stream (MP3) format with multiple subscribers.
-The MP3 format is chosen because it is widely supported.
+Stream handler for Universal Groups, managing audio distribution to group members.
+Essentially, it multicasts an audio source to multiple client streams, allowing individual
+filter_params for each client.
 """
 
 from __future__ import annotations
@@ -25,8 +26,9 @@ class UGPStream:
     """
     Implementation of a Stream for the Universal Group Player.
 
-    Basically this is like a fake radio radio stream (MP3) format with multiple subscribers.
-    The MP3 format is chosen because it is widely supported.
+    Stream handler for Universal Groups, managing audio distribution to group members.
+    Essentially, it multicasts an audio source to multiple client streams, allowing individual
+    filter_params for each client.
     """
 
     def __init__(

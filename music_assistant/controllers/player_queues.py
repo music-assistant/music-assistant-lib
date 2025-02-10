@@ -1050,7 +1050,7 @@ class PlayerQueuesController(CoreController):
         # we do this every 30 seconds or when the state changes
         if (
             changed_keys.intersection({"state", "current_item_id", "next_item_id"})
-            or queue.elapsed_time % 30 == 0
+            or int(queue.elapsed_time) % 30 == 0
         ):
             self._handle_playback_progress_report(queue, prev_state, new_state)
 
