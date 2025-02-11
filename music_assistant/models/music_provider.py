@@ -310,6 +310,21 @@ class MusicProvider(Provider):
         if ProviderFeature.SIMILAR_TRACKS in self.supported_features:
             raise NotImplementedError
 
+    async def get_resume_position(self, item_id: str, media_type: MediaType) -> tuple[bool, int]:
+        """
+        Get progress (resume point) details for the given Audiobook or Podcast episode.
+
+        This is a separate call from the regular get_item call to ensure the resume position
+        is always up-to-date and because a lot providers have this info present on a dedicated
+        endpoint.
+
+        Will be called right before playback starts to ensure the resume position is correct.
+
+        Returns a boolean with the fully_played status
+        and an integer with the resume position in ms.
+        """
+        raise NotImplementedError
+
     async def get_stream_details(self, item_id: str, media_type: MediaType) -> StreamDetails:
         """Get streamdetails for a track/radio/chapter/episode."""
         raise NotImplementedError
@@ -631,27 +646,20 @@ class MusicProvider(Provider):
                         library_item = await controller.update_item_in_library(
                             library_item.item_id, prov_item
                         )
+                    # check if resume_position_ms or fully_played changed (audiobook only)
+                    resume_pos_prov = getattr(prov_item, "resume_position_ms", None)
+                    fully_played_prov = getattr(prov_item, "fully_played", None)
                     if (
-                        getattr(library_item, "resume_position_ms", None)
-                        != (resume_pos_prov := getattr(prov_item, "resume_position_ms", None))
-                        and resume_pos_prov is not None
-                    ):
-                        # resume_position_ms changed (audiobook only)
-                        library_item.resume_position_ms = resume_pos_prov
-                        library_item = await controller.update_item_in_library(
-                            library_item.item_id, prov_item
-                        )
-                    if (
-                        getattr(library_item, "fully_played", None)
-                        != (fully_played_prov := getattr(prov_item, "fully_played", None))
+                        resume_pos_prov is not None
                         and fully_played_prov is not None
+                        and (
+                            getattr(library_item, "resume_position_ms", None) != resume_pos_prov
+                            or getattr(library_item, "fully_played", None) != fully_played_prov
+                        )
                     ):
-                        # fully_played changed (audiobook only)
-                        library_item.fully_played = fully_played_prov
                         library_item = await controller.update_item_in_library(
                             library_item.item_id, prov_item
                         )
-                    cur_db_ids.add(library_item.item_id)
                     await asyncio.sleep(0)  # yield to eventloop
                 except MusicAssistantError as err:
                     self.logger.warning(
