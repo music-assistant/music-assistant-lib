@@ -6,6 +6,9 @@
   "codeowners": [
     "@fmunkes"
   ],
+  "requirements": [
+    "aioaudiobookshelf==0.1.0"
+  ],
   "documentation": "https://music-assistant.io/music-providers/audiobookshelf",
   "multi_instance": true
 }
