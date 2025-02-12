@@ -6,7 +6,7 @@ import asyncio
 from typing import TYPE_CHECKING, Any
 
 from music_assistant_models.enums import MediaType, ProviderFeature
-from music_assistant_models.errors import InvalidDataError
+from music_assistant_models.errors import InvalidDataError, MediaNotFoundError
 from music_assistant_models.media_items import Artist, Podcast, PodcastEpisode, UniqueList
 
 from music_assistant.constants import DB_TABLE_PLAYLOG, DB_TABLE_PODCASTS
@@ -102,9 +102,10 @@ class PodcastsController(MediaControllerBase[Podcast, Podcast]):
     ) -> UniqueList[PodcastEpisode]:
         """Return podcast episodes for the given provider podcast id."""
         # always check if we have a library item for this podcast
-        if library_podcast := await self.get_library_item_by_prov_id(
-            item_id, provider_instance_id_or_domain
-        ):
+        if provider_instance_id_or_domain == "library":
+            library_podcast = await self.get_library_item(item_id)
+            if not library_podcast:
+                raise MediaNotFoundError(f"Podcast {item_id} not found in library")
             for provider_mapping in library_podcast.provider_mappings:
                 item_id = provider_mapping.item_id
                 provider_instance_id_or_domain = provider_mapping.provider_instance
@@ -222,8 +223,10 @@ class PodcastsController(MediaControllerBase[Podcast, Podcast]):
 
         async def set_resume_position(episode: PodcastEpisode) -> None:
             if episode.fully_played is not None or episode.resume_position_ms:
+                # provider supports resume info, we can skip
                 return
-            # TODO: inject resume position info here for providers that do not natively provide it
+            # for providers that do not natively support providing resume info,
+            # we fallback to the playlog db table
             resume_info_db_row = await self.mass.music.database.get_row(
                 DB_TABLE_PLAYLOG,
                 {

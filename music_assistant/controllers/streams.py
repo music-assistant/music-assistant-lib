@@ -284,7 +284,7 @@ class StreamsController(CoreController):
                 )
                 raise web.HTTPNotFound(reason=f"No streamdetails for Queue item: {queue_item_id}")
         # work out output format/details
-        output_format = await self._get_output_format(
+        output_format = await self.get_output_format(
             output_format_str=request.match_info["fmt"],
             player=queue_player,
             default_sample_rate=queue_item.streamdetails.audio_format.sample_rate,
@@ -385,7 +385,7 @@ class StreamsController(CoreController):
         flow_pcm_format = await self._select_flow_format(queue_player)
 
         # work out output format/details
-        output_format = await self._get_output_format(
+        output_format = await self.get_output_format(
             output_format_str=request.match_info["fmt"],
             player=queue_player,
             default_sample_rate=flow_pcm_format.sample_rate,
@@ -890,7 +890,7 @@ class StreamsController(CoreController):
             request.headers,
         )
 
-    async def _get_output_format(
+    async def get_output_format(
         self,
         output_format_str: str,
         player: Player,

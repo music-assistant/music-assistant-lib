@@ -8,13 +8,14 @@ from music_assistant_models.enums import MediaType, ProviderFeature
 from music_assistant_models.errors import InvalidDataError
 from music_assistant_models.media_items import Artist, Audiobook, UniqueList
 
-from music_assistant.constants import DB_TABLE_AUDIOBOOKS
+from music_assistant.constants import DB_TABLE_AUDIOBOOKS, DB_TABLE_PLAYLOG
 from music_assistant.controllers.media.base import MediaControllerBase
 from music_assistant.helpers.compare import (
     compare_audiobook,
     compare_media_item,
     loose_compare_strings,
 )
+from music_assistant.helpers.datetime import utc_timestamp
 from music_assistant.helpers.json import serialize_to_json
 
 if TYPE_CHECKING:
@@ -45,8 +46,13 @@ class AudiobooksController(MediaControllerBase[Audiobook, Audiobook]):
                         'audio_format', json(provider_mappings.audio_format),
                         'url', provider_mappings.url,
                         'details', provider_mappings.details
-                )) FROM provider_mappings WHERE provider_mappings.item_id = audiobooks.item_id AND media_type = 'audiobook') AS provider_mappings
-            FROM audiobooks"""  # noqa: E501
+                )) FROM provider_mappings WHERE provider_mappings.item_id = audiobooks.item_id AND media_type = 'audiobook') AS provider_mappings,
+            playlog.fully_played AS fully_played,
+            playlog.seconds_played AS seconds_played,
+            playlog.seconds_played * 1000 as resume_position_ms
+            FROM audiobooks
+            LEFT JOIN playlog ON playlog.item_id = audiobooks.item_id AND playlog.media_type = 'audiobook'
+            """  # noqa: E501
         # register (extra) api handlers
         api_base = self.api_base
         self.mass.register_api_command(f"music/{api_base}/audiobook_versions", self.versions)
@@ -139,6 +145,7 @@ class AudiobooksController(MediaControllerBase[Audiobook, Audiobook]):
         # update/set provider_mappings table
         await self._set_provider_mappings(db_id, item.provider_mappings)
         self.logger.debug("added %s to database (id: %s)", item.name, db_id)
+        await self._set_playlog(db_id, item)
         return db_id
 
     async def _update_library_item(
@@ -180,6 +187,7 @@ class AudiobooksController(MediaControllerBase[Audiobook, Audiobook]):
         # update/set provider_mappings table
         await self._set_provider_mappings(db_id, provider_mappings, overwrite)
         self.logger.debug("updated %s in database: (id %s)", update.name, db_id)
+        await self._set_playlog(db_id, update)
 
     async def radio_mode_base_tracks(
         self,
@@ -250,3 +258,53 @@ class AudiobooksController(MediaControllerBase[Audiobook, Audiobook]):
                     db_audiobook.name,
                     provider.name,
                 )
+
+    async def _set_playlog(self, db_id: int, media_item: Audiobook) -> None:
+        """Update/set the playlog table for the given audiobook db item_id."""
+        # cleanup provider specific entries for this item
+        # we always prefer the library playlog entry
+        for prov_mapping in media_item.provider_mappings:
+            if not (provider := self.mass.get_provider(prov_mapping.provider_instance)):
+                continue
+            await self.mass.music.database.delete(
+                DB_TABLE_PLAYLOG,
+                {
+                    "media_type": self.media_type.value,
+                    "item_id": prov_mapping.item_id,
+                    "provider": provider.lookup_key,
+                },
+            )
+        if media_item.fully_played is None and media_item.resume_position_ms is None:
+            return
+        cur_entry = await self.mass.music.database.get_row(
+            DB_TABLE_PLAYLOG,
+            {
+                "media_type": self.media_type.value,
+                "item_id": db_id,
+                "provider": "library",
+            },
+        )
+        seconds_played = int(media_item.resume_position_ms or 0 / 1000)
+        # abort if nothing changed
+        if (
+            cur_entry
+            and cur_entry["fully_played"] == media_item.fully_played
+            and abs((cur_entry["seconds_played"] or 0) - seconds_played) > 2
+        ):
+            return
+        await self.mass.music.database.insert(
+            DB_TABLE_PLAYLOG,
+            {
+                "item_id": db_id,
+                "provider": "library",
+                "media_type": media_item.media_type.value,
+                "name": media_item.name,
+                "image": serialize_to_json(media_item.image.to_dict())
+                if media_item.image
+                else None,
+                "fully_played": media_item.fully_played,
+                "seconds_played": seconds_played,
+                "timestamp": utc_timestamp(),
+            },
+            allow_replace=True,
+        )

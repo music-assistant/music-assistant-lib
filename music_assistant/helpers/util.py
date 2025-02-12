@@ -301,15 +301,17 @@ def get_changed_keys(
     dict1: dict[str, Any],
     dict2: dict[str, Any],
     ignore_keys: list[str] | None = None,
+    recursive: bool = False,
 ) -> set[str]:
     """Compare 2 dicts and return set of changed keys."""
-    return set(get_changed_values(dict1, dict2, ignore_keys).keys())
+    return set(get_changed_values(dict1, dict2, ignore_keys, recursive).keys())
 
 
 def get_changed_values(
     dict1: dict[str, Any],
     dict2: dict[str, Any],
     ignore_keys: list[str] | None = None,
+    recursive: bool = False,
 ) -> dict[str, tuple[Any, Any]]:
     """
     Compare 2 dicts and return dict of changed values.
@@ -328,8 +330,12 @@ def get_changed_values(
             continue
         if key not in dict1:
             changed_values[key] = (None, value)
-        elif isinstance(value, dict):
-            changed_values.update(get_changed_values(dict1[key], value, ignore_keys))
+        elif isinstance(value, dict) or isinstance(dict1[key], dict):
+            changed_subvalues = get_changed_values(dict1[key], value, ignore_keys, recursive)
+            if recursive:
+                changed_values.update(changed_subvalues)
+            elif changed_subvalues:
+                changed_values[key] = (dict1[key], value)
         elif dict1[key] != value:
             changed_values[key] = (dict1[key], value)
     return changed_values

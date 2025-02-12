@@ -503,7 +503,7 @@ class PlayerGroupProvider(PlayerProvider):
         self.ugp_streams[player_id] = UGPStream(
             audio_source=audio_source, audio_format=UGP_FORMAT, base_pcm_format=UGP_FORMAT
         )
-        base_url = f"{self.mass.streams.base_url}/ugp/{player_id}.mp3"
+        base_url = f"{self.mass.streams.base_url}/ugp/{player_id}.flac"
 
         # set the state optimistically
         group_player.current_media = media
@@ -632,7 +632,7 @@ class PlayerGroupProvider(PlayerProvider):
         # handle resync/resume if group player was already playing
         if group_player.state == PlayerState.PLAYING and group_type == GROUP_TYPE_UNIVERSAL:
             child_player_provider = self.mass.players.get_player_provider(player_id)
-            base_url = f"{self.mass.streams.base_url}/ugp/{group_player.player_id}.mp3"
+            base_url = f"{self.mass.streams.base_url}/ugp/{group_player.player_id}.flac"
             await child_player_provider.play_media(
                 player_id,
                 media=PlayerMedia(
@@ -739,9 +739,15 @@ class PlayerGroupProvider(PlayerProvider):
             model_name = "Universal Group"
             manufacturer = self.name
             # register dynamic route for the ugp stream
-            route_path = f"/ugp/{group_player_id}.mp3"
             self._on_unload.append(
-                self.mass.streams.register_dynamic_route(route_path, self._serve_ugp_stream)
+                self.mass.streams.register_dynamic_route(
+                    f"/ugp/{group_player_id}.flac", self._serve_ugp_stream
+                )
+            )
+            self._on_unload.append(
+                self.mass.streams.register_dynamic_route(
+                    f"/ugp/{group_player_id}.mp3", self._serve_ugp_stream
+                )
             )
             can_group_with = {
                 # allow grouping with all providers, except the playergroup provider itself
@@ -891,10 +897,20 @@ class PlayerGroupProvider(PlayerProvider):
         """Serve the UGP (multi-client) flow stream audio to a player."""
         ugp_player_id = request.path.rsplit(".")[0].rsplit("/")[-1]
         child_player_id = request.query.get("player_id")  # optional!
+        output_format_str = request.path.rsplit(".")[-1]
 
-        # Right now we default to MP3 output format, since it's the most compatible
-        # TODO: use the player's preferred output format
-        output_format = AudioFormat(content_type=ContentType.MP3)
+        if child_player_id and (child_player := self.mass.players.get(child_player_id)):
+            # Use the preferred output format of the child player
+            output_format = await self.mass.streams.get_output_format(
+                output_format_str=output_format_str,
+                player=child_player,
+                default_sample_rate=UGP_FORMAT.sample_rate,
+                default_bit_depth=24,
+            )
+        elif output_format_str == "flac":
+            output_format = AudioFormat(content_type=ContentType.FLAC)
+        else:
+            output_format = AudioFormat(content_type=ContentType.MP3)
 
         if not (ugp_player := self.mass.players.get(ugp_player_id)):
             raise web.HTTPNotFound(reason=f"Unknown UGP player: {ugp_player_id}")
@@ -907,7 +923,7 @@ class PlayerGroupProvider(PlayerProvider):
         )
         headers = {
             **DEFAULT_STREAM_HEADERS,
-            "Content-Type": "audio/mp3",
+            "Content-Type": f"audio/{output_format_str}",
             "Accept-Ranges": "none",
             "Cache-Control": "no-cache",
             "Connection": "close",
