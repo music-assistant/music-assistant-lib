@@ -739,6 +739,8 @@ class LocalFileSystemProvider(MusicProvider):
                         file_item = await self.resolve(filename)
                         tags = await async_parse_tags(file_item.absolute_path, file_item.file_size)
                         return await self._parse_track(file_item, tags)
+            # all attempts failed
+            raise MediaNotFoundError("Invalid path/uri")
 
         except MusicAssistantError as err:
             self.logger.warning("Could not parse uri/file %s to track: %s", line, str(err))
