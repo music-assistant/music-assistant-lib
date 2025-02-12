@@ -48,6 +48,7 @@ from music_assistant.providers.audiobookshelf.parsers import (
 
 if TYPE_CHECKING:
     from aioaudiobookshelf.schema.events_socket import LibraryItemRemoved
+    from aioaudiobookshelf.schema.media_progress import MediaProgress
     from music_assistant_models.media_items import Audiobook, Podcast, PodcastEpisode
     from music_assistant_models.provider import ProviderManifest
 
@@ -602,6 +603,24 @@ class Audiobookshelf(MusicProvider):
                 extra_input_args=["-ss", str(seek_position_netto)] if seek_position_netto else [],
             ):
                 yield chunk
+
+    async def get_resume_position(self, item_id: str, media_type: MediaType) -> tuple[bool, int]:
+        """Return finished:bool, position_ms: int."""
+        progress: None | MediaProgress = None
+        if media_type == MediaType.PODCAST_EPISODE:
+            abs_podcast_id, abs_episode_id = item_id.split(" ")
+            progress = await self._client.get_my_media_progress(
+                item_id=abs_podcast_id, episode_id=abs_episode_id
+            )
+
+        if media_type == MediaType.AUDIOBOOK:
+            progress = await self._client.get_my_media_progress(item_id=item_id)
+
+        if progress is not None:
+            self.logger.debug("Resume position: obtained.")
+            return progress.is_finished, int(progress.current_time * 1000)
+
+        return False, 0
 
     async def on_played(
         self, media_type: MediaType, item_id: str, fully_played: bool, position: int
