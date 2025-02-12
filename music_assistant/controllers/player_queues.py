@@ -1838,7 +1838,16 @@ class PlayerQueuesController(CoreController):
             duration = item_to_report.streamdetails.duration
         else:
             duration = item_to_report.duration or 3600
-        fully_played = seconds_played >= (duration or 3600) - 5
+
+        # determine if item is fully played
+        # for podcasts and audiobooks we account for the last 60 seconds
+        if item_to_report.queue_item_id == prev_item_id and item_to_report.media_type in (
+            MediaType.AUDIOBOOK,
+            MediaType.PODCAST_EPISODE,
+        ):
+            fully_played = seconds_played >= (duration or 3 * 3600) - 60
+        else:
+            fully_played = seconds_played >= (duration or 3600) - 10
 
         self.logger.debug(
             "PlayerQueue %s playing/played item %s - fully_played: %s - progress: %s",

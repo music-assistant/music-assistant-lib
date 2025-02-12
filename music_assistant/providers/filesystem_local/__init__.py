@@ -8,7 +8,9 @@ import logging
 import os
 import os.path
 import time
+import urllib.parse
 from collections.abc import AsyncGenerator, Iterator, Sequence
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
 import aiofiles
@@ -673,6 +675,8 @@ class LocalFileSystemProvider(MusicProvider):
                 playlist_lines = parse_pls(playlist_data)
 
             for idx, playlist_line in enumerate(playlist_lines, 1):
+                if "#EXT" in playlist_line.path:
+                    continue
                 if track := await self._parse_playlist_line(
                     playlist_line.path, os.path.dirname(prov_playlist_id)
                 ):
@@ -718,24 +722,30 @@ class LocalFileSystemProvider(MusicProvider):
     async def _parse_playlist_line(self, line: str, playlist_path: str) -> Track | None:
         """Try to parse a track from a playlist line."""
         try:
-            # if a relative path was given in an upper level from the playlist,
-            # try to resolve it
-            for parentpart in ("../", "..\\"):
-                while line.startswith(parentpart):
-                    if len(playlist_path) < 3:
-                        break  # guard
-                    playlist_path = parentpart[:-3]
-                    line = line[3:]
-
-            # try to resolve the filename
-            for filename in (line, os.path.join(playlist_path, line)):
-                with contextlib.suppress(FileNotFoundError):
-                    file_item = await self.resolve(filename)
-                    tags = await async_parse_tags(file_item.absolute_path, file_item.file_size)
-                    return await self._parse_track(file_item, tags)
+            line = line.replace("file://", "").strip()
+            # try to resolve the filename (both normal and url decoded):
+            # - as an absolute path
+            # - relative to the playlist path
+            # - relative to our base path
+            # - relative to the playlist path with a leading slash
+            for _line in (line, urllib.parse.unquote(line)):
+                for filename in (
+                    # try to resolve the line as an absolute path
+                    _line,
+                    # try to resolve the line as a relative path to the playlist
+                    os.path.join(playlist_path, _line.removeprefix("/")),
+                    # try to resolve the line by resolving it against the absolute playlist path
+                    (Path(self.get_absolute_path(playlist_path)) / _line).resolve().as_posix(),
+                ):
+                    with contextlib.suppress(FileNotFoundError):
+                        file_item = await self.resolve(filename)
+                        tags = await async_parse_tags(file_item.absolute_path, file_item.file_size)
+                        return await self._parse_track(file_item, tags)
+            # all attempts failed
+            raise MediaNotFoundError("Invalid path/uri")
 
         except MusicAssistantError as err:
-            self.logger.warning("Could not parse uri/file %s to track: %s", line, str(err))
+            self.logger.warning("Could not parse %s to track: %s", line, str(err))
 
         return None
 

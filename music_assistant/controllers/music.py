@@ -890,7 +890,7 @@ class MusicController(CoreController):
         ctrl = self.get_controller(media_item.media_type)
         db_item = await ctrl.get_library_item_by_prov_id(media_item.item_id, media_item.provider)
         if db_item:
-            await self.database.update(
+            await self.database.execute(
                 f"UPDATE {ctrl.db_table} SET play_count = play_count - 1, "
                 f"last_played = 0 WHERE item_id = {db_item.item_id}"
             )
