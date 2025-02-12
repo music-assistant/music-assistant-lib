@@ -734,10 +734,10 @@ class LocalFileSystemProvider(MusicProvider):
             # - relative to our base path
             for filename in (
                 line,
-                os.path.join(playlist_path, line),
+                os.path.join(playlist_path, line.removeprefix("/")),
                 # also try with url decoding the line as e.g. VLC seems to encode some characters
                 urllib.parse.unquote(line),
-                os.path.join(playlist_path, urllib.parse.unquote(line)),
+                os.path.join(playlist_path, urllib.parse.unquote(line.removeprefix("/"))),
             ):
                 with contextlib.suppress(FileNotFoundError):
                     file_item = await self.resolve(filename)
