@@ -721,28 +721,24 @@ class LocalFileSystemProvider(MusicProvider):
         """Try to parse a track from a playlist line."""
         try:
             line = line.replace("file://", "").strip()
-
-            # handle relative paths in a level which is above the playlist itself
-            if ".." in line:
-                abs_playlist_path = self.get_absolute_path(playlist_path)
-                line = (Path(abs_playlist_path) / line).resolve().as_posix()
-
-            # try to resolve the filename
-            # we try to resolve the playlist line from a few perspectives:
+            # try to resolve the filename (both normal and url decoded):
             # - as an absolute path
             # - relative to the playlist path
             # - relative to our base path
-            for filename in (
-                line,
-                os.path.join(playlist_path, line.removeprefix("/")),
-                # also try with url decoding the line as e.g. VLC seems to encode some characters
-                urllib.parse.unquote(line),
-                os.path.join(playlist_path, urllib.parse.unquote(line.removeprefix("/"))),
-            ):
-                with contextlib.suppress(FileNotFoundError):
-                    file_item = await self.resolve(filename)
-                    tags = await async_parse_tags(file_item.absolute_path, file_item.file_size)
-                    return await self._parse_track(file_item, tags)
+            # - relative to the playlist path with a leading slash
+            for _line in (line, urllib.parse.unquote(line)):
+                for filename in (
+                    # try to resolve the line as an absolute path
+                    _line,
+                    # try to resolve the line as a relative path to the playlist
+                    os.path.join(playlist_path, _line.removeprefix("/")),
+                    # try to resolve the line by resolving it against the absolute playlist path
+                    (Path(self.get_absolute_path(playlist_path)) / _line).resolve().as_posix(),
+                ):
+                    with contextlib.suppress(FileNotFoundError):
+                        file_item = await self.resolve(filename)
+                        tags = await async_parse_tags(file_item.absolute_path, file_item.file_size)
+                        return await self._parse_track(file_item, tags)
 
         except MusicAssistantError as err:
             self.logger.warning("Could not parse uri/file %s to track: %s", line, str(err))
