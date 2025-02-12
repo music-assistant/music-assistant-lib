@@ -8,7 +8,9 @@ import logging
 import os
 import os.path
 import time
+import urllib.parse
 from collections.abc import AsyncGenerator, Iterator, Sequence
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
 import aiofiles
@@ -718,17 +720,25 @@ class LocalFileSystemProvider(MusicProvider):
     async def _parse_playlist_line(self, line: str, playlist_path: str) -> Track | None:
         """Try to parse a track from a playlist line."""
         try:
-            # if a relative path was given in an upper level from the playlist,
-            # try to resolve it
-            for parentpart in ("../", "..\\"):
-                while line.startswith(parentpart):
-                    if len(playlist_path) < 3:
-                        break  # guard
-                    playlist_path = os.path.dirname(playlist_path)
-                    line = line[3:]
+            line = line.replace("file://", "").strip()
+
+            # handle relative paths in a level which is above the playlist itself
+            if ".." in line:
+                abs_playlist_path = self.get_absolute_path(playlist_path)
+                line = (Path(abs_playlist_path) / line).resolve().as_posix()
 
             # try to resolve the filename
-            for filename in (line, os.path.join(playlist_path, line)):
+            # we try to resolve the playlist line from a few perspectives:
+            # - as an absolute path
+            # - relative to the playlist path
+            # - relative to our base path
+            for filename in (
+                line,
+                os.path.join(playlist_path, line),
+                # also try with url decoding the line as e.g. VLC seems to encode some characters
+                urllib.parse.unquote(line),
+                os.path.join(playlist_path, urllib.parse.unquote(line)),
+            ):
                 with contextlib.suppress(FileNotFoundError):
                     file_item = await self.resolve(filename)
                     tags = await async_parse_tags(file_item.absolute_path, file_item.file_size)
