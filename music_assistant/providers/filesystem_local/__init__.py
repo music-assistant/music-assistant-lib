@@ -675,6 +675,8 @@ class LocalFileSystemProvider(MusicProvider):
                 playlist_lines = parse_pls(playlist_data)
 
             for idx, playlist_line in enumerate(playlist_lines, 1):
+                if "#EXT" in playlist_line.path:
+                    continue
                 if track := await self._parse_playlist_line(
                     playlist_line.path, os.path.dirname(prov_playlist_id)
                 ):
@@ -743,7 +745,7 @@ class LocalFileSystemProvider(MusicProvider):
             raise MediaNotFoundError("Invalid path/uri")
 
         except MusicAssistantError as err:
-            self.logger.warning("Could not parse uri/file %s to track: %s", line, str(err))
+            self.logger.warning("Could not parse %s to track: %s", line, str(err))
 
         return None
 
