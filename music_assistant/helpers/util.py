@@ -535,6 +535,11 @@ def merge_lists(base: list[Any], new: list[Any]) -> list[Any]:
     return [x for x in base if x not in new] + list(new)
 
 
+def percentage(part: float, whole: float) -> int:
+    """Calculate percentage."""
+    return int(100 * float(part) / float(whole))
+
+
 class TaskManager:
     """
     Helper class to run many tasks at once.

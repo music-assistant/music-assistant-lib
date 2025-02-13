@@ -31,6 +31,7 @@ from music_assistant_models.media_items import (
     BrowseFolder,
     ItemMapping,
     MediaItemType,
+    MediaItemTypeOrItemMapping,
     SearchResults,
 )
 from music_assistant_models.provider import SyncTask
@@ -541,12 +542,20 @@ class MusicController(CoreController):
         if media_type == MediaType.PODCAST_EPISODE:
             # special case for podcast episodes
             return await self.podcasts.episode(item_id, provider_instance_id_or_domain)
+        if media_type == MediaType.FOLDER:
+            # special case for folders
+            return BrowseFolder(
+                item_id=item_id,
+                provider=provider_instance_id_or_domain,
+                name=item_id,
+            )
         ctrl = self.get_controller(media_type)
         return await ctrl.get(
             item_id=item_id,
             provider_instance_id_or_domain=provider_instance_id_or_domain,
         )
 
+    @api_command("music/get_library_item")
     async def get_library_item_by_prov_id(
         self,
         media_type: MediaType,
@@ -563,7 +572,7 @@ class MusicController(CoreController):
     @api_command("music/favorites/add_item")
     async def add_item_to_favorites(
         self,
-        item: str | MediaItemType,
+        item: str | MediaItemTypeOrItemMapping,
     ) -> None:
         """Add an item to the favorites."""
         if isinstance(item, str):
@@ -794,7 +803,7 @@ class MusicController(CoreController):
     @api_command("music/mark_played")
     async def mark_item_played(
         self,
-        media_item: MediaItemType | ItemMapping,
+        media_item: MediaItemTypeOrItemMapping,
         fully_played: bool = True,
         seconds_played: int | None = None,
     ) -> None:
@@ -863,7 +872,7 @@ class MusicController(CoreController):
     @api_command("music/mark_unplayed")
     async def mark_item_unplayed(
         self,
-        media_item: MediaItemType | ItemMapping,
+        media_item: MediaItemTypeOrItemMapping,
     ) -> None:
         """Mark item as unplayed in playlog."""
         # update generic playlog table

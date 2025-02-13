@@ -35,7 +35,7 @@ from music_assistant_models.media_items import (
     ItemMapping,
     MediaItemChapter,
     MediaItemImage,
-    MediaItemType,
+    MediaItemTypeOrItemMapping,
     Playlist,
     Podcast,
     PodcastEpisode,
@@ -249,16 +249,17 @@ class LocalFileSystemProvider(MusicProvider):
             )
         return result
 
-    async def browse(self, path: str) -> Sequence[MediaItemType | ItemMapping]:
+    async def browse(self, path: str) -> Sequence[MediaItemTypeOrItemMapping]:
         """Browse this provider's items.
 
         :param path: The path to browse, (e.g. provid://artists).
         """
-        if self.media_content_type in ("audiobooks", "podcasts"):
-            # for audiobooks and podcasts just use the default implementation
-            # so we dont have to deal with multi-part audiobooks and podcast episodes
-            return await super().browse(path)
-        items: list[MediaItemType | ItemMapping] = []
+        # for audiobooks and podcasts we just return all library items
+        if self.media_content_type == "podcasts":
+            return await self.mass.music.podcasts.library_items(provider=self.instance_id)
+        if self.media_content_type == "audiobooks":
+            return await self.mass.music.audiobooks.library_items(provider=self.instance_id)
+        items: list[MediaItemTypeOrItemMapping] = []
         item_path = path.split("://", 1)[1]
         if not item_path:
             item_path = ""
@@ -275,6 +276,8 @@ class LocalFileSystemProvider(MusicProvider):
                         provider=self.instance_id,
                         path=f"{self.instance_id}://{item.relative_path}",
                         name=item.filename,
+                        # mark folder as playable, assuming it contains tracks underneath
+                        is_playable=True,
                     )
                 )
             elif item.ext in TRACK_EXTENSIONS:

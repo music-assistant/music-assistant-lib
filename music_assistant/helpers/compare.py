@@ -14,7 +14,7 @@ from music_assistant_models.media_items import (
     ItemMapping,
     MediaItem,
     MediaItemMetadata,
-    MediaItemType,
+    MediaItemTypeOrItemMapping,
     Playlist,
     Podcast,
     Radio,
@@ -30,8 +30,8 @@ IGNORE_VERSIONS = (
 
 
 def compare_media_item(
-    base_item: MediaItemType | ItemMapping,
-    compare_item: MediaItemType | ItemMapping,
+    base_item: MediaItemTypeOrItemMapping,
+    compare_item: MediaItemTypeOrItemMapping,
     strict: bool = True,
 ) -> bool | None:
     """Compare two media items and return True if they match."""

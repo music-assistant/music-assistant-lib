@@ -11,6 +11,8 @@ from enum import Enum
 from types import NoneType, UnionType
 from typing import Any, TypeVar, Union, get_args, get_origin, get_type_hints
 
+from mashumaro.exceptions import MissingField
+
 LOGGER = logging.getLogger(__name__)
 
 _F = TypeVar("_F", bound=Callable[..., Any])
@@ -88,7 +90,11 @@ def parse_utc_timestamp(datetime_string: str) -> datetime:
 def parse_value(name: str, value: Any, value_type: Any, default: Any = MISSING) -> Any:
     """Try to parse a value from raw (json) data and type annotations."""
     if isinstance(value, dict) and hasattr(value_type, "from_dict"):
-        if "media_type" in value and value["media_type"] != value_type.media_type:
+        if (
+            "media_type" in value
+            and value_type.__name__ != "ItemMapping"
+            and value["media_type"] != value_type.media_type
+        ):
             msg = "Invalid MediaType"
             raise ValueError(msg)
         return value_type.from_dict(value)
@@ -122,7 +128,7 @@ def parse_value(name: str, value: Any, value_type: Any, default: Any = MISSING) 
             # try them all until one succeeds
             try:
                 return parse_value(name, value, sub_arg_type)
-            except (KeyError, TypeError, ValueError):
+            except (KeyError, TypeError, ValueError, MissingField):
                 pass
         # if we get to this point, all possibilities failed
         # find out if we should raise or log this

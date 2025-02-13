@@ -13,8 +13,8 @@ from music_assistant_models.media_items import (
     Artist,
     Audiobook,
     BrowseFolder,
-    ItemMapping,
     MediaItemType,
+    MediaItemTypeOrItemMapping,
     Playlist,
     Podcast,
     PodcastEpisode,
@@ -82,45 +82,38 @@ class MusicProvider(Provider):
 
     async def get_library_artists(self) -> AsyncGenerator[Artist, None]:
         """Retrieve library artists from the provider."""
-        if ProviderFeature.LIBRARY_ARTISTS in self.supported_features:
-            raise NotImplementedError
-        yield  # type: ignore
+        yield
+        raise NotImplementedError
 
     async def get_library_albums(self) -> AsyncGenerator[Album, None]:
         """Retrieve library albums from the provider."""
-        if ProviderFeature.LIBRARY_ALBUMS in self.supported_features:
-            raise NotImplementedError
-        yield  # type: ignore
+        yield
+        raise NotImplementedError
 
     async def get_library_tracks(self) -> AsyncGenerator[Track, None]:
         """Retrieve library tracks from the provider."""
-        if ProviderFeature.LIBRARY_TRACKS in self.supported_features:
-            raise NotImplementedError
-        yield  # type: ignore
+        yield
+        raise NotImplementedError
 
     async def get_library_playlists(self) -> AsyncGenerator[Playlist, None]:
         """Retrieve library/subscribed playlists from the provider."""
-        if ProviderFeature.LIBRARY_PLAYLISTS in self.supported_features:
-            raise NotImplementedError
-        yield  # type: ignore
+        yield
+        raise NotImplementedError
 
     async def get_library_radios(self) -> AsyncGenerator[Radio, None]:
         """Retrieve library/subscribed radio stations from the provider."""
-        if ProviderFeature.LIBRARY_RADIOS in self.supported_features:
-            raise NotImplementedError
-        yield  # type: ignore
+        yield
+        raise NotImplementedError
 
     async def get_library_audiobooks(self) -> AsyncGenerator[Audiobook, None]:
         """Retrieve library/subscribed audiobooks from the provider."""
-        if ProviderFeature.LIBRARY_AUDIOBOOKS in self.supported_features:
-            raise NotImplementedError
-        yield  # type: ignore
+        yield
+        raise NotImplementedError
 
     async def get_library_podcasts(self) -> AsyncGenerator[Podcast, None]:
         """Retrieve library/subscribed podcasts from the provider."""
-        if ProviderFeature.LIBRARY_AUDIOBOOKS in self.supported_features:
-            raise NotImplementedError
-        yield  # type: ignore
+        yield
+        raise NotImplementedError
 
     async def get_artist(self, prov_artist_id: str) -> Artist:
         """Get full artist details by id."""
@@ -404,7 +397,7 @@ class MusicProvider(Provider):
             return await self.get_podcast_episode(prov_item_id)
         return await self.get_track(prov_item_id)
 
-    async def browse(self, path: str) -> Sequence[MediaItemType | ItemMapping]:  # noqa: PLR0915
+    async def browse(self, path: str) -> Sequence[MediaItemTypeOrItemMapping]:  # noqa: PLR0911, PLR0915
         """Browse this provider's items.
 
         :param path: The path to browse, (e.g. provider_id://artists).
@@ -416,14 +409,14 @@ class MusicProvider(Provider):
         subpath = path.split("://", 1)[1]
         # this reference implementation can be overridden with a provider specific approach
         if subpath == "artists":
-            library_items = await self.mass.cache.get(
+            library_item_ids = await self.mass.cache.get(
                 "artist",
                 category=CacheCategory.LIBRARY_ITEMS,
                 base_key=self.instance_id,
             )
-            if library_items is None:
-                return await self.mass.music.artists.library_items(provider=self.instance_id)
-            library_items = cast(list[int], library_items)
+            if not library_item_ids:
+                return [x async for x in self.get_library_artists()]
+            library_items = cast(list[int], library_item_ids)
             query = "artists.item_id in :ids"
             query_params = {"ids": library_items}
             return await self.mass.music.artists.library_items(
@@ -432,86 +425,86 @@ class MusicProvider(Provider):
                 extra_query_params=query_params,
             )
         if subpath == "albums":
-            library_items = await self.mass.cache.get(
+            library_item_ids = await self.mass.cache.get(
                 "album",
                 category=CacheCategory.LIBRARY_ITEMS,
                 base_key=self.instance_id,
             )
-            if library_items is None:
-                return await self.mass.music.albums.library_items(provider=self.instance_id)
-            library_items = cast(list[int], library_items)
+            if not library_item_ids:
+                return [x async for x in self.get_library_albums()]
+            library_item_ids = cast(list[int], library_item_ids)
             query = "albums.item_id in :ids"
-            query_params = {"ids": library_items}
+            query_params = {"ids": library_item_ids}
             return await self.mass.music.albums.library_items(
                 extra_query=query, extra_query_params=query_params
             )
         if subpath == "tracks":
-            library_items = await self.mass.cache.get(
+            library_item_ids = await self.mass.cache.get(
                 "track",
                 category=CacheCategory.LIBRARY_ITEMS,
                 base_key=self.instance_id,
             )
-            if library_items is None:
-                return await self.mass.music.tracks.library_items(provider=self.instance_id)
-            library_items = cast(list[int], library_items)
+            if not library_item_ids:
+                return [x async for x in self.get_library_tracks()]
+            library_item_ids = cast(list[int], library_item_ids)
             query = "tracks.item_id in :ids"
             query_params = {"ids": library_items}
             return await self.mass.music.tracks.library_items(
                 extra_query=query, extra_query_params=query_params
             )
         if subpath == "radios":
-            library_items = await self.mass.cache.get(
+            library_item_ids = await self.mass.cache.get(
                 "radio",
                 category=CacheCategory.LIBRARY_ITEMS,
                 base_key=self.instance_id,
             )
-            if library_items is None:
-                return await self.mass.music.radio.library_items(provider=self.instance_id)
-            library_items = cast(list[int], library_items)
+            if not library_item_ids:
+                return [x async for x in self.get_library_radios()]
+            library_item_ids = cast(list[int], library_item_ids)
             query = "radios.item_id in :ids"
-            query_params = {"ids": library_items}
+            query_params = {"ids": library_item_ids}
             return await self.mass.music.radio.library_items(
                 extra_query=query, extra_query_params=query_params
             )
         if subpath == "playlists":
-            library_items = await self.mass.cache.get(
+            library_item_ids = await self.mass.cache.get(
                 "playlist",
                 category=CacheCategory.LIBRARY_ITEMS,
                 base_key=self.instance_id,
             )
-            if library_items is None:
-                return await self.mass.music.playlists.library_items(provider=self.instance_id)
-            library_items = cast(list[int], library_items)
+            if not library_item_ids:
+                return [x async for x in self.get_library_playlists()]
+            library_item_ids = cast(list[int], library_item_ids)
             query = "playlists.item_id in :ids"
-            query_params = {"ids": library_items}
+            query_params = {"ids": library_item_ids}
             return await self.mass.music.playlists.library_items(
                 extra_query=query, extra_query_params=query_params
             )
         if subpath == "audiobooks":
-            library_items = await self.mass.cache.get(
+            library_item_ids = await self.mass.cache.get(
                 "audiobook",
                 category=CacheCategory.LIBRARY_ITEMS,
                 base_key=self.instance_id,
             )
-            if library_items is None:
-                return await self.mass.music.audiobooks.library_items(provider=self.instance_id)
-            library_items = cast(list[int], library_items)
+            if not library_item_ids:
+                return [x async for x in self.get_library_audiobooks()]
+            library_item_ids = cast(list[int], library_item_ids)
             query = "audiobooks.item_id in :ids"
-            query_params = {"ids": library_items}
+            query_params = {"ids": library_item_ids}
             return await self.mass.music.audiobooks.library_items(
                 extra_query=query, extra_query_params=query_params
             )
         if subpath == "podcasts":
-            library_items = await self.mass.cache.get(
+            library_item_ids = await self.mass.cache.get(
                 "podcast",
                 category=CacheCategory.LIBRARY_ITEMS,
                 base_key=self.instance_id,
             )
-            if library_items is None:
-                return await self.mass.music.podcasts.library_items(provider=self.instance_id)
-            library_items = cast(list[int], library_items)
+            if not library_item_ids:
+                return [x async for x in self.get_library_podcasts()]
+            library_item_ids = cast(list[int], library_item_ids)
             query = "podcasts.item_id in :ids"
-            query_params = {"ids": library_items}
+            query_params = {"ids": library_item_ids}
             return await self.mass.music.podcasts.library_items(
                 extra_query=query, extra_query_params=query_params
             )
@@ -526,20 +519,22 @@ class MusicProvider(Provider):
             items.append(
                 BrowseFolder(
                     item_id="artists",
-                    provider=self.domain,
+                    provider=self.instance_id,
                     path=path + "artists",
                     name="",
                     label="artists",
+                    is_playable=True,
                 )
             )
         if ProviderFeature.LIBRARY_ALBUMS in self.supported_features:
             items.append(
                 BrowseFolder(
                     item_id="albums",
-                    provider=self.domain,
+                    provider=self.instance_id,
                     path=path + "albums",
                     name="",
                     label="albums",
+                    is_playable=True,
                 )
             )
         if ProviderFeature.LIBRARY_TRACKS in self.supported_features:
@@ -550,23 +545,25 @@ class MusicProvider(Provider):
                     path=path + "tracks",
                     name="",
                     label="tracks",
+                    is_playable=True,
                 )
             )
         if ProviderFeature.LIBRARY_PLAYLISTS in self.supported_features:
             items.append(
                 BrowseFolder(
                     item_id="playlists",
-                    provider=self.domain,
+                    provider=self.instance_id,
                     path=path + "playlists",
                     name="",
                     label="playlists",
+                    is_playable=True,
                 )
             )
         if ProviderFeature.LIBRARY_RADIOS in self.supported_features:
             items.append(
                 BrowseFolder(
                     item_id="radios",
-                    provider=self.domain,
+                    provider=self.instance_id,
                     path=path + "radios",
                     name="",
                     label="radios",
@@ -576,7 +573,7 @@ class MusicProvider(Provider):
             items.append(
                 BrowseFolder(
                     item_id="audiobooks",
-                    provider=self.domain,
+                    provider=self.instance_id,
                     path=path + "audiobooks",
                     name="",
                     label="audiobooks",
@@ -586,12 +583,15 @@ class MusicProvider(Provider):
             items.append(
                 BrowseFolder(
                     item_id="podcasts",
-                    provider=self.domain,
+                    provider=self.instance_id,
                     path=path + "podcasts",
                     name="",
                     label="podcasts",
                 )
             )
+        if len(items) == 1:
+            # only one level, return the items directly
+            return await self.browse(items[0].path)
         return items
 
     async def recommendations(self) -> list[MediaItemType]:

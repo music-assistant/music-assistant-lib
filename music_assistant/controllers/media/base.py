@@ -21,6 +21,7 @@ from music_assistant_models.media_items import (
     Album,
     ItemMapping,
     MediaItemType,
+    MediaItemTypeOrItemMapping,
     ProviderMapping,
     SearchResults,
     Track,
@@ -35,7 +36,7 @@ if TYPE_CHECKING:
 
     from music_assistant import MusicAssistant
 
-MediaItemTypeBound = MediaItemType | ItemMapping
+MediaItemTypeBound = MediaItemTypeOrItemMapping
 ItemCls = TypeVar("ItemCls", bound="MediaItemType")
 LibraryUpdate = TypeVar("LibraryUpdate", bound="MediaItemTypeBound")
 

@@ -272,6 +272,7 @@ class HomeAssistantPlayers(PlayerProvider):
         if player := self.mass.players.get(player_id):
             player.elapsed_time = 0
             player.elapsed_time_last_updated = time.time()
+            player.current_media = media
 
     async def play_announcement(
         self, player_id: str, announcement: PlayerMedia, volume_level: int | None = None
