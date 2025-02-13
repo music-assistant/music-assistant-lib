@@ -62,7 +62,6 @@ CONF_VERIFY_SSL = "verify_ssl"
 # optionally hide podcasts with no episodes
 CONF_HIDE_EMPTY_PODCASTS = "hide_empty_podcasts"
 
-CACHE_BASE_KEY_PREFIX = "audiobookshelf"
 # cache category for an abs podcast
 CACHE_CATEGORY_PODCASTS = 0
 # cache category for an abs audiobook
@@ -229,7 +228,7 @@ class Audiobookshelf(MusicProvider):
         except AbsLoginError as exc:
             raise LoginFailed(f"Login to abs instance at {base_url} failed.") from exc
 
-        self.cache_base_key = f"{CACHE_BASE_KEY_PREFIX}_{self.lookup_key}"
+        self.cache_base_key = self.instance_id
 
         cached_libraries = await self.mass.cache.get(
             key=CACHE_KEY_LIBRARIES,
