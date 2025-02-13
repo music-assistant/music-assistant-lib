@@ -202,7 +202,7 @@ def parse_audiobook(
         authors = UniqueList([x.name for x in abs_audiobook.media.metadata.authors])
         narrators: UniqueList[str] = UniqueList(abs_audiobook.media.metadata.narrators)
         mass_audiobook.authors.set([x.name for x in abs_audiobook.media.metadata.authors])
-        mass_audiobook.narrators = narrators
+        mass_audiobook.narrators.set(abs_audiobook.media.metadata.narrators)
         chapters = []
         for idx, chapter in enumerate(abs_audiobook.media.chapters):
             chapters.append(
