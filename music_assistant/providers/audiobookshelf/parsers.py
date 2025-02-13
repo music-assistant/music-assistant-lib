@@ -204,10 +204,10 @@ def parse_audiobook(
         mass_audiobook.authors.set([x.name for x in abs_audiobook.media.metadata.authors])
         mass_audiobook.narrators.set(abs_audiobook.media.metadata.narrators)
         chapters = []
-        for idx, chapter in enumerate(abs_audiobook.media.chapters):
+        for idx, chapter in enumerate(abs_audiobook.media.chapters, 1):
             chapters.append(
                 MediaItemChapter(
-                    position=idx + 1,  # chapter starting at 1
+                    position=idx,
                     name=chapter.title,
                     start=chapter.start,
                     end=chapter.end,
