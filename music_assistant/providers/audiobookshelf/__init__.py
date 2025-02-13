@@ -581,9 +581,7 @@ class Audiobookshelf(MusicProvider):
         """
         Return the (custom) audio stream for the provider item.
 
-        Only used for multi-file audiobooks, copy of Marcel's code
-        in the filesystem provider, only cosmetic (iter audioformat)
-        adjustments.
+        Only used for multi-file audiobooks.
         """
         stream_data: list[tuple[AudioFormat, str, float]] = streamdetails.data
         total_duration = 0.0
