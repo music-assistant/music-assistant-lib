@@ -507,8 +507,6 @@ class Audiobookshelf(MusicProvider):
                 item_id=abs_audiobook.id_,
                 # for the concatanated stream, we need to use a pcm stream format
                 audio_format=AudioFormat(
-                    # values recommended by Marcel (some are default, but
-                    # nonetheless given here.
                     content_type=ContentType.PCM_S16LE,
                     sample_rate=44100,
                     bit_depth=16,
