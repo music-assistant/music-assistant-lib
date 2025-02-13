@@ -216,8 +216,8 @@ def parse_audiobook(
         mass_audiobook.metadata.chapters = chapters
 
     elif isinstance(abs_audiobook, AbsLibraryItemMinifiedBook):
-        mass_audiobook.authors = UniqueList([abs_audiobook.media.metadata.author_name])
-        mass_audiobook.narrators = UniqueList([abs_audiobook.media.metadata.narrator_name])
+        mass_audiobook.authors.set([abs_audiobook.media.metadata.author_name])
+        mass_audiobook.narrators.set([abs_audiobook.media.metadata.narrator_name])
 
     if media_progress is not None:
         mass_audiobook.resume_position_ms = int(media_progress.current_time * 1000)
