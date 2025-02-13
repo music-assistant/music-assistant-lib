@@ -803,10 +803,6 @@ class Audiobookshelf(MusicProvider):
     async def _browse_narrators(
         self, current_path: str, library_id: str
     ) -> Sequence[MediaItemTypeOrItemMapping]:
-        # filter_str = get_library_filter_string(
-        #     filter_group=AbsFilterGroup.NARRATORS, filter_value=narrator.name
-        # )
-        # no need for filter str, as id returned is already base64 + urlsafe
         abs_narrators = await self._client.get_library_narrators(library_id=library_id)
         items = []
         for narrator in abs_narrators:
