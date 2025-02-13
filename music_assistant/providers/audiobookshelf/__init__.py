@@ -269,12 +269,16 @@ class Audiobookshelf(MusicProvider):
     async def sync_library(self, media_types: tuple[MediaType, ...]) -> None:
         """Obtain audiobook library ids and podcast library ids."""
         libraries = await self._client.get_all_libraries()
-        # we can overwrite all libs with empty ids here, as they are directly
-        # filled afterwards again.
         for library in libraries:
-            if library.media_type == AbsLibraryMediaType.BOOK:
+            if (
+                library.media_type == AbsLibraryMediaType.BOOK
+                and MediaType.AUDIOBOOK in media_types
+            ):
                 self.libraries.audiobooks[library.id_] = LibraryHelper(name=library.name)
-            elif library.media_type == AbsLibraryMediaType.PODCAST:
+            elif (
+                library.media_type == AbsLibraryMediaType.PODCAST
+                and MediaType.PODCAST in media_types
+            ):
                 self.libraries.podcasts[library.id_] = LibraryHelper(name=library.name)
         await super().sync_library(media_types=media_types)
         await self._cache_set_helper_libraries()
