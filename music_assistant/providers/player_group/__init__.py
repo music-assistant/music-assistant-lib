@@ -628,11 +628,10 @@ class PlayerGroupProvider(PlayerProvider):
             raise InvalidDataError(
                 f"Player {child_player.display_name} already has another group active"
             )
-        if len(child_player.group_childs) > 0 or child_player.synced_to:
-            raise InvalidDataError(
-                f"Player {child_player.display_name} is already part of another group"
-            )
         group_player.group_childs.append(player_id)
+
+        # Ensure that all player are just in this group and not in any other group
+        await self._ungroup_subgroups_if_found(group_player)
 
         # handle resync/resume if group player was already playing
         if group_player.state == PlayerState.PLAYING and group_type == GROUP_TYPE_UNIVERSAL:
