@@ -903,6 +903,7 @@ class PlayerGroupProvider(PlayerProvider):
             player.player_id, CONF_ENTRY_GROUP_TYPE.key, CONF_ENTRY_GROUP_TYPE.default_value
         )
         if group_type == GROUP_TYPE_UNIVERSAL:
+            changed = False
             # Verify that no player is part of a separate group
             for child_player_id in player.group_childs:
                 child_player = self.mass.players.get(child_player_id)
@@ -915,9 +916,14 @@ class PlayerGroupProvider(PlayerProvider):
                         if sync_child_id == child_player_id:
                             continue
                         await player_provider.cmd_ungroup(sync_child_id)
+                        changed = True
                 if child_player.synced_to:
                     # This is a member of another group
                     await self.cmd_ungroup_member(child_player.player_id, child_player.synced_to)
+                    changed = True
+            if changed and player.state == PlayerState.PLAYING:
+                # Restart playback to ensure all members play the same content
+                await self.mass.player_queues.resume(player.player_id)
 
     async def _serve_ugp_stream(self, request: web.Request) -> web.Response:
         """Serve the UGP (multi-client) flow stream audio to a player."""
