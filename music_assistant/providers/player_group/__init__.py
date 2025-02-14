@@ -551,6 +551,7 @@ class PlayerGroupProvider(PlayerProvider):
         """
         if group_player := self.mass.players.get(player_id):
             self._update_attributes(group_player)
+            await self._ungroup_subgroups_if_found(group_player)
 
     async def create_group(
         self, group_type: str, name: str, members: list[str], dynamic: bool = False
@@ -896,6 +897,28 @@ class PlayerGroupProvider(PlayerProvider):
             can_group_with = {}
         player.can_group_with = can_group_with
         self.mass.players.update(player.player_id)
+
+    async def _ungroup_subgroups_if_found(self, player: Player) -> None:
+        """Verify that no player is part of a separate group."""
+        group_type = self.mass.config.get_raw_player_config_value(
+            player.player_id, CONF_ENTRY_GROUP_TYPE.key, CONF_ENTRY_GROUP_TYPE.default_value
+        )
+        if group_type == GROUP_TYPE_UNIVERSAL:
+            # Verify that no player is part of a separate group
+            for child_player_id in player.group_childs:
+                child_player = self.mass.players.get(child_player_id)
+                if PlayerFeature.SET_MEMBERS not in child_player.supported_features:
+                    continue
+                if child_player.group_childs:
+                    # This is a leader in another group
+                    player_provider = self.mass.players.get_player_provider(child_player_id)
+                    for sync_child_id in child_player.group_childs:
+                        if sync_child_id == child_player_id:
+                            continue
+                        await player_provider.cmd_ungroup(sync_child_id)
+                if child_player.synced_to:
+                    # This is a member of another group
+                    await self.cmd_ungroup_member(child_player.player_id, child_player.synced_to)
 
     async def _serve_ugp_stream(self, request: web.Request) -> web.Response:
         """Serve the UGP (multi-client) flow stream audio to a player."""
