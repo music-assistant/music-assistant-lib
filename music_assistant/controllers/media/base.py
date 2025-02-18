@@ -805,9 +805,15 @@ class MediaControllerBase(Generic[ItemCls, LibraryUpdate], metaclass=ABCMeta):
             db_row_dict["album"] = track_album
             db_row_dict["disc_number"] = track_album["disc_number"]
             db_row_dict["track_number"] = track_album["track_number"]
-            # copy album image to itemmapping single image
+            # always prefer album image over track image
             if images := track_album.get("images"):
-                db_row_dict["album"]["image"] = next(
-                    (x for x in images if x["type"] == "thumb"), None
-                )
+                album_thumb = next((x for x in images if x["type"] == "thumb"), None)
+                if album_thumb:
+                    # copy album image to itemmapping single image
+                    db_row_dict["image"] = album_thumb
+                    if db_row_dict.get("metadata") and db_row_dict["metadata"].get("images"):
+                        db_row_dict["metadata"]["images"] = [
+                            album_thumb,
+                            *db_row_dict["metadata"]["images"],
+                        ]
         return db_row_dict
